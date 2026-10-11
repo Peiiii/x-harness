@@ -4,6 +4,7 @@ import {
   sameHandle,
   sameText,
   samePublishedText,
+  matchesReviewedAssets,
 } from "./platform-rules.js";
 export class PlatformWriting {
   #observed!: PlatformDependencies["observed"];
@@ -171,12 +172,7 @@ export class PlatformWriting {
       sameHandle(post.author, action.accountHandle) &&
       samePublishedText(post.body, action.text) &&
       /^\d+$/.test(post.id ?? "") &&
-      (!action.assets?.length ||
-        action.assets.every((asset: any) =>
-          /\.mp4$/i.test(asset.path ?? "")
-            ? post.media?.some((media: any) => media.kind === "video")
-            : post.images?.some((image: any) => image.alt === asset.alt),
-        )) &&
+      matchesReviewedAssets(post, action.assets) &&
       !(action.beforeIds ?? []).includes(post.id) &&
       Number.isFinite(Date.parse(post.datetime)) &&
       Date.parse(post.datetime) >= Date.parse(action.intentAt) &&

@@ -1,6 +1,6 @@
 import type { GrowthDependencies } from "./growth-dependencies.js";
 
-import { xURL } from "./platform-rules.js";
+import { xURL, matchesReviewedAssets } from "./platform-rules.js";
 import { same } from "./growth-constants.js";
 export class GrowthRecovery {
   #capability!: GrowthDependencies["capability"];
@@ -95,7 +95,7 @@ export class GrowthRecovery {
       url: publicURL,
       evidenceRef,
     });
-    const trailing = action.text.match(/\n\n(https:\/\/\S+)$/);
+    const trailing = action.text.match(/\n+(https:\/\/\S+)$/);
     const matches = (observation.posts ?? []).filter((p: any) => {
       const exact = p.body === action.text;
       const card =
@@ -114,9 +114,16 @@ export class GrowthRecovery {
         p.links?.includes(sourceLink.href)
       ) {
         try {
+          const displayed = new URL(
+            sourceLink.renderedText.replace(/\s/g, "").replace(/…$/, ""),
+          );
+          const resolved = new URL(sourceLink.resolvedURL);
+          // This rendering allowance requires the observed short link's actual
+          // destination to equal the reviewed source URL in the guard above.
+          if (resolved.hostname === `www.${displayed.hostname}`)
+            displayed.hostname = resolved.hostname;
           renderedSource =
-            new URL(sourceLink.renderedText.replace(/\s/g, "")).href ===
-              sourceLink.resolvedURL &&
+            displayed.href === resolved.href &&
             p.body?.endsWith(sourceLink.renderedText) &&
             p.body.slice(0, -sourceLink.renderedText.length).trimEnd() ===
               action.text.slice(0, -trailing[0].length);
@@ -132,10 +139,7 @@ export class GrowthRecovery {
         !(action.beforeIds ?? []).includes(p.id) &&
         Date.parse(p.datetime) >= Date.parse(action.intentAt) &&
         Date.parse(p.datetime) <= this.#clock() + 5000 &&
-        (!action.assets?.length ||
-          action.assets.every((a: any) =>
-            p.images?.some((i: any) => i.alt === a.alt),
-          ))
+        matchesReviewedAssets(p, action.assets)
       );
     });
     Object.assign(observation, {
