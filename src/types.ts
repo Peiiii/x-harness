@@ -100,6 +100,7 @@ export interface WindowOptions {
   maxPages?: number;
   processedIds?: string[];
 }
+export interface IncomingReplyOptions extends WindowOptions {}
 export interface BookmarkOptions extends WindowOptions {
   folder: string;
 }
@@ -347,6 +348,7 @@ export interface XGrowthHarness {
   readCreator(args: CreatorOptions): Promise<ReadResult>;
   readBookmarks(args: BookmarkOptions): Promise<ReadResult>;
   searchSources(args: SearchOptions): Promise<ReadResult>;
+  readIncomingReplies(args?: IncomingReplyOptions): Promise<ReadResult>;
   readPost(args: { target: PostTarget; mode?: ReadMode }): Promise<ReadResult>;
   readPerson(args: {
     target: PersonTarget;

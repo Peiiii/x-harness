@@ -39,6 +39,7 @@ export class BusinessHarness implements XGrowthHarness {
     this.readFeedback = this.readFeedback.bind(this);
     this.readPerson = this.readPerson.bind(this);
     this.readPost = this.readPost.bind(this);
+    this.readIncomingReplies = this.readIncomingReplies.bind(this);
     this.searchSources = this.searchSources.bind(this);
     this.readBookmarks = this.readBookmarks.bind(this);
     this.readCreator = this.readCreator.bind(this);
@@ -304,6 +305,36 @@ export class BusinessHarness implements XGrowthHarness {
   }
   public readBookmarks(args: import("./types.js").BookmarkOptions) {
     return this.read("readBookmarks", args, args.mode);
+  }
+  public async readIncomingReplies(
+    args: import("./types.js").IncomingReplyOptions = {},
+  ) {
+    const snapshot = await this.#store.load();
+    const handle = snapshot.state.accountHandle;
+    if (!/^[A-Za-z0-9_]{1,15}$/.test(handle ?? ""))
+      return {
+        status: "needsDecision" as const,
+        complete: false,
+        reason: "account-identity-required",
+      };
+    const processedIds = new Set(args.processedIds ?? []);
+    for (const action of snapshot.state.actions ?? []) {
+      if (
+        action.kind === "reply" &&
+        ["verified", "preexisting", "intent", "unknown"].includes(action.status)
+      )
+        processedIds.add(action.postId);
+    }
+    return this.read(
+      "searchSources",
+      {
+        query: `to:${handle} filter:replies -from:${handle}`,
+        limit: args.limit ?? 5,
+        maxPages: args.maxPages ?? 3,
+        processedIds: [...processedIds],
+      },
+      args.mode,
+    );
   }
   public searchSources(args: import("./types.js").SearchOptions) {
     return this.read("searchSources", args, args.mode);

@@ -1,9 +1,10 @@
 # Read tasks
 
-Load for reading only. A valid root binding `x` with existing ledger/proof paths suffices; no write plan needed. `mode` defaults to `receipt`; use `decision` immediately when drafting/reviewing needs text. `delta` omits only unchanged evidence previously returned by this instance; after context loss use `decision`.
+Use bound root `x`. Default `receipt` is compact; use `decision` for complete drafting evidence or after context loss; `delta` omits only previously delivered unchanged evidence.
 
 | API | Required | Optional |
 | --- | --- | --- |
+| readIncomingReplies | none | processedIds, limit (5), maxPages (3), mode |
 | readCreator | handle | target (default 10, 1–50), maxScrolls, navigate, expand, mode |
 | readBookmarks | folder (observed name) | processedIds, limit, maxPages, mode |
 | searchSources | query | processedIds, limit, maxPages, mode |
@@ -21,3 +22,5 @@ var postResult = await x.readPost({ target: observedPost, mode: 'decision' });
 Targets/proof come from actual observations, never guessed URLs or made-up references. API owns navigation/expansion and bounded collection. Native creator collection supports an already selected profile with `navigate:false`; it keeps relative times unknown and stops with partial evidence if the active page changes. Native automatic creator navigation remains `needsCapability`; inspect that signal before changing adapter.
 
 Results include status/evidenceRef/missing/IDs/completeness. In `decision`, creator/bookmark/search use `sources`, post `post`, person `person`, feedback `feedback`; account includes accountHandle/accountURL. `observed` alone does not prove every requested field exists. `pageComplete:false` is a collection boundary, not proof of truncated target text. View media before describing it. Return complete chosen evidence; keep other observations local. Only on failure load recovery.
+
+`readIncomingReplies` searches replies to the ledger account; skips settled/intent/unknown targets and processedIds (carry across dates). Candidates still need full thread/public dedup; finite windows never prove inbox clearance.
