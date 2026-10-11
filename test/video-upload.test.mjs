@@ -82,3 +82,31 @@ test("missing video preview and image without ALT still fail before submission",
     );
   }
 });
+
+test("video processing waits for enabled submission before the first click", async () => {
+  for (const videos of [[{ kind: "video" }], []]) {
+    const waits = [];
+    const result = {
+      needsStateCheck: false,
+      editors: [{ label: "帖子文本" }],
+      buttons: [{ label: "发帖" }],
+      videos,
+    };
+    const locator = {
+      count: async () => 1,
+      fill: async () => {},
+      and: () => locator,
+      waitFor: async (options) => waits.push(options),
+    };
+    const editor = new DOMEditing({
+      session: { current: { query: { view: "composer" }, result } },
+      tab: { playwright: { locator: () => locator } },
+      locator: () => locator,
+      unique: async (value) => value,
+    });
+    await editor.fillComposer({ text: "reviewed text" });
+    assert.deepEqual(waits, [
+      { state: "visible", timeoutMs: videos.length ? 60000 : 5000 },
+    ]);
+  }
+});

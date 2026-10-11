@@ -524,7 +524,10 @@ export class DOMEditing {
           ':not([disabled]):not([aria-disabled="true"])',
         ),
       )
-      .waitFor({ state: "visible", timeoutMs: 5000 });
+      .waitFor({
+        state: "visible",
+        timeoutMs: result.videos?.length ? 60000 : 5000,
+      });
     return { completed: true };
     return { completed: false, loc, submittedEditor };
   }
