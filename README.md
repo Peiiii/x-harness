@@ -53,4 +53,4 @@ npm run check
 
 Bootstrap installs the shared Qingtian AI development system and enables the staged Git hook. Its managed local files are excluded from Git and npm. Business owners use TypeScript classes with explicit constructor dependencies, private instance state and named methods. Pure functions and self-contained browser programs remain serializable. The file limit is 1000 lines; each hand-written source function has at most 150 own logic lines; runtime dependency cycles are rejected. Check/build/prepack/release and the staged hook reuse these rules.
 
-The private parent content repository mounts this repository at packages/x-harness as a pinned Git submodule. Account ledgers, browser evidence, publishing contracts and content-specific context adapters remain in the parent. They are not dependencies of this project.
+The private parent content repository consumes the published npm package. These are two independent Git repositories; the parent development workflow can maintain this checkout directly. Account ledgers, browser evidence, publishing contracts and content-specific context adapters remain in the parent. They are not dependencies of this project.

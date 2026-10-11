@@ -3,10 +3,10 @@ import { axParserCode } from "./readers-ax-program.js";
 import { readPosts, changes } from "./readers-posts.js";
 import { readProfile, screenCandidates } from "./readers-profile.js";
 import { readAX } from "./readers-ax-parser.js";
-import { createAXHarness } from "./readers-ax-host.js";
+import { AXHarness, createAXHarness } from "./readers-ax-host.js";
 
 export function setupCode(): any {
-  return `var xReadPosts = ${readPosts.toString()};\nvar xReadChanges = ${changes.toString()};\nvar xReadProfile = ${readProfile.toString()};\nvar xScreenCandidates = ${screenCandidates.toString()};\nvar xReadAX = ${axParserCode};\nvar xCreateAXHarness = (function(readAX) { return ${createAXHarness.toString()}; })(xReadAX);\nvar xAXSessions = {};\nvar xReadCache = {};\n`;
+  return `var xReadPosts = ${readPosts.toString()};\nvar xReadChanges = ${changes.toString()};\nvar xReadProfile = ${readProfile.toString()};\nvar xScreenCandidates = ${screenCandidates.toString()};\nvar xReadAX = ${axParserCode};\nvar xCreateAXHarness = (function(readAX) { const AXHarness = ${AXHarness.toString()}; return ${createAXHarness.toString()}; })(xReadAX);\nvar xAXSessions = {};\nvar xReadCache = {};\n`;
 }
 
 export function profileCode({ tab = "xtab", handle }: any = {}): any {

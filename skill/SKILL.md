@@ -1,6 +1,6 @@
 ---
 name: x-harness
-version: 0.2.0
+version: 0.2.1
 description: Use X through task APIs with compact receipts, complete target evidence and verified writes; requires compatible CUA and the user's X login.
 ---
 
@@ -13,7 +13,7 @@ Use the root business API. Load only the current task reference; reuse unchanged
 Read current host CUA documentation; bind a real logged-in `tab` or native `app`, exactly one. Preserve other tasks' tabs/editors.
 
 Installed module: `{{MODULE_URL}}`; CLI: `{{CLI_PATH}}`.
-In this repository use the absolute file URL of `<harness-repository>/dist/index.js` with original ledger/proof paths. Unresolved placeholders do not require reinstalling an existing repository runtime. Only absent runtime/workspace or an update needs [setup](references/setup.md).
+In a development checkout use the absolute file URL of `<harness-repository>/dist/index.js` with existing ledger/proof paths. Keep an existing repository runtime when placeholders remain unresolved. Only absent runtime/workspace or an update needs [setup](references/setup.md).
 
 ```js
 var { createXGrowthHarness } = await import(moduleURL);
