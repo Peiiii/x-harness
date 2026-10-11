@@ -173,7 +173,9 @@ export class PlatformWriting {
       /^\d+$/.test(post.id ?? "") &&
       (!action.assets?.length ||
         action.assets.every((asset: any) =>
-          post.images?.some((image: any) => image.alt === asset.alt),
+          /\.mp4$/i.test(asset.path ?? "")
+            ? post.media?.some((media: any) => media.kind === "video")
+            : post.images?.some((image: any) => image.alt === asset.alt),
         )) &&
       !(action.beforeIds ?? []).includes(post.id) &&
       Number.isFinite(Date.parse(post.datetime)) &&

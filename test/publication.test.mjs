@@ -22,7 +22,7 @@ const post = {
   primary: "/owner/status/10",
   needsExpansion: false,
 };
-async function verify(posts) {
+async function verify(posts, inputAction = action) {
   const platform = createXPlatform(
     {
       capabilities: () => ["refreshPosts"],
@@ -39,7 +39,7 @@ async function verify(posts) {
     },
     { clock: () => time },
   );
-  return platform.findSubmission(action);
+  return platform.findSubmission(inputAction);
 }
 test("published root URL slash rendering verifies once with author, intent time, baseline and reviewed image", async () => {
   const result = await verify([post]);
@@ -64,4 +64,22 @@ test("URL equivalence does not weaken body, host, path, query, author, media or 
       JSON.stringify(changed),
     );
   assert.equal((await verify([post, { ...post, id: "11" }])).verified, false);
+});
+
+test("MP4 publication requires a video on the exact fresh post", async () => {
+  const videoAction = { ...action, assets: [{ path: "/synthetic/clip.mp4" }] };
+  assert.equal(
+    (
+      await verify(
+        [{ ...post, images: [], media: [{ kind: "video" }] }],
+        videoAction,
+      )
+    ).verified,
+    true,
+  );
+  for (const media of [[], [{ kind: "image" }]])
+    assert.equal(
+      (await verify([{ ...post, media }], videoAction)).verified,
+      false,
+    );
 });

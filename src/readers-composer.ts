@@ -127,6 +127,14 @@ export function readComposer(): any {
     images: Array.from<any>(scope.querySelectorAll("img"))
       .filter(visible)
       .map((el: any) => ({ alt: el.alt })),
+    videos: Array.from<any>(
+      scope.querySelectorAll('[data-testid="videoPlayer"],video'),
+    )
+      .filter(visible)
+      .map((el: any) => ({
+        kind: "video",
+        label: el.getAttribute("aria-label"),
+      })),
     needsStateCheck: false,
   };
 }

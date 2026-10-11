@@ -386,11 +386,25 @@ export class DOMEditing {
       result.needsStateCheck ||
       command.assets?.length !== 1
     )
-      throw new Error("仅上传已观察编辑器的一张带ALT图片");
+      throw new Error("仅上传已观察编辑器的一张图片或一个MP4视频");
     const asset = command.assets[0];
-    if (!asset.alt?.trim()) throw new Error("图片须有完整ALT");
+    const isVideo = /\.mp4$/i.test(asset.path ?? "");
+    if (!isVideo && !asset.alt?.trim()) throw new Error("图片须有完整ALT");
     this.#session.current = null;
     await attachImage(this.#tab, { path: asset.path });
+    if (isVideo) {
+      await this.#tab.playwright
+        .locator('[data-testid="videoPlayer"],video')
+        .first()
+        .waitFor({ state: "visible", timeoutMs: 60000 });
+      const composer = await this.#observe({ view: "composer" });
+      if (composer.needsStateCheck || !composer.videos?.length)
+        throw new Error("上传视频预览未确认");
+      return {
+        completed: true,
+        value: { assets: [asset], mediaEvidence: composer.videos, composer },
+      };
+    }
     await this.#tab.playwright
       .getByRole("button", {
         name: /^(?:编辑|Edit)(?:图片|照片|媒体| image| photo| media)?(?: \d+)?$/i,
