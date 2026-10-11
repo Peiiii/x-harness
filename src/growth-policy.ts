@@ -104,7 +104,7 @@ export class GrowthPolicy {
         hourCycle: "h23",
       }).format(now),
     );
-    if (hour < 7 || hour >= 22)
+    if ((hour < 7 || hour >= 22) && !this.authorizedWindow(state, "follow"))
       return {
         status: "needsDecision",
         reason: "outside-contract-write-window",
