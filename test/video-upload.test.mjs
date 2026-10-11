@@ -105,8 +105,60 @@ test("video processing waits for enabled submission before the first click", asy
       unique: async (value) => value,
     });
     await editor.fillComposer({ text: "reviewed text" });
-    assert.deepEqual(waits, [
-      { state: "visible", timeoutMs: videos.length ? 60000 : 5000 },
-    ]);
+    assert.deepEqual(waits, [{ state: "visible", timeoutMs: 5000 }]);
+  }
+});
+
+test("a host-capped video wait resumes observation, never the submission", async () => {
+  let attempts = 0;
+  const locator = {
+    fill: async () => {},
+    and: () => locator,
+    waitFor: async () => {
+      if (++attempts === 1) throw Error("selector deadline exceeded");
+    },
+  };
+  const result = {
+    editors: [{ label: "帖子文本" }],
+    buttons: [{ label: "发帖" }],
+    videos: [{ kind: "video" }],
+  };
+  const editor = new DOMEditing({
+    session: { current: { query: { view: "composer" }, result } },
+    tab: { playwright: { locator: () => locator } },
+    locator: () => locator,
+    unique: async (value) => value,
+  });
+  await editor.fillComposer({ text: "reviewed text" });
+  assert.equal(attempts, 2);
+});
+
+test("host-capped video waiting is bounded and non-timeout failures are not retried", async () => {
+  for (const message of ["selector deadline exceeded", "host disconnected"]) {
+    let attempts = 0;
+    const locator = {
+      fill: async () => {},
+      and: () => locator,
+      waitFor: async () => {
+        attempts++;
+        throw Error(message);
+      },
+    };
+    const result = {
+      editors: [{ label: "帖子文本" }],
+      buttons: [{ label: "发帖" }],
+      videos: [{ kind: "video" }],
+    };
+    const editor = new DOMEditing({
+      session: { current: { query: { view: "composer" }, result } },
+      tab: { playwright: { locator: () => locator } },
+      locator: () => locator,
+      unique: async (value) => value,
+    });
+    await assert.rejects(
+      editor.fillComposer({ text: "reviewed text" }),
+      new RegExp(message),
+    );
+    assert.equal(attempts, message === "host disconnected" ? 1 : 12);
   }
 });
