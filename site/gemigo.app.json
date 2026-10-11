@@ -1,0 +1,15 @@
+{
+  "$schema": "https://gemigo.io/schema/gemigo.app.schema.json",
+  "sourceDir": "./dist",
+  "slug": "x-harness",
+  "visibility": "public",
+  "category": "Tools",
+  "tags": ["ai", "agents", "developer-tools"],
+  "defaultLocale": "zh-CN",
+  "locales": {
+    "zh-CN": {
+      "name": "X Harness",
+      "description": "给浏览器 AI Agent 的 X 任务 API。一次安装运行包与 Skill，保留完整目标证据，用紧凑回执完成任务。免费使用，非开源许可。"
+    }
+  }
+}

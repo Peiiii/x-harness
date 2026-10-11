@@ -1,0 +1,69 @@
+{
+  "name": "@nextclaw/x-harness",
+  "version": "0.2.0",
+  "private": false,
+  "type": "module",
+  "description": "Typed X task harness with compact business results and explicit diagnostics.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./diagnostics": {
+      "types": "./dist/diagnostics.d.ts",
+      "import": "./dist/diagnostics.js"
+    }
+  },
+  "files": [
+    "dist",
+    "generated",
+    "cli",
+    "skill",
+    "README.md",
+    "LICENSE",
+    "SOURCE.md"
+  ],
+  "scripts": {
+    "build": "npm run maintainability && tsc -p tsconfig.json && node scripts/generate-observation.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "check": "npm run maintainability && npm run format:check && npm run typecheck && npm run typecheck:cli && npm run build && npm run typecheck:contracts && npm run test && node scripts/check-skill.mjs && node scripts/generate-observation.mjs --check",
+    "prepack": "node release/build.mjs --root-pack",
+    "typecheck:contracts": "tsc -p tsconfig.contracts.json",
+    "format:check": "prettier --check src test scripts release site",
+    "maintainability": "node scripts/check-maintainability.mjs",
+    "release:build": "node release/build.mjs",
+    "test:release": "node --test release/test/*.test.mjs",
+    "site:build": "node site/build.mjs",
+    "site:deploy": "node site/deploy.mjs",
+    "bootstrap": "node scripts/bootstrap.mjs",
+    "ai:check": "qingtian check --target .",
+    "typecheck:cli": "tsc -p release/tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "22",
+    "typescript": "^5.9.3",
+    "prettier": "^3.9.9",
+    "@nextclaw/qingtian": "0.1.3"
+  },
+  "license": "AGPL-3.0-only",
+  "homepage": "https://x-harness.gemigo.app/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Peiiii/x-harness.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Peiiii/x-harness/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "x-harness": "./cli/main.js"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

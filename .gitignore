@@ -1,0 +1,15 @@
+node_modules/
+dist/
+cli/
+.release-source/
+.release-cli/
+.local/
+site/dist/
+*.tgz
+.agents/skills/development-*/
+.agents/skills/qingtian-dashboard/
+.agents/wiki/
+.agents/workflows/
+.agents/ai-development-system.lock.json
+
+/SOURCE.md

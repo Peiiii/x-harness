@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>X Harness · 给 Agent 的 X 任务 API</title>
+    <meta
+      name="description"
+      content="让浏览器 AI Agent 少走步骤，读到完整证据。免费安装 X Harness 运行包与可更新 Skill，TypeScript 源码公开，采用 AGPL-3.0 开源许可。"
+    />
+    <meta name="theme-color" content="#111512" />
+    <link rel="stylesheet" href="style.css" />
+    <script type="module" src="main.js"></script>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 40 40%27%3E%3Crect width=%2740%27 height=%2740%27 rx=%278%27 fill=%27%23111512%27/%3E%3Ctext x=%276%27 y=%2729%27 fill=%27%23c6f06c%27 font-size=%2725%27 font-family=%27monospace%27%3Ex/%3C/text%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <header class="nav wrap">
+      <a class="brand" href="#"
+        ><span class="mark">x/</span>harness<span class="version"
+          >v{{VERSION}}</span
+        ></a
+      >
+      <nav aria-label="主导航">
+        <a href="https://github.com/Peiiii/x-harness">GitHub ↗</a>
+        <a href="#api">API</a><a href="#start">使用</a><a href="#update">更新</a
+        ><a class="nav-install" href="#install">安装 ↗</a>
+      </nav>
+    </header>
+    <main>
+      <section class="hero wrap">
+        <div class="hero-copy">
+          <p class="eyebrow">
+            <span class="dot"></span> FOR BROWSER-ENABLED AI AGENTS
+          </p>
+          <h1>少走步骤。<br />读到<span>完整证据。</span></h1>
+          <p class="lead">
+            把 X 上的读取、发布、回复与核验，<br
+              class="desktop"
+            />交给清晰的任务 API。Agent 专注下一步。
+          </p>
+          <a class="primary" href="#install"
+            >安装运行包 + Skill <span>↗</span></a
+          >
+          <p class="meta">
+            已验证 Codex 桌面版 CUA<br />免费使用 · 可更新 Skill · AGPL-3.0 开源
+          </p>
+        </div>
+        <div class="terminal">
+          <div class="terminal-head">
+            <span class="terminal-dots">● ● ●</span
+            ><span>x-harness / task.ts</span><span class="live">ROOT API</span>
+          </div>
+          <pre class="code"><span class="muted">// 绑定你的真实浏览器 tab</span>
+<span class="violet">const</span> x = <span class="lime">createXGrowthHarness</span>({
+  tab, ledgerPath, proofDirectory
+});
+
+<span class="muted">// 一个调用，读取一个完整任务</span>
+<span class="violet">await</span> x.<span class="lime">readCreator</span>({
+  handle: <span class="peach">'your_handle'</span>,
+  target: <span class="peach">5</span>, mode: <span class="peach">'decision'</span>
+});</pre>
+          <div class="terminal-foot">
+            <span>完整目标正文</span><span>本地证据</span><span>明确缺口</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="wrap features" id="api">
+        <div class="section-heading">
+          <p class="eyebrow">01 / TASKS</p>
+          <h2>任务有名字。结果有依据。</h2>
+        </div>
+        <div class="feature-grid">
+          <article>
+            <span class="number">01</span>
+            <h3>读取一个任务</h3>
+            <p>
+              书签、搜索、博主、帖子与反馈。只返回相关内容，目标正文保持完整。
+            </p>
+            <code>readBookmarks · readCreator · readPost</code>
+          </article>
+          <article>
+            <span class="number">02</span>
+            <h3>完成一次行动</h3>
+            <p>
+              发布、回复、关注。用户授权与审稿证据通过后，记录意图、提交、核验。
+            </p>
+            <code>publishPost · replyToPost · followBatch</code>
+          </article>
+          <article>
+            <span class="number">03</span>
+            <h3>接续真实状态</h3>
+            <p>提交结果未知时先查证。保留原始台账，已完成的动作不重复执行。</p>
+            <code>verifySubmission · inspectRound</code>
+          </article>
+        </div>
+      </section>
+      <section class="wrap result-section">
+        <div>
+          <p class="eyebrow">02 / OUTPUT</p>
+          <h2>省去噪音，<br />留下判断依据。</h2>
+          <p class="body-copy">
+            导航、重复页面信息和内部字段不占回执。需要决策时拿到完整目标证据；再次读取时只看变化。
+          </p>
+        </div>
+        <div class="output">
+          <div role="tablist" aria-label="回执模式">
+            <button role="tab" aria-selected="true" data-mode="receipt">
+              receipt</button
+            ><button role="tab" aria-selected="false" data-mode="decision">
+              decision</button
+            ><button role="tab" aria-selected="false" data-mode="delta">
+              delta
+            </button>
+          </div>
+          <div data-panel="receipt">
+            <strong>短回执</strong>
+            <p>状态 · 目标 ID · 本地证据引用 · 必要告警</p>
+            <code>{ status, ids, evidenceRef, missing }</code>
+          </div>
+          <div data-panel="decision" hidden>
+            <strong>完整目标证据</strong>
+            <p>完整正文、作者、时间、媒体与来源，缺失字段明确标记。</p>
+            <code>{ status, sources, evidenceRef, missing }</code>
+          </div>
+          <div data-panel="delta" hidden>
+            <strong>只看新变化</strong>
+            <p>重新观察页面，返回变化对象的完整证据，列出未变化 ID。</p>
+            <code>{ status, sources, unchangedIds }</code>
+          </div>
+        </div>
+      </section>
+      <section class="install-section" id="install">
+        <div class="wrap">
+          <p class="eyebrow">03 / INSTALL</p>
+          <h2>运行包和 Skill，一次装好。</h2>
+          <p class="body-copy">
+            Node.js 22+ · Codex 桌面版 CUA · 你自己的 X 登录
+          </p>
+          <div class="command">
+            <code>npx @nextclaw/x-harness@latest setup --target codex</code
+            ><button
+              data-copy="npx @nextclaw/x-harness@latest setup --target codex"
+              aria-label="复制命令"
+            >
+              复制
+            </button>
+          </div>
+          <p
+            id="copy-status"
+            class="copy-status"
+            role="status"
+            aria-live="polite"
+          ></p>
+          <p class="install-note">
+            安装后，在 Agent 中使用
+            <code>x-harness</code> Skill。运行路径稳定，配置与台账属于你。
+          </p>
+          <a class="text-link" href="README.txt" target="_blank" rel="noopener"
+            >查看完整安装文档 ↗</a
+          >
+        </div>
+      </section>
+      <section class="wrap start" id="start">
+        <div>
+          <p class="eyebrow">04 / START</p>
+          <h2>从你的账号开始。</h2>
+        </div>
+        <ol>
+          <li>
+            <span>1</span>
+            <div>
+              <h3>安装，再初始化自己的工作区</h3>
+              <p>
+                安装回执提供 CLI 路径。用
+                <code>init --directory ./x-workspace --account 你的handle</code>
+                建立配置、台账和证明目录。
+              </p>
+            </div>
+          </li>
+          <li>
+            <span>2</span>
+            <div>
+              <h3>让 Skill 绑定已有浏览器</h3>
+              <p>
+                Agent 读取宿主文档，使用你已登录的真实 tab，直接调用顶层任务
+                API。
+              </p>
+            </div>
+          </li>
+          <li>
+            <span>3</span>
+            <div>
+              <h3>先读，再按授权执行</h3>
+              <p>
+                初始化不规划任何写操作。发布与互动需要你的任务授权、审稿证据和台账计划。
+              </p>
+            </div>
+          </li>
+        </ol>
+      </section>
+      <section class="wrap update" id="update">
+        <p class="eyebrow">05 / UPDATE</p>
+        <h2>升级能力，保留自己的数据。</h2>
+        <div class="command">
+          <code>npx @nextclaw/x-harness@latest update --target codex</code
+          ><button
+            data-copy="npx @nextclaw/x-harness@latest update --target codex"
+            aria-label="复制命令"
+          >
+            复制
+          </button>
+        </div>
+        <p class="body-copy">
+          运行包与 Skill
+          同步更新。旧版本留备份，工作区不受替换影响。更新后重新绑定模块，再核验一次真实读取。
+        </p>
+      </section>
+      <section class="wrap details">
+        <details>
+          <summary>支持哪些宿主？</summary>
+          <p>
+            已验证 Codex 桌面版的 CUA 浏览器环境。<code>--target claude</code>
+            可安装 Claude Skill 文本，但该宿主仍须另外提供兼容的 CUA
+            tab/app；安装 Skill 不会自动赋予浏览器控制能力。
+          </p>
+        </details>
+        <details>
+          <summary>开源许可是什么？</summary>
+          <p>
+            采用
+            AGPL-3.0-only，可用于个人与商业工作。再分发以及通过网络提供修改版本时，须履行许可规定的对应源码提供义务。<a
+              href="https://github.com/Peiiii/x-harness"
+              >查看完整 TypeScript 源码 ↗</a
+            >
+            · <a href="LICENSE.txt">阅读完整许可 ↗</a>
+          </p>
+        </details>
+        <details>
+          <summary>写任务有哪些条件？</summary>
+          <p>
+            使用者自己授权、身份与目标证据齐全、原始台账有计划。当前写入窗口为上海时间
+            原创、关注 07:00–22:00，回复
+            07:00–24:00，以原项目合同的更严格限制为准；关注候选门要求已审阅的中文蓝标账号。结果未知时先核验，不能算成功或直接重发。
+          </p>
+        </details>
+      </section>
+    </main>
+    <footer class="wrap">
+      <a class="brand" href="#"><span class="mark">x/</span>harness</a>
+      <p>
+        Built by <a href="https://x.com/XiaotiaoWang">Wang Pei</a> ·
+        独立工具，与 X 官方无隶属关系
+      </p>
+      <a href="LICENSE.txt">License ↗</a>
+    </footer>
+  </body>
+</html>

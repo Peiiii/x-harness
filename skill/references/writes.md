@@ -1,0 +1,51 @@
+# Writes and rounds
+
+Load common review plus only the operation heading needed. Existing project contract owns authorization, identity, budgets, policy and original ledger plan. Independent initialization has zero planned writes; set only authorized counts in that ledger before executing. Current runtime window is 07:00–24:00 Asia/Shanghai for replies and 07:00–22:00 for other writes; follow gates require reviewed Chinese-language blue-check candidates. Do not expand scope. Examples below use existing real observations/proof; they are not executable authorization.
+
+## Common review
+
+A prepared action has id (stable original ID), status:'prepared', accountHandle, accountURL, accountEvidenceRef and quality. All proof references are existing files; URLs/identity must be actually observed. Already prepared ledger actions need not be prepared again.
+
+Content quality: `{approved:true,approvedText:text,evidenceRef:reviewProof,draftFingerprint}`; original fingerprint is SHA-256 of exact draft file bytes. Use Node crypto/createHash and fs/readFileSync locally; this requires no runtime source. Reply quality needs approvedText/proof; original also needs draftFingerprint. Any changed text/file needs a fresh review. Follow quality: `{approved:true,handle,blue:true,chinese:true,evidenceRef:reviewProof}`; verify evidence, never infer blue from generic certification.
+
+Action APIs return status/actionId/publicURL/evidenceRef and reason/missing/resumeAt when relevant. Verified requires public proof. Unknown loads recovery, never resubmits. Business calls own intent, submit once, fresh verification and original settlement.
+
+## Publish
+
+Additional fields: kind:'original', draftPath (existing .post.md), text (complete approved text), composeURL, composeEvidenceRef; optional assets:[{path,alt}], activation:'click'|'keyboard'. Every media path must exist and be reviewed.
+
+```js
+var result = await x.publishPost({ taskId, draftPath, preparedAction: {
+  id: actionId, status: 'prepared', kind: 'original',
+  accountHandle, accountURL, accountEvidenceRef,
+  quality: { approved: true, approvedText: text, evidenceRef: reviewProof, draftFingerprint },
+  draftPath, text, composeURL, composeEvidenceRef,
+} });
+```
+
+Optional independentExecution:{tabId,evidenceRef,scopeEvidenceRef} requires real independent task-tab/scope proof; binding executor scope is covered in setup only if needed. Existing original action can omit preparedAction; draftPath still required.
+
+## Reply
+
+Additional fields: kind:'reply', postId, url, evidenceRef (observed parent), text; optional assets/activation as above. Common account/quality fields still required. The exact parent is verified by the API.
+
+```js
+var result = await x.replyToPost({ taskId, postId, text, preparedAction: {
+  id: actionId, status: 'prepared', kind: 'reply',
+  accountHandle, accountURL, accountEvidenceRef,
+  quality: { approved: true, approvedText: text, evidenceRef: reviewProof },
+  postId, url: parentURL, evidenceRef: parentProof, text,
+} });
+```
+
+## Follow
+
+Additional fields: kind:'follow', handle, url, evidenceRef (observed person), plus common account fields and follow quality. Batch uses `{taskId,handles,preparedActions?}`; original contract determines allowed batch sizes. Each preparedAction corresponds to its handle. If already prepared, omit preparedActions. `await x.followOne({taskId,handle})` requires its original prepared action and project-permitted single-action scope. A preexisting relationship is not a new verified follow; honor result counts.
+
+## Round
+
+`await x.inspectRound({taskId})` inspects original state; `await x.runGrowthRound({taskId,maxActions})` runs/resumes it. maxActions bounds this call, not original planned total. Preparation uses decision:{type:'prepareActions',accountHandle,ownershipEvidenceRef,actions}; actions are the reviewed structures above.
+
+Optional decision fields: attemptsCoverage:{complete,since,evidenceRef}, sharedAttempts:[{kind,at}], nextScheduledCheckAt. For follow budgets, coverage must actually cover the required window; unknown history cannot be recorded as zero. Missing data remains a decision gap.
+
+Review an existing action with decision:{actionId,approved,evidenceRef,approvedText?,draftFingerprint?,blue?,chinese?}; use content fields for content, blue/chinese for follow. approved:false skips that candidate without filling original planned count. Preserve intent/unknown/verified states and IDs. Read returned gaps/decision/mayEnd; partial success is not whole-round completion.

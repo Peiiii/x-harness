@@ -1,0 +1,221 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { createXGrowthHarness } from "../dist/index.js";
+import { fixture } from "./fixtures.mjs";
+function tabFixture({
+  incomplete = false,
+  alerts = [],
+  interrupt = false,
+} = {}) {
+  const calls = [];
+  const article = {
+    first: () => article,
+    waitFor: async () => {},
+    getByRole: () => ({ all: async () => [] }),
+  };
+  const tab = {
+    id: "creator-tab",
+    url: async () => "https://x.com/creator",
+    goto: async () => calls.push("goto"),
+    reload: async () => calls.push("reload"),
+    scroll: async () => calls.push("scroll"),
+    getAXState: async () => {
+      calls.push("AX");
+      if (interrupt) throw Error("browser connection interrupted");
+      return {};
+    },
+    playwright: {
+      locator: () => article,
+      evaluate: async (fn, args) => {
+        calls.push(fn.name);
+        if (fn.name === "readProfile")
+          return {
+            handle: "creator",
+            blue: true,
+            biography: "作者简介",
+            following: { value: 10, text: "10 正在关注", precision: "exact" },
+            followers: { value: 20, text: "20 关注者", precision: "exact" },
+          };
+        if (fn.name === "readCreatorMeta")
+          return {
+            headerText: "作者\n1.5万 帖子\n2019年9月 加入\n编辑/关注/噪音",
+            totalPostsText: "1.5万 帖子",
+            externalLinks: [
+              "https://example.com",
+              "https://x.com/tos",
+              "https://help.x.com/faq",
+            ],
+            missing: [],
+          };
+        if (fn.name === "readCreatorPostExtras")
+          return [
+            {
+              id: "123",
+              metricDescriptions: ["2 回复", "3 喜欢次数", "4 次观看", "Grok"],
+              quoted: false,
+              videoElements: 0,
+              images: [{ src: "avatar" }],
+            },
+          ];
+        return {
+          page: "https://x.com/creator",
+          moreInDOM: false,
+          alerts,
+          posts: [
+            {
+              id: "123",
+              author: "creator",
+              datetime: incomplete ? null : "2026-10-11T12:00:00.000Z",
+              primary: "/creator/status/123",
+              body: "完整正文\n".repeat(40),
+              images: [
+                { src: "https://pbs.twimg.com/media/abc", alt: "正文图" },
+              ],
+              links: ["/creator", "https://example.com/source"],
+              buttons: [{ label: "更多" }],
+            },
+          ],
+        };
+      },
+    },
+  };
+  return { tab, calls };
+}
+const make = (t, options) => {
+  const f = fixture(t),
+    v = tabFixture(options);
+  return {
+    ...f,
+    ...v,
+    api: createXGrowthHarness({
+      tab: v.tab,
+      ledgerPath: f.ledger,
+      proofDirectory: f.dir,
+    }),
+  };
+};
+test("creator root collects once, preserves exact evidence and local raw proof, whitelists metadata and seeds delta", async (t) => {
+  const f = make(t);
+  const result = await f.api.readCreator({
+    handle: "creator",
+    target: 1,
+    maxScrolls: 0,
+    mode: "decision",
+  });
+  assert.equal(result.status, "observed");
+  assert.equal(result.complete, true);
+  assert.equal(result.person.handle, "creator");
+  assert.equal(result.creator.totalPostsText, "1.5万 帖子");
+  assert.equal(result.creator.name, "作者");
+  assert.deepEqual(result.creator.externalLinks, ["https://example.com"]);
+  assert.equal(result.creator.joined, "2019年9月 加入");
+  assert.equal(result.sources[0].body, "完整正文\n".repeat(40));
+  assert.equal(result.sources[0].url, "https://x.com/creator/status/123");
+  assert.equal(result.sources[0].images[0].alt, "正文图");
+  assert.deepEqual(result.sources[0].metrics, [
+    "2 回复",
+    "3 喜欢次数",
+    "4 次观看",
+  ]);
+  assert.ok(!JSON.stringify(result).includes("编辑/关注/噪音"));
+  assert.equal(f.calls.filter((v) => v === "readXObservation").length, 1);
+  assert.ok(
+    readFileSync(result.evidenceRef, "utf8").includes("编辑/关注/噪音"),
+  );
+  const delta = await f.api.readCreator({
+    handle: "creator",
+    target: 1,
+    maxScrolls: 0,
+    mode: "delta",
+  });
+  assert.deepEqual(delta.unchangedIds, ["123"]);
+  assert.deepEqual(delta.sources, []);
+  assert.equal(delta.person, undefined);
+  assert.equal(delta.creator, undefined);
+  assert.equal(delta.fresh, true);
+  const receipt = await f.api.readCreator({
+    handle: "creator",
+    target: 1,
+    maxScrolls: 0,
+  });
+  assert.equal(receipt.sources, undefined);
+  assert.equal(receipt.person, undefined);
+  assert.ok(Buffer.byteLength(JSON.stringify(receipt)) < 1024);
+});
+test("creator partial time, platform warning and unsupported native adapter never count complete", async (t) => {
+  const f = make(t, { incomplete: true });
+  const result = await f.api.readCreator({
+    handle: "creator",
+    target: 1,
+    maxScrolls: 0,
+    mode: "decision",
+  });
+  assert.equal(result.status, "needsDecision");
+  assert.equal(result.complete, false);
+  assert.ok(result.missing.includes("absolute-time-missing"));
+  const a = make(t, { alerts: ["请验证身份"] });
+  const partial = await a.api.readCreator({
+    handle: "creator",
+    target: 1,
+    maxScrolls: 0,
+    mode: "decision",
+  });
+  assert.equal(partial.complete, false);
+  assert.ok(partial.missing.includes("platform-alert"));
+  let reads = 0;
+  const native = createXGrowthHarness({
+    app: {
+      getAXState: async () => {
+        reads++;
+        return {};
+      },
+    },
+    ledgerPath: f.ledger,
+    proofDirectory: f.dir,
+  });
+  const absent = await native.readCreator({ handle: "creator", target: 1 });
+  assert.equal(absent.status, "needsCapability");
+  assert.equal(reads, 0);
+});
+test("creator interruption remains a compact business failure; subsequent same instance can resume", async (t) => {
+  const f = make(t, { interrupt: true });
+  const r = await f.api.readCreator({ handle: "creator", target: 1 });
+  assert.equal(r.status, "needsDecision");
+  assert.equal(r.fresh, false);
+  assert.equal(r.diagnostic.code, "connection-failed");
+  f.tab.getAXState = async () => ({});
+  const resumed = await f.api.readCreator({
+    handle: "creator",
+    target: 1,
+    maxScrolls: 0,
+  });
+  assert.equal(resumed.status, "observed");
+});
+
+test("creator delta preserves changed profile when post content is unchanged", async (t) => {
+  const f = make(t);
+  await f.api.readCreator({
+    handle: "creator",
+    target: 1,
+    maxScrolls: 0,
+    mode: "decision",
+  });
+  const original = f.tab.playwright.evaluate;
+  f.tab.playwright.evaluate = async (fn, args) => {
+    const result = await original(fn, args);
+    return fn.name === "readProfile"
+      ? { ...result, biography: "新简介" }
+      : result;
+  };
+  const result = await f.api.readCreator({
+    handle: "creator",
+    target: 1,
+    maxScrolls: 0,
+    mode: "delta",
+  });
+  assert.deepEqual(result.sources, []);
+  assert.deepEqual(result.unchangedIds, ["123"]);
+  assert.equal(result.person.biography, "新简介");
+  assert.equal(result.creator, undefined);
+});
