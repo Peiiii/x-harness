@@ -91,6 +91,7 @@ export class PlatformWriting {
       let value = await this.#followStage(action, "verify-read", () =>
         this.#readPerson(action),
       );
+      const verificationAlerts = [...(value.alerts ?? [])];
       if (!value.needsStateCheck) {
         const absent = this.#browser.capabilities?.("refreshPerson") ?? [
           "refreshPerson",
@@ -114,6 +115,10 @@ export class PlatformWriting {
           this.#readPerson(action),
         );
       }
+      value = {
+        ...value,
+        alerts: [...new Set([...verificationAlerts, ...(value.alerts ?? [])])],
+      };
       return {
         ...value,
         verified:
