@@ -1,6 +1,6 @@
 # Recovery by signal
 
-Load on failure/unknown only. Keep operation/status/missing/code/proof/error; never infer success or repeat identical failures.
+Load on failure/unknown only. Keep operation/status/missing/code/proof/error; do not infer success or repeat failures.
 
 | Signal | Next action and exit condition |
 | --- | --- |
@@ -16,10 +16,10 @@ Load on failure/unknown only. Keep operation/status/missing/code/proof/error; ne
 
 ## Host connection or native focus
 
-Failure to list/bind Chrome is a host-connection failure before reaching X, not proof of logged-out X. Per current host documentation rediscover the task tab once; validate navigation plus a necessary visible read. Native focus rejection instead needs latest AX URL/window confirmation and one supported focus correction. Do not repeat discovery or restart editors blindly.
+Naming failure is not tab failure or X logout. Once, try a host-supported alternative: real Chrome → owned tab → root read. Preserve editors; no policy bypass/unchanged retries. Success proves current reading, not stable transport/writes. Reuse bindings; after real reset rediscover Chrome identity, not old numeric IDs. Native rejection needs fresh URL/window and one supported correction. App fallback keeps root calls; do not change network settings.
 
-Lost tab: reuse a live owned tab or create a task tab in the same actual browser; preserve other editors. Native fallback changes binding to app, not business calls; unsupported native tasks remain gaps. Network/TUN observations do not authorize setting changes.
+`tab-busy`: inspect proof/claim. Age/null PID is not termination. Only evidenced own-runtime termination permits CAS release matching executor/runtime/token, preserving intent/unknown and others. Verify same ID, never resubmit. Do not reset a working runtime to diagnose another error.
 
 ## Repair boundary
 
-Normal use/known recovery need no source. Unresolved runtime defect/unsupported capability permits diagnostics: maintainers repair the owner, verify the failed boundary and return to root; consumers report gap/update/support, without private TS. Never scan adapters for arguments, add parsers, bypass refusal or resubmit unknown.
+Source is only for unresolved defects/capability gaps: maintainers repair the owner, verify the failed boundary and return to root; consumers report gap/update/support, without source. Never scan adapters for arguments, add parsers, bypass refusal or resubmit unknown.
