@@ -88,7 +88,9 @@ export class DOMSubmission {
         .waitFor({ state: "visible", timeoutMs: 5000 });
       if (xURL(await this.#tab.url()).pathname === "/compose/post")
         await this.#tab.playwright
-          .getByText(`回复 @${binding.author}`, { exact: true })
+          .getByText(
+            new RegExp(`^回复 @${binding.author}(?:$|[\\s,，、])`, "i"),
+          )
           .waitFor({ state: "visible", timeoutMs: 5000 });
       const composer = await this.#observe({ view: "composer" });
       const quote =
