@@ -44,6 +44,8 @@ var result = await x.replyToPost({ taskId, postId, text, preparedAction: {
 
 Additional fields: kind:'follow', handle, url, evidenceRef (observed person), plus common account fields and follow quality. Batch uses `{taskId,handles,preparedActions?}`; original contract determines allowed batch sizes. Each preparedAction corresponds to its handle. If already prepared, omit preparedActions. `await x.followOne({taskId,handle})` requires its original prepared action and project-permitted single-action scope. A preexisting relationship is not a new verified follow; honor result counts.
 
+Explicit later follow window: read [authorized window](authorized-window.md) only when the user/project changes the time gate. Existing scoped permits support it; do not inspect source or change the clock.
+
 ## Round
 
 `await x.inspectRound({taskId})` inspects original state; `await x.runGrowthRound({taskId,maxActions})` runs/resumes it. maxActions bounds this call, not original planned total. Preparation uses decision:{type:'prepareActions',accountHandle,ownershipEvidenceRef,actions}; actions are the reviewed structures above.

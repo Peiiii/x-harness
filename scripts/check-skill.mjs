@@ -101,7 +101,7 @@ for (const text of [entry, ...Object.values(refs)]) {
     snippets.push(match[1] + ";");
 }
 const strings =
-  "moduleURL ledgerPath proofDirectory selectedHandle actionId taskId accountHandle accountURL accountEvidenceRef text reviewProof draftFingerprint draftPath composeURL composeEvidenceRef postId parentURL parentProof handle url evidenceRef publicURL".split(
+  "moduleURL ledgerPath proofDirectory selectedHandle actionId taskId accountHandle accountURL accountEvidenceRef text reviewProof draftFingerprint draftPath composeURL composeEvidenceRef postId parentURL parentProof handle url evidenceRef publicURL executorId authorizationProof startsAt expiresAt".split(
     " ",
   );
 const declarations = `import { createXGrowthHarness, type XGrowthHarness, type CuaTab, type PostTarget } from ${JSON.stringify(join(root, "dist/index.js"))};\ndeclare const x: XGrowthHarness;\ndeclare const tab: CuaTab;\ndeclare const observedPost: PostTarget;\ndeclare const maxActions: number;\n${strings.map((name) => `declare const ${name}: string;`).join("\n")}\n`;
@@ -124,6 +124,9 @@ try {
     target: ts.ScriptTarget.ES2022,
     module: ts.ModuleKind.NodeNext,
     moduleResolution: ts.ModuleResolutionKind.NodeNext,
+    paths: {
+      "@nextclaw/x-harness/diagnostics": [join(root, "dist/diagnostics.d.ts")],
+    },
     skipLibCheck: true,
   });
   const diagnostics = ts.getPreEmitDiagnostics(program);
