@@ -122,11 +122,19 @@ export class DOMSubmission {
     // receipt navigation/reload can interrupt the actual submission request.
     if (submittedEditor)
       await submittedEditor.waitFor({ state: "hidden", timeoutMs: 10000 });
-    if (["submitPost", "submitReply"].includes(command.operation))
-      await this.#tab.playwright.waitForLoadState({
-        state: "networkidle",
-        timeoutMs: 8000,
-      });
+    if (["submitPost", "submitReply"].includes(command.operation)) {
+      try {
+        await this.#tab.playwright.waitForLoadState({
+          state: "networkidle",
+          timeoutMs: 8000,
+        });
+      } catch (error) {
+        // X background traffic may never become idle after a successful click.
+        // Continue to the caller's fresh receipt verification, never another click.
+        if (!/Timed out waiting for networkidle/i.test(String(error)))
+          throw error;
+      }
+    }
   }
 }
 export function createDOMSubmission(
