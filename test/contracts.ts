@@ -19,6 +19,20 @@ const read: Promise<ReadResult> = api.readPost({
   mode: "decision",
 });
 void read;
+const connected = createXGrowthHarness({
+  ledgerPath: "/original/day.md",
+  proofDirectory: "/proof",
+  connection: {
+    check: async () => [],
+    openTab: async () => tab,
+  },
+});
+connected.then((result) => {
+  if (result.status === "ready") result.harness.inspectAccount();
+  else result.diagnostic.code;
+});
+// @ts-expect-error The asynchronous connection cannot be used as a bound harness.
+connected.inspectAccount();
 api.publishPost({ taskId: "round", draftPath: "/draft.post.md" });
 // @ts-expect-error The root does not expose preflight or lower browser actions.
 api.preflight({ operation: "submitPost" });

@@ -420,6 +420,43 @@ export type HarnessOptions = (
   clock?: () => number;
   executor?: Executor;
 };
+export type HostConnectionOptions = Pick<
+  HarnessOptions,
+  "ledgerPath" | "proofDirectory" | "clock" | "executor"
+> & {
+  tab?: never;
+  app?: never;
+  connection: {
+    /** A documented, read-only host call; never create a tab or submit here. */
+    check(): Promise<unknown>;
+    /** A documented owned-tab creation/binding; called at most once. */
+    openTab(): Promise<CuaTab>;
+  };
+};
+export interface HostConnectionReceipt {
+  phase: "check" | "open-tab" | "bind" | "ready";
+  checkAttempts: number;
+  openAttempts: number;
+  recovered: boolean;
+  durationMs: number;
+  evidenceRef?: EvidenceRef;
+}
+export type HostConnectionResult =
+  | {
+      status: "ready";
+      harness: XGrowthHarness;
+      tab: CuaTab;
+      connection: HostConnectionReceipt;
+    }
+  | {
+      status: "needsDecision";
+      reason: string;
+      connection: HostConnectionReceipt;
+      diagnostic: Diagnostic;
+      /** Present if creation succeeded; preserve this tab, never create another blindly. */
+      tab?: CuaTab;
+    };
+
 export interface XGrowthHarness {
   replyBatch(args: { taskId: string; actions: PreparedAction[] }): Promise<{
     status: "verified" | "needsDecision";

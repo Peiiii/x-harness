@@ -35,6 +35,7 @@ const documents = {
   entry,
   read: entry + refs["reads.md"],
   recovery: entry + refs["recovery.md"],
+  connection: entry + refs["connection.md"],
   setup: entry + refs["setup.md"],
 };
 for (const operation of ["Publish", "Reply", "Follow", "Round"]) {
@@ -51,6 +52,7 @@ const budgets = {
   entry: 2400,
   read: 4300,
   recovery: 5000,
+  connection: 3800,
   setup: 4700,
   publish: 5700,
   reply: 5300,
