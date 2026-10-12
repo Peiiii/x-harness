@@ -179,6 +179,18 @@ export class PlatformWriting {
       Date.parse(post.datetime) <= this.#clock() + 5000 &&
       !post.needsExpansion;
     let matches = (value.posts ?? []).filter(matchesContent);
+    const receiptCandidate =
+      action.kind === "reply" &&
+      matches.length === 1 &&
+      !value.needsStateCheck &&
+      !value.alerts?.length &&
+      matches[0].primary
+        ? {
+            url: new URL(matches[0].primary, value.page).href,
+            id: matches[0].id,
+          }
+        : undefined;
+
     if (
       action.kind === "reply" &&
       matches.length === 1 &&
@@ -219,6 +231,7 @@ export class PlatformWriting {
       ...value,
       verified:
         !value.needsStateCheck && !value.alerts?.length && matches.length === 1,
+      ...(receiptCandidate ? { receiptCandidate } : {}),
       publicId: matches.length === 1 ? matches[0].id : null,
       missing:
         matches.length === 1 ? [] : ["unique-public-submission-unconfirmed"],

@@ -95,6 +95,7 @@ export class DOMEditing {
   follow!: (
     command: any,
   ) => Promise<{ completed: boolean; loc: any; submittedEditor: any }>;
+  likePost!: (command: any) => Promise<any>;
   openReply!: (
     command: any,
   ) => Promise<{ completed: boolean; loc: any; submittedEditor: any }>;
@@ -134,6 +135,7 @@ export class DOMEditing {
     this.removePreparedMedia = this.handleRemovePreparedMedia.bind(this);
     this.attachAssets = this.handleAttachAssets.bind(this);
     this.follow = this.handleFollow.bind(this);
+    this.likePost = this.handleLikePost.bind(this);
     this.openReply = this.handleOpenReply.bind(this);
     this.fillComposer = this.handleFillComposer.bind(this);
     this.submitPost = this.handleSubmitPost.bind(this);
@@ -480,6 +482,59 @@ export class DOMEditing {
         : `关注 @${command.handle}`;
     loc = await this.#unique(this.#locator("button", name));
     return { completed: false, loc, submittedEditor };
+  }
+  private async handleLikePost(command: any) {
+    const { query, result } = this.#session.current;
+    const post = result.posts?.[0];
+    if (
+      query.targetId !== command.postId ||
+      result.posts?.length !== 1 ||
+      result.needsStateCheck ||
+      result.alerts?.length ||
+      post?.id !== command.postId
+    )
+      throw Error("like-target-unconfirmed");
+    const buttons = post.buttons.filter((b: any) =>
+      /(?:喜欢|Likes?|Unlike)/i.test(b.label),
+    );
+    if (buttons.length !== 1 || buttons[0].disabled)
+      throw Error("like-control-unconfirmed");
+    if (/喜欢了|取消喜欢|Unlike|Liked/i.test(buttons[0].label))
+      return { completed: true, value: { ...result, preexisting: true } };
+    const primary = post.primary;
+    if (!primary || primary.match(/\/status\/(\d+)$/)?.[1] !== command.postId)
+      throw Error("like-permalink-unconfirmed");
+    const article = await this.#unique(
+      this.#locator("article").filter({
+        has: this.#tab.playwright.locator(`a[href=${JSON.stringify(primary)}]`),
+        visible: true,
+      }),
+    );
+    const button = await this.#unique(
+      article.getByRole("button", { name: buttons[0].label, exact: true }),
+    );
+    await command.beforeSubmit?.();
+    this.#session.current = null;
+    await button.click();
+    const after = await this.#observe({
+      view: "posts",
+      targetId: command.postId,
+    });
+    const likes =
+      after.posts?.[0]?.buttons?.filter((b: any) =>
+        /喜欢了|取消喜欢|Unlike|Liked/i.test(b.label),
+      ) ?? [];
+    return {
+      completed: true,
+      value: {
+        ...after,
+        liked:
+          !after.needsStateCheck &&
+          !after.alerts?.length &&
+          after.posts?.[0]?.id === command.postId &&
+          likes.length === 1,
+      },
+    };
   }
   private async handleOpenReply(command: any) {
     const { query, result } = this.#session.current;

@@ -1,3 +1,4 @@
+import { IncomingReactions } from "./incoming-reactions.js";
 import { createGrowthHarness } from "./growth.js";
 import { readResult, decisions, diagnostic, stableReason } from "./results.js";
 import type {
@@ -22,10 +23,14 @@ export interface BusinessDependencies {
 }
 
 export class BusinessHarness implements XGrowthHarness {
+  #reactions!: IncomingReactions;
   #store!: BusinessDependencies["store"];
   #core!: ReturnType<typeof createGrowthHarness>;
   #readCache!: Map<string, string>;
   constructor(dependencies: BusinessDependencies) {
+    this.replyBatch = this.replyBatch.bind(this);
+    this.likeIncomingBatch = this.likeIncomingBatch.bind(this);
+    this.#reactions = new IncomingReactions(dependencies);
     this.verifyFollow = this.verifyFollow.bind(this);
     this.followBatch = this.followBatch.bind(this);
     this.verifyPublishedPost = this.verifyPublishedPost.bind(this);
@@ -39,6 +44,7 @@ export class BusinessHarness implements XGrowthHarness {
     this.readFeedback = this.readFeedback.bind(this);
     this.readPerson = this.readPerson.bind(this);
     this.readPost = this.readPost.bind(this);
+    this.readIncomingConversations = this.readIncomingConversations.bind(this);
     this.readIncomingReplies = this.readIncomingReplies.bind(this);
     this.searchSources = this.searchSources.bind(this);
     this.readBookmarks = this.readBookmarks.bind(this);
@@ -300,6 +306,58 @@ export class BusinessHarness implements XGrowthHarness {
     if (d) out.diagnostic = d;
     return out;
   }
+  public async replyBatch(args: {
+    taskId: string;
+    actions: import("./types.js").PreparedAction[];
+  }) {
+    if (
+      !Array.isArray(args.actions) ||
+      args.actions.length < 1 ||
+      args.actions.length > 5 ||
+      args.actions.some((a) => a.kind !== "reply")
+    )
+      return {
+        status: "needsDecision" as const,
+        results: [],
+        reason: "reply-batch-invalid",
+      };
+    const results: ActionResult[] = [];
+    for (const action of args.actions) {
+      if (action.kind !== "reply") continue;
+      let result = await this.replyToPost({
+        taskId: args.taskId,
+        postId: action.postId,
+        text: action.text,
+        preparedAction: action,
+      });
+      if (result.status === "unknown") {
+        const current = (await this.#store.load()).state.actions.find(
+          (a: BoundaryRecord) => a.id === action.id,
+        );
+        if (current?.observedPublicURL && current?.observedPublicEvidenceRef)
+          result = await this.verifySubmission({
+            taskId: args.taskId,
+            actionId: action.id,
+          });
+      }
+      results.push(result);
+      if (
+        ["waiting", "needsCapability", "needsDecision"].includes(result.status)
+      )
+        break;
+    }
+    return {
+      status:
+        results.length === args.actions.length &&
+        results.every((r) => ["verified", "preexisting"].includes(r.status))
+          ? ("verified" as const)
+          : ("needsDecision" as const),
+      results,
+    };
+  }
+  public likeIncomingBatch(args: import("./types.js").IncomingLikeOptions) {
+    return this.#reactions.run(args);
+  }
   public readCreator(args: import("./types.js").CreatorOptions) {
     return this.read("readCreator", args, args.mode);
   }
@@ -336,6 +394,88 @@ export class BusinessHarness implements XGrowthHarness {
       args.mode,
     );
   }
+  public async readIncomingConversations(
+    args: import("./types.js").IncomingConversationOptions = {},
+  ) {
+    const inbox = args.targets
+      ? undefined
+      : await this.readIncomingReplies({ ...args, mode: "decision" });
+    const targets =
+      args.targets ??
+      inbox?.sources?.map((p) => ({
+        postId: p.id!,
+        url: p.url!,
+        expand: true,
+        evidenceRef: inbox.evidenceRef!,
+      }));
+    if (!targets || !targets.length || targets.length > 5)
+      return {
+        status: "needsDecision" as const,
+        reason: "incoming-target-window-required",
+        conversations: [],
+        pageComplete: false as const,
+      };
+    const snapshot = await this.#store.load();
+    const conversations = [];
+    for (const target of targets) {
+      const read = await this.readPost({
+        target,
+        includeContext: true,
+        includeThread: true,
+        mode: "decision",
+      });
+      const nodes = read.threadPosts ?? read.context ?? [];
+      const rootCandidateId = read.context?.[0]?.id ?? null;
+      const attempts = (snapshot.state.actions ?? [])
+        .filter(
+          (a: BoundaryRecord) =>
+            a.kind === "reply" &&
+            (a.postId === target.postId ||
+              (a.conversation?.rootId === rootCandidateId &&
+                a.conversation?.recipientHandle?.toLowerCase() ===
+                  read.post?.author?.toLowerCase())),
+        )
+        .map((a: BoundaryRecord) => ({
+          id: a.id,
+          status: a.status,
+          postId: a.postId,
+          publicId: a.publicId,
+          round: a.conversation?.round,
+        }));
+      conversations.push({
+        targetId: target.postId,
+        post: read.post,
+        ancestorPath: read.context ?? [],
+        nodes,
+        edges: nodes
+          .filter((p) => p.id && p.replyToId)
+          .map((p) => ({ parentId: p.replyToId!, childId: p.id! })),
+        unconfirmedParentIds: nodes
+          .filter((p) => p.id !== rootCandidateId && !p.replyToId)
+          .map((p) => p.id!),
+        rootCandidateId,
+        attempts,
+        evidenceRef: read.evidenceRef,
+        complete: read.complete === true,
+        missing: read.missing ?? [],
+        pageComplete: false as const,
+      });
+      if (
+        read.missing?.includes("platform-alert") ||
+        read.status === "needsCapability"
+      )
+        break;
+    }
+    return {
+      status:
+        conversations.length === targets.length &&
+        conversations.every((c) => c.complete)
+          ? ("observed" as const)
+          : ("needsDecision" as const),
+      conversations,
+      pageComplete: false as const,
+    };
+  }
   public searchSources(args: import("./types.js").SearchOptions) {
     return this.read("searchSources", args, args.mode);
   }
@@ -343,12 +483,18 @@ export class BusinessHarness implements XGrowthHarness {
     target,
     mode,
     includeContext,
+    includeThread,
   }: {
     includeContext?: boolean;
+    includeThread?: boolean;
     target: import("./types.js").PostTarget;
     mode?: ReadMode;
   }) {
-    return this.read("readPost", { ...target, includeContext }, mode);
+    return this.read(
+      "readPost",
+      { ...target, includeContext, includeThread },
+      mode,
+    );
   }
   public readPerson({
     target,

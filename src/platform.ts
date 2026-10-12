@@ -196,6 +196,7 @@ export class XPlatform {
     typeof createPlatformCapabilities
   >;
   #preflight!: { preflight: ({ operation, input }: any) => any }["preflight"];
+  likePost!: (target: any) => Promise<any>;
   preflight!: ({ operation, input }: any) => any;
   readCreator!: (args: import("./types.js").CreatorOptions) => Promise<any>;
   readAccount!: () => Promise<any>;
@@ -239,6 +240,7 @@ export class XPlatform {
     });
     const { readAccount, readFeedback, readPerson, readPost } =
       this.#createPlatformTargetsResult;
+    this.likePost = this.#createPlatformTargetsResult.likePost;
     this.#readAccount = readAccount;
     this.#readFeedback = readFeedback;
     this.#readPerson = readPerson;

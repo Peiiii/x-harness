@@ -34,7 +34,7 @@ export class DOMCapabilities {
           "click",
         ]),
       );
-      if (operation !== "submitFollow")
+      if (!["submitFollow", "likePost"].includes(operation))
         base.push(
           ...missingMethods(this.#tab.playwright.getByRole("textbox"), [
             "count",
@@ -66,7 +66,7 @@ export class DOMCapabilities {
           ]),
         );
     }
-    if (operation === "openOwnPostMenu") {
+    if (["openOwnPostMenu", "likePost"].includes(operation)) {
       base.push(...missingMethods(this.#tab?.playwright, ["locator"]));
       if (typeof this.#tab?.playwright?.getByRole === "function")
         base.push(

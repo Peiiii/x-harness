@@ -231,6 +231,15 @@ export class GrowthState {
     const state = structuredClone(snapshot.state);
     const entry = state.actions.find((a: any) => a.id === action.id);
     const item = state.items.find((i: any) => i.kind === action.kind);
+    if (
+      action.kind === "reply" &&
+      observation.receiptCandidate?.id &&
+      observation.receiptCandidate?.url?.toLowerCase() ===
+        `https://x.com/${action.accountHandle}/status/${observation.receiptCandidate.id}`.toLowerCase()
+    ) {
+      entry.observedPublicURL = observation.receiptCandidate.url;
+      entry.observedPublicEvidenceRef = proof;
+    }
     if (observation.verified) {
       if (
         action.kind !== "follow" &&

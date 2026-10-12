@@ -50,6 +50,7 @@ export function source(value: unknown, page?: string): PostEvidence {
       "url",
       "body",
       "needsExpansion",
+      "replyToId",
     ]) as unknown as PostEvidence;
   out.id = typeof raw.id === "string" ? raw.id : null;
   if (out.body === undefined && typeof raw.text === "string")
@@ -207,6 +208,10 @@ export function readResult(
     Object.assign(out, pick(raw, ["accountHandle", "accountURL"]));
   if (mode === "receipt") return out;
   if (operation === "readPost") {
+    if (raw.threadPosts)
+      out.threadPosts = list(raw.threadPosts).map((p) =>
+        source(p, typeof raw.page === "string" ? raw.page : undefined),
+      );
     if (raw.context)
       out.context = list(raw.context).map((p) =>
         source(p, typeof raw.page === "string" ? raw.page : undefined),

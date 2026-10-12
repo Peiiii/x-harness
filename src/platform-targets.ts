@@ -5,6 +5,7 @@ export class PlatformTargets {
   #open!: PlatformDependencies["open"];
   #browser!: PlatformDependencies["browser"];
   #ready!: PlatformDependencies["ready"];
+  likePost!: (target: any) => Promise<any>;
   readAccount!: () => Promise<any>;
   readFeedback!: ({ targets, replyLimit }?: any) => Promise<any>;
   readPerson!: (target: any) => Promise<any>;
@@ -20,6 +21,7 @@ export class PlatformTargets {
     this.#open = open;
     this.#browser = browser;
     this.#ready = ready;
+    this.likePost = this.handleLikePost.bind(this);
     this.readAccount = this.handleReadAccount.bind(this);
     this.readFeedback = this.handleReadFeedback.bind(this);
     this.readPerson = this.handleReadPerson.bind(this);
@@ -157,7 +159,8 @@ export class PlatformTargets {
         missing.push("absolute-time-unconfirmed");
     }
     let context: any[] | undefined;
-    if (target.includeContext) {
+    let threadPosts: any[] | undefined;
+    if (target.includeContext || target.includeThread) {
       const thread = await this.#observed({ view: "posts", limit: 5 });
       const index = (thread.posts ?? []).findIndex(
         (p: any) => p.id === target.postId,
@@ -171,6 +174,31 @@ export class PlatformTargets {
         missing.push("conversation-context-unconfirmed");
       else {
         context = thread.posts.slice(0, index + 1);
+        if (target.includeThread) {
+          threadPosts = thread.posts;
+          if (index > 0) {
+            const direct = await this.#observed({
+              view: "posts",
+              targetId: target.postId,
+              replyTargetId: context![index - 1].id,
+            });
+            const confirmed = direct.posts?.find(
+              (p: any) => p.id === target.postId,
+            );
+            if (
+              direct.page === value.page &&
+              !direct.needsStateCheck &&
+              !direct.alerts?.length &&
+              confirmed?.replyToId
+            ) {
+              posts = [confirmed];
+              threadPosts = thread.posts.map((p: any) =>
+                p.id === target.postId ? confirmed : p,
+              );
+              context = threadPosts!.slice(0, index + 1);
+            }
+          }
+        }
         if (
           context!.some(
             (p: any) =>
@@ -187,10 +215,34 @@ export class PlatformTargets {
       ...value,
       posts,
       ...(context ? { context } : {}),
+      ...(threadPosts ? { threadPosts, pageComplete: false } : {}),
       complete:
         !missing.length && !value.needsStateCheck && !value.alerts?.length,
       missing,
     };
+  }
+  private async handleLikePost(target: any) {
+    const identity = await this.handleReadAccount();
+    if (
+      identity.needsStateCheck ||
+      identity.alerts?.length ||
+      !sameHandle(identity.accountHandle, target.accountHandle)
+    )
+      throw Error("like-account-unconfirmed");
+    const value = await this.handleReadPost({ ...target, expand: true });
+    const post = value.posts?.[0];
+    if (
+      !value.complete ||
+      value.needsStateCheck ||
+      value.alerts?.length ||
+      !sameHandle(post?.author, target.author)
+    )
+      throw Error("like-target-unconfirmed");
+    return this.#browser.act({
+      operation: "likePost",
+      postId: target.postId,
+      beforeSubmit: target.beforeSubmit,
+    });
   }
   private handleReadAccount() {
     return this.#observed({ view: "account" });

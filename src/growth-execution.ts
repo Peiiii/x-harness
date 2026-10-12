@@ -126,6 +126,28 @@ export class GrowthExecution {
           reason: inputError,
         },
       };
+    if (action.kind === "reply" && action.conversation) {
+      const recent = [
+        ...(state.actions ?? []).filter(
+          (a: any) => a.kind === "reply" && a.intentAt,
+        ),
+        ...(state.reactions ?? []).filter((a: any) => a.intentAt),
+      ].sort(
+        (a: any, b: any) => Date.parse(b.intentAt) - Date.parse(a.intentAt),
+      )[0];
+      if (recent && this.#clock() < Date.parse(recent.intentAt) + 30000)
+        return {
+          snapshot,
+          need: {
+            status: "waiting",
+            actionId: action.id,
+            reason: "incoming-interaction-pacing",
+            resumeAt: new Date(
+              Date.parse(recent.intentAt) + 30000,
+            ).toISOString(),
+          },
+        };
+    }
     const identity = await this.checkExecutionIdentity(snapshot, action);
     if (identity) return identity;
     if (action.kind === "follow") {

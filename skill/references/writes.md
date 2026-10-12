@@ -27,7 +27,7 @@ Optional independentExecution:{tabId,evidenceRef,scopeEvidenceRef} requires real
 
 ## Reply
 
-Additional fields: kind:'reply', postId, url, evidenceRef (observed parent), text; optional assets/activation as above. Common account/quality fields still required. The exact parent is verified by the API. Incoming conversations require reviewed conversation:{recipientHandle,rootId,round,automatedLoop?}; at most 3 own rounds per recipient/root, with intent/unknown counted. Mark observed automatic loops to stop earlier.
+Additional fields: kind:'reply', postId, url, evidenceRef (observed parent), text; optional assets/activation as above. Common account/quality fields still required. The exact parent is verified by the API. `replyBatch({taskId,actions})` accepts 1–5 reviewed replies, submits serially and recovers an observed receipt once without resending; waiting returns unfinished work. Incoming clicks have a ≥30s minimum gap, not a safety guarantee. Incoming conversations require reviewed conversation:{recipientHandle,rootId,round,automatedLoop?}; at most 3 own rounds per recipient/root, with intent/unknown counted. Mark observed automatic loops to stop earlier.
 
 ```js
 var result = await x.replyToPost({ taskId, postId, text, preparedAction: {
@@ -49,3 +49,7 @@ Additional fields: kind:'follow', handle, url, evidenceRef (observed person), pl
 Optional decision fields: attemptsCoverage:{complete,since,evidenceRef}, sharedAttempts:[{kind,at}], nextScheduledCheckAt. For follow budgets, coverage must actually cover the required window; unknown history cannot be recorded as zero. Missing data remains a decision gap.
 
 Review an existing action with decision:{actionId,approved,evidenceRef,approvedText?,draftFingerprint?,blue?,chinese?}; use content fields for content, blue/chinese for follow. approved:false skips that candidate without filling original planned count. Preserve intent/unknown/verified states and IDs. Read returned gaps/decision/mayEnd; partial success is not whole-round completion.
+
+## Incoming likes
+
+`likeIncomingBatch({batchId,targets:[{postId,url,evidenceRef,author,incomingEvidenceRef}],sampleRate:0.3})` samples once per stable batch (1–5 observed received comments), retains selection in the original ledger, serially likes and verifies exact public state. Existing likes never toggle. Each fresh click has a 30-second minimum gap; waiting returns resumeAt rather than polling. Unknown intent freezes that object. No reply-goal credit or guarantee against platform restrictions; alerts stop the batch.

@@ -39,6 +39,7 @@ export interface PostEvidence {
   media?: MediaEvidence[];
   links?: (string | LinkEvidence)[];
   metrics?: string[];
+  replyToId?: string | null;
   quoted?: boolean;
   videoElements?: number;
   needsExpansion?: boolean;
@@ -90,6 +91,7 @@ export interface ReadResult {
   sources?: PostEvidence[];
   post?: PostEvidence;
   context?: PostEvidence[];
+  threadPosts?: PostEvidence[];
   person?: PersonEvidence;
   feedback?: FeedbackEvidence[];
   unchangedIds?: string[];
@@ -102,6 +104,45 @@ export interface WindowOptions {
   processedIds?: string[];
 }
 export interface IncomingReplyOptions extends WindowOptions {}
+export interface IncomingLikeOptions {
+  batchId: string;
+  targets: (PostTarget & { author: string; incomingEvidenceRef: string })[];
+  sampleRate?: number;
+}
+export interface IncomingLikeResult {
+  status: "verified" | "waiting" | "needsDecision" | "unknown";
+  results: { postId: string; status: string; evidenceRef?: string }[];
+  resumeAt?: string;
+  reason?: string;
+}
+export interface IncomingConversationOptions extends IncomingReplyOptions {
+  targets?: PostTarget[];
+}
+export interface IncomingConversationResult {
+  status: "observed" | "needsDecision";
+  reason?: string;
+  pageComplete: false;
+  conversations: {
+    targetId: string;
+    post?: PostEvidence;
+    ancestorPath: PostEvidence[];
+    nodes: PostEvidence[];
+    edges: { parentId: string; childId: string }[];
+    unconfirmedParentIds: string[];
+    rootCandidateId: string | null;
+    attempts: {
+      id: string;
+      status: string;
+      postId: string;
+      publicId?: string;
+      round?: number;
+    }[];
+    evidenceRef?: string;
+    complete: boolean;
+    missing: string[];
+    pageComplete: false;
+  }[];
+}
 export interface BookmarkOptions extends WindowOptions {
   folder: string;
 }
@@ -353,14 +394,24 @@ export type HarnessOptions = (
   executor?: Executor;
 };
 export interface XGrowthHarness {
+  replyBatch(args: { taskId: string; actions: PreparedAction[] }): Promise<{
+    status: "verified" | "needsDecision";
+    reason?: string;
+    results: ActionResult[];
+  }>;
+  likeIncomingBatch(args: IncomingLikeOptions): Promise<IncomingLikeResult>;
   readCreator(args: CreatorOptions): Promise<ReadResult>;
   readBookmarks(args: BookmarkOptions): Promise<ReadResult>;
   searchSources(args: SearchOptions): Promise<ReadResult>;
   readIncomingReplies(args?: IncomingReplyOptions): Promise<ReadResult>;
+  readIncomingConversations(
+    args?: IncomingConversationOptions,
+  ): Promise<IncomingConversationResult>;
   readPost(args: {
     target: PostTarget;
     mode?: ReadMode;
     includeContext?: boolean;
+    includeThread?: boolean;
   }): Promise<ReadResult>;
   readPerson(args: {
     target: PersonTarget;

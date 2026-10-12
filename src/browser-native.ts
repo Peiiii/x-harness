@@ -190,7 +190,11 @@ export class NativeXBrowser {
     return collectCreatorNative(this.#low, args);
   }
   public capabilities(operation: any): any {
-    if (["readBookmarks", "searchSources", "readFeedback"].includes(operation))
+    if (
+      ["readBookmarks", "searchSources", "readFeedback", "likePost"].includes(
+        operation,
+      )
+    )
       return [`native.${operation}`];
     const names =
       operation === "read"
