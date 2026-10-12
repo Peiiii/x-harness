@@ -37,7 +37,7 @@ their existing behavior. Public root task arguments/results remain unchanged.
 | SW-1 | Delayed prefix and asynchronous virtualization integration regressions | passed |
 | SW-2 | Alert, timeout, default wait and invalid offset regressions | passed |
 | SW-3 | Source type/build/tests, diff-only maintainability and implementation review | passed |
-| SW-4 | Reviewed npm artifact identity, consumer validation and necessary live source read | pending |
+| SW-4 | Reviewed npm artifact identity, consumer validation and necessary live source read | passed |
 
 Plan: not required; one bounded fix/release batch. Design review: the metadata is
 limited to the actual first primary ID; the wait is read-only and bounded; offset
@@ -54,3 +54,15 @@ Safe delivery additionally requires the consumer manager to serialize its instal
 across different producer checkouts while retaining producer-level PID locking;
 its isolated subprocess regressions cover live ownership, dead ownership cleanup
 and two producers sharing one consumer. No SDK write policy changes.
+
+Delivery acceptance: version 0.2.20 passed artifact identity and 188 consumer
+checks and was adopted through the managed release. The original root source
+API then returned complete Chinese sources and the consumer prepared reviewed
+candidates with no write. This verifies live adoption, not universal pagination
+coverage or platform availability; a later incomplete window remained incomplete
+and required the existing bounded recovery policy.
+
+Retrospective decision: update the existing readiness owners and regressions;
+no parallel state or new recurring process. A visible retained prefix is not
+proof that the requested offset is ready. The same consumer release resource
+must be locked across producer checkouts. Both boundaries have isolated tests.
