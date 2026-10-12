@@ -223,7 +223,41 @@ export class PlatformTargets {
     let context: any[] | undefined;
     let threadPosts: any[] | undefined;
     if (target.includeContext || target.includeThread) {
-      const thread = await this.#observed({ view: "posts", limit: 5 });
+      let thread = await this.#observed({ view: "posts", limit: 5 });
+      if (target.ancestorHandle) {
+        if (!handlePattern.test(target.ancestorHandle))
+          throw new Error("incoming-ancestor-handle-invalid");
+        const hasAncestor = () => {
+          const at = (thread.posts ?? []).findIndex(
+            (p: any) => p.id === target.postId,
+          );
+          return (
+            at > 0 &&
+            thread.posts
+              .slice(0, at)
+              .some((p: any) => sameHandle(p.author, target.ancestorHandle))
+          );
+        };
+        if (
+          !hasAncestor() &&
+          thread.page === value.page &&
+          !thread.needsStateCheck &&
+          !thread.alerts?.length &&
+          thread.posts?.some((p: any) => p.id === target.postId)
+        ) {
+          try {
+            await this.#browser.act({
+              operation: "waitForPosts",
+              ancestorHandle: target.ancestorHandle,
+              targetId: target.postId,
+            });
+          } catch (error: any) {
+            if (!/timed out|timeout/i.test(error.message)) throw error;
+          }
+          thread = await this.#observed({ view: "posts", limit: 5 });
+          if (!hasAncestor()) missing.push("incoming-ancestor-wait-exhausted");
+        }
+      }
       const index = (thread.posts ?? []).findIndex(
         (p: any) => p.id === target.postId,
       );

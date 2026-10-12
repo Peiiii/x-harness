@@ -479,7 +479,7 @@ export class BusinessHarness implements XGrowthHarness {
     const conversations = [];
     for (const target of targets) {
       const readArgs = {
-        target,
+        target: { ...target, ancestorHandle: snapshot.state.accountHandle },
         includeContext: true,
         includeThread: true,
         mode: "decision" as const,
@@ -497,7 +497,8 @@ export class BusinessHarness implements XGrowthHarness {
       if (
         read.complete === true &&
         !hasOwnedAncestor() &&
-        !read.missing?.includes("platform-alert")
+        !read.missing?.includes("platform-alert") &&
+        !read.missing?.includes("incoming-ancestor-wait-exhausted")
       )
         read = await this.readPost(readArgs);
       if (!hasOwnedAncestor()) {

@@ -1,4 +1,4 @@
-import { xURL } from "./platform-rules.js";
+import { xURL, handlePattern } from "./platform-rules.js";
 
 import type { DOMDependencies } from "./browser-dom-dependencies.js";
 export class DOMNavigation {
@@ -88,6 +88,26 @@ export class DOMNavigation {
     return;
   }
   private async handleWaitForPosts(command: any) {
+    if (command.ancestorHandle) {
+      if (
+        !handlePattern.test(command.ancestorHandle) ||
+        !/^\d+$/.test(command.targetId)
+      )
+        throw Error("incoming-ancestor-wait-target-invalid");
+      await this.#tab.playwright
+        .getByRole("article")
+        .filter({
+          has: this.#tab.playwright.locator(
+            `a[href^=${JSON.stringify("/" + command.ancestorHandle + "/status/")}]`,
+          ),
+          hasNot: this.#tab.playwright.locator(
+            `a[href$=${JSON.stringify("/status/" + command.targetId)}]`,
+          ),
+        })
+        .first()
+        .waitFor({ state: "visible", timeoutMs: 5000 });
+      return;
+    }
     const offset = command.offset ?? 0;
     if (!Number.isInteger(offset) || offset < 0)
       throw Error("帖子等待窗口须为非负整数offset");
