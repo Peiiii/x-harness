@@ -285,6 +285,12 @@ export const readXObservation = (query) => {
         images: Array.from(scope.querySelectorAll("img"))
             .filter(visible)
             .map((el) => ({ alt: el.alt })),
+        videos: Array.from(scope.querySelectorAll('[data-testid="videoPlayer"],video'))
+            .filter(visible)
+            .map((el) => ({
+            kind: "video",
+            label: el.getAttribute("aria-label"),
+        })),
         needsStateCheck: false,
     };
 };

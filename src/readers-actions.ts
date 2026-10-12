@@ -1,10 +1,10 @@
 import { readComposer } from "./readers-composer.js";
 import { readPosts } from "./readers-posts.js";
 
-// Upload only through the observed image button and browser file chooser.
+// Upload only through the observed media button and browser file chooser.
 export async function attachImage(tab: any, { path }: any = {}): Promise<any> {
-  if (!/^\/.*\.(?:png|jpe?g|webp)$/i.test(path ?? ""))
-    throw new Error("需要绝对图片路径");
+  if (!/^\/.*\.(?:png|jpe?g|webp|mp4)$/i.test(path ?? ""))
+    throw new Error("需要绝对图片或MP4路径");
   if (
     typeof tab?.playwright?.evaluate !== "function" ||
     typeof tab?.playwright?.getByRole !== "function" ||

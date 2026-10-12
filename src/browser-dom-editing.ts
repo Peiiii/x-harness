@@ -386,11 +386,25 @@ export class DOMEditing {
       result.needsStateCheck ||
       command.assets?.length !== 1
     )
-      throw new Error("仅上传已观察编辑器的一张带ALT图片");
+      throw new Error("仅上传已观察编辑器的一张图片或一个MP4视频");
     const asset = command.assets[0];
-    if (!asset.alt?.trim()) throw new Error("图片须有完整ALT");
+    const isVideo = /\.mp4$/i.test(asset.path ?? "");
+    if (!isVideo && !asset.alt?.trim()) throw new Error("图片须有完整ALT");
     this.#session.current = null;
     await attachImage(this.#tab, { path: asset.path });
+    if (isVideo) {
+      await this.#tab.playwright
+        .locator('[data-testid="videoPlayer"],video')
+        .first()
+        .waitFor({ state: "visible", timeoutMs: 60000 });
+      const composer = await this.#observe({ view: "composer" });
+      if (composer.needsStateCheck || !composer.videos?.length)
+        throw new Error("上传视频预览未确认");
+      return {
+        completed: true,
+        value: { assets: [asset], mediaEvidence: composer.videos, composer },
+      };
+    }
     await this.#tab.playwright
       .getByRole("button", {
         name: /^(?:编辑|Edit)(?:图片|照片|媒体| image| photo| media)?(?: \d+)?$/i,
@@ -504,13 +518,26 @@ export class DOMEditing {
       /^(回复|Reply|发帖|发布|Post|更新|Update)$/i.test(b.label),
     );
     if (submits.length !== 1) throw new Error("编辑后提交入口不唯一");
-    await this.#locator("button", submits[0].label)
-      .and(
-        this.#tab.playwright.locator(
-          ':not([disabled]):not([aria-disabled="true"])',
-        ),
-      )
-      .waitFor({ state: "visible", timeoutMs: 5000 });
+    const enabled = this.#locator("button", submits[0].label).and(
+      this.#tab.playwright.locator(
+        ':not([disabled]):not([aria-disabled="true"])',
+      ),
+    );
+    // Some hosts cap each locator wait at 5s. Bound video processing to 12 waits;
+    // this never retries a submission and every subsequent step re-observes.
+    const waits = result.videos?.length ? 12 : 1;
+    for (let attempt = 0; attempt < waits; attempt++) {
+      try {
+        await enabled.waitFor({ state: "visible", timeoutMs: 5000 });
+        break;
+      } catch (error: any) {
+        if (
+          attempt + 1 === waits ||
+          !/timed out|deadline exceeded/i.test(error.message)
+        )
+          throw error;
+      }
+    }
     return { completed: true };
     return { completed: false, loc, submittedEditor };
   }

@@ -12,7 +12,7 @@ Action APIs return status/actionId/publicURL/evidenceRef and reason/missing/resu
 
 ## Publish
 
-Additional fields: kind:'original', draftPath (existing .post.md), text (complete approved text), composeURL, composeEvidenceRef; optional assets:[{path,alt}], activation:'click'|'keyboard'. Every media path must exist and be reviewed.
+Additional fields: kind:'original', draftPath (existing .post.md), text (complete approved text), composeURL, composeEvidenceRef; optional assets:[{path,alt}], activation:'click'|'keyboard'. Every media path must exist and be reviewed. The DOM uploader supports one absolute PNG/JPEG/WebP image with required ALT, or one absolute MP4 video. Video uploads wait for a visible preview and public settlement requires a video on the exact fresh post; image ALT controls are not applied to videos.
 
 ```js
 var result = await x.publishPost({ taskId, draftPath, preparedAction: {

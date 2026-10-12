@@ -46,3 +46,11 @@ export const source = (post: any, page: any) => ({
     ...(!post.body ? ["exact-body-unconfirmed"] : []),
   ],
 });
+
+export function matchesReviewedAssets(post: any, assets: any[] = []): boolean {
+  return assets.every((asset: any) =>
+    /\.mp4$/i.test(asset.path ?? "")
+      ? post.media?.some((media: any) => media.kind === "video")
+      : post.images?.some((image: any) => image.alt === asset.alt),
+  );
+}
