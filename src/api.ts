@@ -418,12 +418,34 @@ export class BusinessHarness implements XGrowthHarness {
     const snapshot = await this.#store.load();
     const conversations = [];
     for (const target of targets) {
-      const read = await this.readPost({
+      const readArgs = {
         target,
         includeContext: true,
         includeThread: true,
-        mode: "decision",
-      });
+        mode: "decision" as const,
+      };
+      let read = await this.readPost(readArgs);
+      const hasOwnedAncestor = () =>
+        (read.context ?? []).some(
+          (p) =>
+            p.id !== target.postId &&
+            p.author?.toLowerCase() ===
+              snapshot.state.accountHandle?.toLowerCase(),
+        );
+      // A cold reply page can render the target before its ancestors. Reobserve
+      // once through the same business read; never approve a target-only chain.
+      if (
+        read.complete === true &&
+        !hasOwnedAncestor() &&
+        !read.missing?.includes("platform-alert")
+      )
+        read = await this.readPost(readArgs);
+      if (!hasOwnedAncestor()) {
+        read.complete = false;
+        read.missing = [
+          ...new Set([...(read.missing ?? []), "incoming-ancestor-missing"]),
+        ];
+      }
       const nodes = read.threadPosts ?? read.context ?? [];
       const rootCandidateId = read.context?.[0]?.id ?? null;
       const attempts = (snapshot.state.actions ?? [])

@@ -3,6 +3,65 @@ import assert from "node:assert/strict";
 import { createBusinessHarness } from "../dist/diagnostics.js";
 import { fixture, NOW } from "./fixtures.mjs";
 
+test("cold incoming page reobserves once and never approves a target-only conversation", async (t) => {
+  for (const recover of [true, false]) {
+    const f = fixture(t);
+    let reads = 0;
+    const api = createBusinessHarness({
+      store: f.store,
+      platform: {
+        preflight: () => ({ covered: true }),
+        captureProof: ({ observation }) => ({ observation }),
+        readPost: async () => {
+          reads++;
+          const comment = {
+            id: "2",
+            author: "Reader",
+            body: "Next reply",
+            datetime: new Date(NOW).toISOString(),
+          };
+          const context =
+            recover && reads === 2
+              ? [
+                  {
+                    id: "1",
+                    author: "Pei",
+                    body: "Our previous reply",
+                    datetime: new Date(NOW).toISOString(),
+                  },
+                  comment,
+                ]
+              : [comment];
+          return {
+            complete: true,
+            context,
+            threadPosts: context,
+            posts: [comment],
+            page: "https://x.com/Reader/status/2",
+            missing: [],
+          };
+        },
+      },
+    });
+    const out = await api.readIncomingConversations({
+      targets: [
+        {
+          postId: "2",
+          url: "https://x.com/Reader/status/2",
+          evidenceRef: f.proof,
+        },
+      ],
+    });
+    assert.equal(reads, 2);
+    assert.equal(out.conversations[0].complete, recover);
+    assert.equal(out.status, recover ? "observed" : "needsDecision");
+    assert.equal(
+      out.conversations[0].missing.includes("incoming-ancestor-missing"),
+      !recover,
+    );
+  }
+});
+
 test("batch preserves full observed chains, marks unknown edges and continues incomplete objects", async (t) => {
   const f = fixture(t);
   let reads = 0;
