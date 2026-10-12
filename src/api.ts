@@ -43,6 +43,7 @@ export class BusinessHarness implements XGrowthHarness {
     this.inspectAccount = this.inspectAccount.bind(this);
     this.readFeedback = this.readFeedback.bind(this);
     this.readPerson = this.readPerson.bind(this);
+    this.readPeople = this.readPeople.bind(this);
     this.readPost = this.readPost.bind(this);
     this.readIncomingConversations = this.readIncomingConversations.bind(this);
     this.readIncomingReplies = this.readIncomingReplies.bind(this);
@@ -150,6 +151,7 @@ export class BusinessHarness implements XGrowthHarness {
     const output = readResult(operation, raw, mode);
     if (mode === "receipt") return output;
     const collection =
+      output.people ??
       output.sources ??
       output.feedback ??
       (output.post ? [output.post] : output.person ? [output.person] : []);
@@ -183,6 +185,7 @@ export class BusinessHarness implements XGrowthHarness {
     }
     // A decision has delivered complete evidence and seeds the next delta.
     if (mode === "decision") return output;
+    if (output.people) output.people = changed as PersonEvidence[];
     if (output.sources)
       output.sources = changed as NonNullable<ReadResult["sources"]>;
     if (output.feedback)
@@ -519,6 +522,9 @@ export class BusinessHarness implements XGrowthHarness {
       { ...target, includeContext, includeThread, resolveQuote },
       mode,
     );
+  }
+  public readPeople(args: import("./types.js").PeopleOptions) {
+    return this.read("readPeople", args, args.mode);
   }
   public readPerson({
     target,

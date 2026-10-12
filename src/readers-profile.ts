@@ -125,7 +125,68 @@ export function readPeople({ offset = 0, limit = 5 }: any = {}): any {
         label: b.getAttribute("aria-label") || b.innerText,
         disabled: b.disabled,
       }));
-    return { text: cell.innerText, links, buttons };
+    const handles = [
+      ...new Set(
+        links
+          .map((a: any) => a.href?.match(/^\/([A-Za-z0-9_]{1,15})$/)?.[1])
+          .filter(Boolean),
+      ),
+    ];
+    const handle = handles.length === 1 ? String(handles[0]) : null;
+    const badges = Array.from(
+      cell.querySelectorAll('svg[data-testid="icon-verified"]'),
+    ).filter(visible) as Element[];
+    const blue =
+      badges.length === 1
+        ? [
+            getComputedStyle(badges[0]).color,
+            getComputedStyle(badges[0]).fill,
+          ].includes("rgb(29, 155, 240)")
+        : null;
+    const labels = buttons.map((b: any) => b.label);
+    const relationship = !handle
+      ? "unknown"
+      : labels.includes(`正在关注 @${handle}`) ||
+          labels.includes(`取消关注 @${handle}`)
+        ? "following"
+        : labels.includes(`回关 @${handle}`)
+          ? "follows-you"
+          : labels.includes(`关注 @${handle}`)
+            ? "not-following"
+            : "unknown";
+    const lines = cell.innerText.split("\n");
+    const handleAt = handle
+      ? lines.findIndex(
+          (line: string) =>
+            line.trim().toLowerCase() === `@${handle}`.toLowerCase(),
+        )
+      : -1;
+    const intro = handleAt < 0 ? [] : lines.slice(handleAt + 1);
+    while (
+      intro.length &&
+      [
+        "",
+        "关注了你",
+        "正在关注",
+        "回关",
+        "关注",
+        "Following",
+        "Follow",
+        "Follows you",
+      ].includes(intro[0].trim())
+    )
+      intro.shift();
+    const biography = intro.join("\n").trim() || null;
+    return {
+      text: cell.innerText,
+      links,
+      buttons,
+      handle,
+      url: handle ? "https://x.com/" + handle : null,
+      blue,
+      relationship,
+      biography,
+    };
   });
   return {
     page: location.href,

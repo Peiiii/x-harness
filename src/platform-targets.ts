@@ -10,6 +10,7 @@ export class PlatformTargets {
   readAccount!: () => Promise<any>;
   readFeedback!: ({ targets, replyLimit }?: any) => Promise<any>;
   readPerson!: (target: any) => Promise<any>;
+  readPeople!: (args: any) => Promise<any>;
   readPost!: (target: any) => Promise<any>;
   constructor(
     dependencies: Pick<
@@ -26,6 +27,7 @@ export class PlatformTargets {
     this.readAccount = this.handleReadAccount.bind(this);
     this.readFeedback = this.handleReadFeedback.bind(this);
     this.readPerson = this.handleReadPerson.bind(this);
+    this.readPeople = this.handleReadPeople.bind(this);
     this.readPost = this.handleReadPost.bind(this);
   }
   private async handleReadFeedback({
@@ -103,6 +105,59 @@ export class PlatformTargets {
       fresh: true,
       complete: feedback.every((f: any) => !f.missing),
       pageComplete: false,
+    };
+  }
+  private async handleReadPeople({
+    target,
+    offset = 0,
+    limit = 5,
+    advance = false,
+  }: any): Promise<any> {
+    const url = xURL(target?.url);
+    if (
+      !/^\/[A-Za-z0-9_]{1,15}\/(?:following|followers|verified_followers)\/?$/.test(
+        url.pathname,
+      ) ||
+      url.search ||
+      url.hash
+    )
+      throw new Error("observed-people-list-url-required");
+    if (
+      !Number.isInteger(offset) ||
+      offset < 0 ||
+      !Number.isInteger(limit) ||
+      limit < 1 ||
+      limit > 5 ||
+      typeof advance !== "boolean"
+    )
+      throw new Error("people-window-invalid");
+    let value = await this.#open(target, { view: "people", offset, limit });
+    if (advance) {
+      if (
+        value.needsStateCheck ||
+        value.alerts?.length ||
+        !value.people?.length
+      )
+        return { ...value, complete: false };
+      await this.#browser.act({ operation: "nextPeople" });
+      value = await this.#ready({ view: "people", offset: 0, limit });
+    }
+    if (!value.page || xURL(value.page).href !== url.href)
+      return {
+        ...value,
+        needsStateCheck: true,
+        complete: false,
+        missing: [...(value.missing ?? []), "target-page-mismatch"],
+      };
+    if (value.people?.some((p: any) => !p.handle))
+      return {
+        ...value,
+        complete: false,
+        missing: [...(value.missing ?? []), "people-identity-unconfirmed"],
+      };
+    return {
+      ...value,
+      complete: !value.needsStateCheck && !value.alerts?.length,
     };
   }
   private async handleReadPerson(target: any): Promise<any> {

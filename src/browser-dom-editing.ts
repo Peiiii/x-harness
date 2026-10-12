@@ -37,6 +37,7 @@ export class DOMEditing {
     | { completed: boolean; loc?: undefined; submittedEditor?: undefined }
     | { completed: boolean; loc: any; submittedEditor: any }
   >;
+  nextPeople!: (command: any) => Promise<{ completed: boolean }>;
   nextPosts!: (
     command: any,
   ) => Promise<
@@ -129,6 +130,7 @@ export class DOMEditing {
     this.submitEditedPost = this.handleSubmitEditedPost.bind(this);
     this.expandPost = this.handleExpandPost.bind(this);
     this.nextPosts = this.handleNextPosts.bind(this);
+    this.nextPeople = this.handleNextPeople.bind(this);
     this.clearPreparedText = this.handleClearPreparedText.bind(this);
     this.closePreparedReply = this.handleClosePreparedReply.bind(this);
     this.closePreparedMedia = this.handleClosePreparedMedia.bind(this);
@@ -282,6 +284,24 @@ export class DOMEditing {
     await (await this.#unique(control)).click();
     return { completed: true };
     return { completed: false, loc, submittedEditor };
+  }
+  private async handleNextPeople(_command: any) {
+    const current = this.#session.current;
+    const handle = current?.result?.people?.at(-1)?.handle;
+    if (
+      current?.query?.view !== "people" ||
+      current.result.needsStateCheck ||
+      current.result.alerts?.length ||
+      !/^[A-Za-z0-9_]{1,15}$/.test(handle ?? "")
+    )
+      throw new Error("people-page-unconfirmed");
+    const anchor = this.#tab.playwright
+      .locator(`a[href=${JSON.stringify("/" + handle)}]`)
+      .filter({ visible: true, hasText: new RegExp(`^@${handle}$`, "i") });
+    const unique = await this.#unique(anchor);
+    this.#session.current = null;
+    await unique.press("PageDown");
+    return { completed: true };
   }
   private async handleNextPosts(command: any) {
     const { query, result } = this.#session.current;

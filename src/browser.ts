@@ -1,5 +1,5 @@
 import type { BoundaryRecord } from "./boundary.js";
-import { readProfile } from "./readers-profile.js";
+import { readPeople, readProfile } from "./readers-profile.js";
 import { readPosts } from "./readers-posts.js";
 import { readComposer, readMediaEditor } from "./readers-composer.js";
 import { readNavigation, readMenu } from "./readers-navigation.js";
@@ -207,12 +207,13 @@ export function readXSurface({
 export const atomicObservationCode = `(query) => {
   const readPosts = ${readPosts.toString()};
   const readProfile = ${readProfile.toString()};
+  const readPeople = ${readPeople.toString()};
   const readComposer = ${readComposer.toString()};
   const readMediaEditor = ${readMediaEditor.toString()};
   const readNavigation = ${readNavigation.toString()};
   const readMenu = ${readMenu.toString()};
   const readXSurface = ${readXSurface.toString()};
-  const readers = { posts:readPosts, person:readProfile, composer:readComposer, media:readMediaEditor, navigation:readNavigation, menu:readMenu, account:()=>({}) };
+  const readers = { posts:readPosts, people:readPeople, person:readProfile, composer:readComposer, media:readMediaEditor, navigation:readNavigation, menu:readMenu, account:()=>({}) };
   if (!readers[query.view]) throw new Error('未封装的DOM视图');
   const raw = readers[query.view](query);
   const surface = readXSurface({...query, posts:(raw.posts??[]).map(p=>({id:p.id,primary:p.primary}))});

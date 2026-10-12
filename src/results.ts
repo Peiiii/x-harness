@@ -205,6 +205,9 @@ export function readResult(
       "pageComplete",
       "evidenceRef",
       "reason",
+      "offset",
+      "renderedPeople",
+      "moreInDOM",
     ]) as unknown as ReadResult;
   if (out.reason) out.reason = stableReason(out.reason);
   if (!["observed", "needsDecision", "needsCapability"].includes(out.status))
@@ -236,7 +239,9 @@ export function readResult(
         posts[0],
         typeof raw.page === "string" ? raw.page : undefined,
       );
-  } else if (operation === "readPerson" && typeof raw.handle === "string")
+  } else if (operation === "readPeople")
+    out.people = list(raw.people).map(person);
+  else if (operation === "readPerson" && typeof raw.handle === "string")
     out.person = person(raw);
   else if (operation === "readCreator" && raw.profile && raw.meta) {
     const meta = object(raw.meta);

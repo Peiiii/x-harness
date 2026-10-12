@@ -190,6 +190,7 @@ export class NativeXBrowser {
     return collectCreatorNative(this.#low, args);
   }
   public capabilities(operation: any): any {
+    if (operation === "readPeople") return ["native-people-blue-evidence"];
     if (
       ["readBookmarks", "searchSources", "readFeedback", "likePost"].includes(
         operation,

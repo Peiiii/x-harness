@@ -199,6 +199,7 @@ export class XPlatform {
   likePost!: (target: any) => Promise<any>;
   preflight!: ({ operation, input }: any) => any;
   readCreator!: (args: import("./types.js").CreatorOptions) => Promise<any>;
+  readPeople!: (args: any) => Promise<any>;
   readAccount!: () => Promise<any>;
   readBookmarks!: ({ folder, ...window }?: any) => Promise<any>;
   searchSources!: ({
@@ -292,6 +293,7 @@ export class XPlatform {
     this.searchSources = this.#searchSources;
     this.readFeedback = this.#readFeedback;
     this.readPerson = this.#readPerson;
+    this.readPeople = this.#createPlatformTargetsResult.readPeople;
     this.readPost = this.#readPost;
     this.findSubmission = this.#findSubmission;
     this.submitFollow = this.#submitFollow;

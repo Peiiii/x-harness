@@ -193,6 +193,93 @@ export const readXObservation = (query) => {
         observedAt: new Date().toISOString(),
     };
 };
+  const readPeople = function readPeople({ offset = 0, limit = 5 } = {}) {
+    if (!Number.isInteger(offset) ||
+        offset < 0 ||
+        !Number.isInteger(limit) ||
+        limit < 1 ||
+        limit > 5)
+        throw new Error("人物窗口须为非负offset及1–5 limit");
+    const visible = (el) => el.getClientRects().length > 0;
+    const cells = Array.from(document.querySelectorAll('main [data-testid="UserCell"]')).filter(visible);
+    const people = cells.slice(offset, offset + limit).map((cell) => {
+        const links = Array.from(cell.querySelectorAll("a[href]"))
+            .filter(visible)
+            .map((a) => ({ text: a.innerText, href: a.getAttribute("href") }));
+        const buttons = Array.from(cell.querySelectorAll("button"))
+            .filter(visible)
+            .map((b) => ({
+            label: b.getAttribute("aria-label") || b.innerText,
+            disabled: b.disabled,
+        }));
+        const handles = [
+            ...new Set(links
+                .map((a) => a.href?.match(/^\/([A-Za-z0-9_]{1,15})$/)?.[1])
+                .filter(Boolean)),
+        ];
+        const handle = handles.length === 1 ? String(handles[0]) : null;
+        const badges = Array.from(cell.querySelectorAll('svg[data-testid="icon-verified"]')).filter(visible);
+        const blue = badges.length === 1
+            ? [
+                getComputedStyle(badges[0]).color,
+                getComputedStyle(badges[0]).fill,
+            ].includes("rgb(29, 155, 240)")
+            : null;
+        const labels = buttons.map((b) => b.label);
+        const relationship = !handle
+            ? "unknown"
+            : labels.includes(`正在关注 @${handle}`) ||
+                labels.includes(`取消关注 @${handle}`)
+                ? "following"
+                : labels.includes(`回关 @${handle}`)
+                    ? "follows-you"
+                    : labels.includes(`关注 @${handle}`)
+                        ? "not-following"
+                        : "unknown";
+        const lines = cell.innerText.split("\n");
+        const handleAt = handle
+            ? lines.findIndex((line) => line.trim().toLowerCase() === `@${handle}`.toLowerCase())
+            : -1;
+        const intro = handleAt < 0 ? [] : lines.slice(handleAt + 1);
+        while (intro.length &&
+            [
+                "",
+                "关注了你",
+                "正在关注",
+                "回关",
+                "关注",
+                "Following",
+                "Follow",
+                "Follows you",
+            ].includes(intro[0].trim()))
+            intro.shift();
+        const biography = intro.join("\n").trim() || null;
+        return {
+            text: cell.innerText,
+            links,
+            buttons,
+            handle,
+            url: handle ? "https://x.com/" + handle : null,
+            blue,
+            relationship,
+            biography,
+        };
+    });
+    return {
+        page: location.href,
+        people,
+        offset,
+        renderedPeople: cells.length,
+        moreInDOM: offset + limit < cells.length,
+        pageComplete: false,
+        needsStateCheck: !people.length,
+        missing: people.length ? [] : ["people-cells-not-found"],
+        alerts: Array.from(document.querySelectorAll('[role="alert"]'))
+            .filter(visible)
+            .map((a) => a.innerText),
+        observedAt: new Date().toISOString(),
+    };
+};
   const readComposer = function readComposer() {
     const visible = (el) => el.getClientRects().length > 0 && !el.closest('[aria-hidden="true"]');
     const dialogs = Array.from(document.querySelectorAll('[role="dialog"]')).filter(visible);
@@ -532,7 +619,7 @@ export const readXObservation = (query) => {
     }
     return base;
 };
-  const readers = { posts:readPosts, person:readProfile, composer:readComposer, media:readMediaEditor, navigation:readNavigation, menu:readMenu, account:()=>({}) };
+  const readers = { posts:readPosts, people:readPeople, person:readProfile, composer:readComposer, media:readMediaEditor, navigation:readNavigation, menu:readMenu, account:()=>({}) };
   if (!readers[query.view]) throw new Error('未封装的DOM视图');
   const raw = readers[query.view](query);
   const surface = readXSurface({...query, posts:(raw.posts??[]).map(p=>({id:p.id,primary:p.primary}))});

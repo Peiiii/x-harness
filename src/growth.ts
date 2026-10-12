@@ -60,6 +60,7 @@ export class GrowthHarness {
   }?: any) => Promise<import("./boundary.js").BoundaryRecord>;
   preflight!: ({ operation, input }: any) => any;
   readCreator!: (args: any) => Promise<any>;
+  readPeople!: (args: any) => Promise<any>;
   inspectAccount!: (args: any) => Promise<any>;
   readPost!: (args: any) => Promise<any>;
   readPerson!: (args: any) => Promise<any>;

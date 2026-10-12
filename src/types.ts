@@ -98,6 +98,10 @@ export interface ReadResult {
   diagnostic?: Diagnostic;
   accountHandle?: string | null;
   accountURL?: string | null;
+  people?: PersonEvidence[];
+  offset?: number;
+  renderedPeople?: number;
+  moreInDOM?: boolean;
   sources?: PostEvidence[];
   post?: PostEvidence;
   context?: PostEvidence[];
@@ -106,6 +110,13 @@ export interface ReadResult {
   feedback?: FeedbackEvidence[];
   unchangedIds?: string[];
   creator?: CreatorEvidence;
+}
+export interface PeopleOptions {
+  target: { url: string; evidenceRef: EvidenceRef };
+  offset?: number;
+  limit?: number;
+  advance?: boolean;
+  mode?: ReadMode;
 }
 export interface WindowOptions {
   mode?: ReadMode;
@@ -413,6 +424,7 @@ export interface XGrowthHarness {
   }>;
   likeIncomingBatch(args: IncomingLikeOptions): Promise<IncomingLikeResult>;
   readCreator(args: CreatorOptions): Promise<ReadResult>;
+  readPeople(args: PeopleOptions): Promise<ReadResult>;
   readBookmarks(args: BookmarkOptions): Promise<ReadResult>;
   searchSources(args: SearchOptions): Promise<ReadResult>;
   readIncomingReplies(args?: IncomingReplyOptions): Promise<ReadResult>;

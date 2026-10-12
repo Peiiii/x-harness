@@ -11,6 +11,20 @@ export class DOMCapabilities {
   }
   public capabilities(operation: any): any {
     const base = missingMethods(this.#tab?.playwright, ["evaluate"]);
+    if (operation === "readPeople") {
+      base.push(
+        ...missingMethods(this.#tab, ["goto", "url"]),
+        ...missingMethods(this.#tab?.playwright, ["locator", "waitForURL"]),
+      );
+      if (typeof this.#tab?.playwright?.locator === "function")
+        base.push(
+          ...missingMethods(
+            this.#tab.playwright.locator('[data-testid="UserCell"]'),
+            ["count", "filter", "press", "first", "waitFor"],
+          ),
+        );
+      return base;
+    }
     if (operation === "openQuote") {
       base.push(
         ...missingMethods(this.#tab, ["url"]),

@@ -173,6 +173,11 @@ export class DOMNavigation {
       await this.#tab.playwright
         .locator('[data-testid="UserName"]')
         .waitFor({ state: "visible", timeoutMs: 5000 });
+    } else if (command.view === "people") {
+      await this.#tab.playwright
+        .locator('[data-testid="UserCell"]')
+        .first()
+        .waitFor({ state: "visible", timeoutMs: 5000 });
     } else if (command.view === "composer") {
       await this.#tab.playwright
         .getByRole("textbox", { name: /^(帖子文本|Post text)$/i })

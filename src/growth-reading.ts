@@ -117,8 +117,12 @@ export class GrowthReading {
         evidenceRef,
         complete:
           status === "observed" && (value.complete ?? !value.needsStateCheck),
-        ...((value.sources ?? value.feedback)
-          ? { ids: (value.sources ?? value.feedback).map((p: any) => p.id) }
+        ...((value.sources ?? value.feedback ?? value.people)
+          ? {
+              ids: (value.sources ?? value.feedback ?? value.people).map(
+                (p: any) => p.id ?? p.handle,
+              ),
+            }
           : {}),
         ...(operation === "readAccount"
           ? {
@@ -133,17 +137,23 @@ export class GrowthReading {
         ? "sources"
         : value.feedback
           ? "feedback"
-          : null;
+          : value.people
+            ? "people"
+            : null;
       if (mode === "delta" && collection) {
         const unchangedIds: any[] = [],
           changed: any[] = [];
         for (const entry of value[collection]) {
-          const key = JSON.stringify([operation, input, entry.id]);
+          const key = JSON.stringify([
+            operation,
+            input,
+            entry.id ?? entry.handle,
+          ]);
           const normalized = JSON.stringify(entry, (name: any, val: any) =>
             name === "observedAt" ? undefined : val,
           );
           if (this.#readCache.get(key) === normalized)
-            unchangedIds.push(entry.id);
+            unchangedIds.push(entry.id ?? entry.handle);
           else changed.push(entry);
           this.#readCache.set(key, normalized);
         }
