@@ -60,6 +60,12 @@ test("batch preserves full observed chains, marks unknown edges and continues in
 
 test("likes persist a single intent, freeze uncertain click, enforce pacing and never toggle existing likes", async (t) => {
   const f = fixture(t);
+  await f.store.transaction((s) => {
+    s.state.actions.find((a) => a.kind === "reply").intentAt = new Date(
+      NOW,
+    ).toISOString();
+    return s.state;
+  });
   let now = NOW,
     clicks = 0,
     preexisting = false;

@@ -59,7 +59,10 @@ export class IncomingReactions {
         status: result.status,
         ...(result.evidenceRef ? { evidenceRef: result.evidenceRef } : {}),
       });
-      if (["waiting", "needsDecision"].includes(result.status))
+      if (
+        ["waiting", "needsDecision"].includes(result.status) ||
+        result.reason === "like-platform-alert"
+      )
         return {
           ...out,
           status: result.status,
@@ -140,7 +143,9 @@ export class IncomingReactions {
     const latest = [
       ...(snapshot.state.reactions ?? []),
       ...(snapshot.state.actions ?? []).filter(
-        (a: BoundaryRecord) => a.kind === "reply",
+        (a: BoundaryRecord) =>
+          a.kind === "reply" &&
+          ["intent", "unknown", "verified"].includes(a.status),
       ),
     ]
       .filter((a: BoundaryRecord) => a.intentAt)
@@ -173,7 +178,9 @@ export class IncomingReactions {
             const recent = [
               ...s.state.reactions,
               ...(s.state.actions ?? []).filter(
-                (a: BoundaryRecord) => a.kind === "reply",
+                (a: BoundaryRecord) =>
+                  a.kind === "reply" &&
+                  ["intent", "unknown", "verified"].includes(a.status),
               ),
             ].some(
               (a: BoundaryRecord) =>
@@ -200,7 +207,13 @@ export class IncomingReactions {
           ? "verified"
           : "unknown";
       await this.settle(target.postId, status, evidenceRef, intent);
-      return { status, evidenceRef };
+      return {
+        status,
+        evidenceRef,
+        ...(observation.alerts?.length
+          ? { reason: "like-platform-alert" }
+          : {}),
+      };
     } catch (error) {
       const evidenceRef = await store.recordProof({
         operation: "likePost",

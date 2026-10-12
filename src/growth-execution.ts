@@ -129,7 +129,10 @@ export class GrowthExecution {
     if (action.kind === "reply" && action.conversation) {
       const recent = [
         ...(state.actions ?? []).filter(
-          (a: any) => a.kind === "reply" && a.intentAt,
+          (a: any) =>
+            a.kind === "reply" &&
+            ["intent", "unknown", "verified"].includes(a.status) &&
+            a.intentAt,
         ),
         ...(state.reactions ?? []).filter((a: any) => a.intentAt),
       ].sort(
