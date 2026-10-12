@@ -222,6 +222,12 @@ export class PlatformWriting {
             replyTargetId: action.postId,
           },
         );
+        value = await this.readLoadedReplyReceipt(
+          value,
+          candidate.id,
+          action.postId,
+          matchesContent,
+        );
         matches = (value.posts ?? []).filter(matchesContent);
       }
     }
@@ -236,6 +242,24 @@ export class PlatformWriting {
       missing:
         matches.length === 1 ? [] : ["unique-public-submission-unconfirmed"],
     };
+  }
+  private async readLoadedReplyReceipt(
+    value: any,
+    targetId: string,
+    replyTargetId: string,
+    matchesContent: (post: any) => boolean,
+  ): Promise<any> {
+    const candidates = (value.posts ?? []).filter(matchesContent);
+    if (
+      value.needsStateCheck ||
+      value.alerts?.length ||
+      candidates.length !== 1 ||
+      candidates[0].id !== targetId ||
+      candidates[0].replyToId != null
+    )
+      return value;
+    // One fresh observation after the detail opens; never infer a missing parent or submit again.
+    return this.#observed({ view: "posts", targetId, replyTargetId });
   }
   private async handleSubmitFollow(action: any): Promise<any> {
     const value = await this.#followStage(action, "submit-preflight-read", () =>
