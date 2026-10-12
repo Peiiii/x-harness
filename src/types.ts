@@ -41,6 +41,16 @@ export interface PostEvidence {
   metrics?: string[];
   replyToId?: string | null;
   quoted?: boolean;
+  quoteCards?: Array<{ text: string; datetime: string }>;
+  quoteSource?: {
+    id: string;
+    url: string;
+    author: string;
+    datetime: string;
+    body: string;
+    parentId: string;
+    cardText: string;
+  };
   videoElements?: number;
   needsExpansion?: boolean;
   missing?: string[];
@@ -414,6 +424,7 @@ export interface XGrowthHarness {
     mode?: ReadMode;
     includeContext?: boolean;
     includeThread?: boolean;
+    resolveQuote?: boolean;
   }): Promise<ReadResult>;
   readPerson(args: {
     target: PersonTarget;

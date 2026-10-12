@@ -185,6 +185,17 @@ export function readXSurface({
               : null,
           replyToId,
           parentEvidence,
+          quoteCards:
+            articles.length === 1
+              ? [...articles[0].querySelectorAll('[role="link"][tabindex="0"]')]
+                  .filter(visible)
+                  .map((card: any) => ({
+                    text: card.innerText,
+                    datetime: card
+                      .querySelector?.("time")
+                      ?.getAttribute("datetime"),
+                  }))
+              : [],
         };
       }),
     };

@@ -62,6 +62,20 @@ export function source(value: unknown, page?: string): PostEvidence {
       /* explicit missing below */
     }
   }
+  if (raw.quoteCards)
+    out.quoteCards = list(raw.quoteCards).map((v) =>
+      pick(v, ["text", "datetime"]),
+    ) as typeof out.quoteCards;
+  if (raw.quoteSource)
+    out.quoteSource = pick(raw.quoteSource, [
+      "id",
+      "url",
+      "author",
+      "datetime",
+      "body",
+      "parentId",
+      "cardText",
+    ]) as typeof out.quoteSource;
   if (raw.images !== undefined)
     out.images = list(raw.images).map((v) => pick(v, ["src", "alt"]));
   if (raw.media !== undefined)
@@ -264,7 +278,10 @@ export function readResult(
           ),
         ),
       ];
-      Object.assign(post, pick(row, ["quoted", "videoElements"]));
+      Object.assign(
+        post,
+        pick(row, ["quoted", "videoElements", "quoteCards", "quoteSource"]),
+      );
       return post;
     });
   } else if (raw.sources !== undefined)

@@ -1,3 +1,4 @@
+import { resolveQuotedSource } from "./platform-quote.js";
 import type { PlatformDependencies } from "./platform-dependencies.js";
 import { xURL, sameHandle, handlePattern, source } from "./platform-rules.js";
 export class PlatformTargets {
@@ -134,6 +135,12 @@ export class PlatformTargets {
       view: "posts",
       targetId: target.postId,
     });
+    if (target.resolveQuote)
+      value = await resolveQuotedSource(target, value, {
+        browser: this.#browser,
+        ready: this.#ready,
+        open: this.#open,
+      });
     if (!target.expand) return value;
     let posts = (value.posts ?? []).filter((p: any) => p.id === target.postId);
     if (

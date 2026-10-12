@@ -17,6 +17,10 @@ export class PlatformCapabilities {
       typeof this.#browser.collectCreator !== "function"
     )
       absent.push("browser.collectCreator");
+    if (input.resolveQuote)
+      absent.push(
+        ...(this.#browser.capabilities?.("openQuote") ?? ["openQuote"]),
+      );
     if (input.kind === "follow" || operation === "submitFollow")
       absent.push(
         ...(this.#browser.capabilities?.("refreshPerson") ?? ["refreshPerson"]),

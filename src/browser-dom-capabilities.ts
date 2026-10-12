@@ -11,6 +11,33 @@ export class DOMCapabilities {
   }
   public capabilities(operation: any): any {
     const base = missingMethods(this.#tab?.playwright, ["evaluate"]);
+    if (operation === "openQuote") {
+      base.push(
+        ...missingMethods(this.#tab, ["url"]),
+        ...missingMethods(this.#tab?.playwright, [
+          "locator",
+          "getByRole",
+          "expectNavigation",
+        ]),
+      );
+      if (typeof this.#tab?.playwright?.locator === "function")
+        base.push(
+          ...missingMethods(this.#tab.playwright.locator("div"), [
+            "filter",
+            "count",
+            "click",
+            "innerText",
+          ]),
+        );
+      if (typeof this.#tab?.playwright?.getByRole === "function")
+        base.push(
+          ...missingMethods(this.#tab.playwright.getByRole("article"), [
+            "filter",
+            "locator",
+          ]),
+        );
+      return base;
+    }
     if (operation === "readCreator") {
       return this.creatorCapabilities(base, operation);
     }

@@ -92,10 +92,19 @@ export class GrowthRecovery {
         `/${action.accountHandle}/status/${postId}`.toLowerCase()
     )
       throw new Error("public-account-mismatch");
+    const resolveQuote = /\nhttps:\/\/x\.com\/\w{1,15}\/status\/\d+$/.test(
+      action.text,
+    );
+    const quoteCaps = this.#capability("read", { resolveQuote });
+    if (!quoteCaps.covered)
+      return { status: "needsCapability", missing: quoteCaps.missing };
     const observation = await this.#platform.readPost({
       postId,
       url: publicURL,
       evidenceRef,
+      resolveQuote: /\nhttps:\/\/x\.com\/\w{1,15}\/status\/\d+$/.test(
+        action.text,
+      ),
     });
     const trailing = action.text.match(
       /\n+((?:https:\/\/|(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\/)\S+)$/,
@@ -114,6 +123,13 @@ export class GrowthRecovery {
     }
     const matches = (observation.posts ?? []).filter((p: any) => {
       const exact = p.body === action.text;
+      const quote =
+        trailing &&
+        p.quoteSource?.parentId === p.id &&
+        p.quoteSource.url === sourceURL &&
+        p.quoteSource.id ===
+          new URL(sourceURL!).pathname.match(/\/status\/(\d+)$/)?.[1] &&
+        p.body === action.text.slice(0, -trailing[0].length);
       const card =
         trailing &&
         sourceLink &&
@@ -156,6 +172,7 @@ export class GrowthRecovery {
         p.id === postId &&
         same(p.author, action.accountHandle) &&
         (exact ||
+          quote ||
           card ||
           renderedSource ||
           matchesRenderedLinks(

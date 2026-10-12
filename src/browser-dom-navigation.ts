@@ -5,6 +5,7 @@ export class DOMNavigation {
   #session!: DOMDependencies["session"];
   #tab!: DOMDependencies["tab"];
   #observe!: DOMDependencies["observe"];
+  openQuote!: (command: any) => Promise<any>;
   searchSources!: (command: any) => Promise<void>;
   waitForFolder!: (command: any) => Promise<void>;
   waitForPosts!: (command: any) => Promise<void>;
@@ -18,12 +19,51 @@ export class DOMNavigation {
     this.#session = session;
     this.#tab = tab;
     this.#observe = observe;
+    this.openQuote = this.handleOpenQuote.bind(this);
     this.searchSources = this.handleSearchSources.bind(this);
     this.waitForFolder = this.handleWaitForFolder.bind(this);
     this.waitForPosts = this.handleWaitForPosts.bind(this);
     this.openObserved = this.handleOpenObserved.bind(this);
     this.refreshPerson = this.handleRefreshPerson.bind(this);
     this.refreshPosts = this.handleRefreshPosts.bind(this);
+  }
+  private async handleOpenQuote(command: any) {
+    const current = this.#session.current;
+    const posts = current?.result?.posts?.filter(
+      (p: any) => p.id === command.postId,
+    );
+    if (
+      current?.query?.view !== "posts" ||
+      posts?.length !== 1 ||
+      posts[0].quoteCards?.length !== 1 ||
+      posts[0].quoteCards[0].text !== command.cardText
+    )
+      throw Error("unique-observed-quote-required");
+    const article = this.#tab.playwright.getByRole("article").filter({
+      has: this.#tab.playwright.locator(
+        `a[href=${JSON.stringify(posts[0].primary)}]`,
+      ),
+    });
+    const card = article
+      .locator('[role="link"][tabindex="0"]')
+      .filter({ visible: true });
+    if (
+      (await card.count()) !== 1 ||
+      (await card.innerText()) !== command.cardText
+    )
+      throw Error("unique-observed-quote-required");
+    this.#session.current = null;
+    await this.#tab.playwright.expectNavigation(() => card.click(), {
+      waitUntil: "commit",
+      timeoutMs: 5000,
+    });
+    const url = await this.#tab.url();
+    if (
+      !/^\/\w{1,15}\/status\/\d+$/.test(xURL(url).pathname) ||
+      url === current.result.page
+    )
+      throw Error("quote-destination-unconfirmed");
+    return { url };
   }
   private async handleSearchSources(command: any) {
     if (

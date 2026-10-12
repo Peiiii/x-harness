@@ -506,15 +506,17 @@ export class BusinessHarness implements XGrowthHarness {
     mode,
     includeContext,
     includeThread,
+    resolveQuote,
   }: {
     includeContext?: boolean;
     includeThread?: boolean;
+    resolveQuote?: boolean;
     target: import("./types.js").PostTarget;
     mode?: ReadMode;
   }) {
     return this.read(
       "readPost",
-      { ...target, includeContext, includeThread },
+      { ...target, includeContext, includeThread, resolveQuote },
       mode,
     );
   }
