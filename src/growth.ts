@@ -49,6 +49,7 @@ export class GrowthHarness {
     publicURL,
     evidenceRef,
     sourceLink,
+    sourceLinks,
   }: any) => Promise<any>;
   verifySubmission!: ({ taskId, actionId }: any) => Promise<any>;
   verifyFollow!: (target: any) => Promise<any>;

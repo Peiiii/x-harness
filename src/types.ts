@@ -437,6 +437,7 @@ export interface XGrowthHarness {
     publicURL: string;
     evidenceRef: EvidenceRef;
     sourceLink?: SourceLinkEvidence;
+    sourceLinks?: SourceLinkEvidence[];
   }): Promise<ActionResult>;
   verifyFollow(args: {
     handle: string;

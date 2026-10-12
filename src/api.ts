@@ -572,6 +572,7 @@ export class BusinessHarness implements XGrowthHarness {
     publicURL: string;
     evidenceRef: import("./types.js").EvidenceRef;
     sourceLink?: import("./types.js").SourceLinkEvidence;
+    sourceLinks?: import("./types.js").SourceLinkEvidence[];
   }) {
     return this.single(
       "verifyPublishedPost",

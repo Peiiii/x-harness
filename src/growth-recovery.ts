@@ -1,6 +1,7 @@
 import type { GrowthDependencies } from "./growth-dependencies.js";
 
 import { xURL, matchesReviewedAssets } from "./platform-rules.js";
+import { matchesRenderedLinks } from "./source-link-recovery.js";
 import { same } from "./growth-constants.js";
 export class GrowthRecovery {
   #capability!: GrowthDependencies["capability"];
@@ -64,6 +65,7 @@ export class GrowthRecovery {
     publicURL,
     evidenceRef,
     sourceLink,
+    sourceLinks,
   }: any): Promise<any> {
     // Read-only recovery of a single submitted original; never opens a composer.
     const caps = this.#capability("read");
@@ -153,7 +155,15 @@ export class GrowthRecovery {
       return (
         p.id === postId &&
         same(p.author, action.accountHandle) &&
-        (exact || card || renderedSource) &&
+        (exact ||
+          card ||
+          renderedSource ||
+          matchesRenderedLinks(
+            action.text,
+            p,
+            sourceLinks,
+            this.#evidenceExists,
+          )) &&
         !p.needsExpansion &&
         !(action.beforeIds ?? []).includes(p.id) &&
         Date.parse(p.datetime) >= Date.parse(action.intentAt) &&
@@ -168,6 +178,7 @@ export class GrowthRecovery {
         matches.length === 1,
       publicId: matches.length === 1 ? postId : null,
       sourceLink,
+      sourceLinks,
     });
     return this.#store.withLock(async () => {
       const latest = await this.#load(taskId),

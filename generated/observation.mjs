@@ -494,6 +494,11 @@ export const readXObservation = (query) => {
                                 if (node.nodeType === 3)
                                     return node.textContent ?? "";
                                 if (node.nodeType === 1 &&
+                                    node.getAttribute("aria-hidden") ===
+                                        "true" &&
+                                    getComputedStyle(node).opacity === "0")
+                                    return "";
+                                if (node.nodeType === 1 &&
                                     node.tagName === "A") {
                                     const href = node.getAttribute("href") ?? "";
                                     if (/^\/\w{1,15}\/status\/\d+$/.test(href))
