@@ -342,11 +342,13 @@ export class BusinessHarness implements XGrowthHarness {
   public readPost({
     target,
     mode,
+    includeContext,
   }: {
+    includeContext?: boolean;
     target: import("./types.js").PostTarget;
     mode?: ReadMode;
   }) {
-    return this.read("readPost", target, mode);
+    return this.read("readPost", { ...target, includeContext }, mode);
   }
   public readPerson({
     target,

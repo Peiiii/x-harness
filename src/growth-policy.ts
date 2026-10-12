@@ -221,6 +221,27 @@ export class GrowthPolicy {
           !this.#evidenceExists(action.evidenceRef))
       )
         return "reply-target-proof-missing";
+      if (action.kind === "reply" && action.conversation) {
+        const c = action.conversation;
+        if (
+          !/^[A-Za-z0-9_]{1,15}$/.test(c.recipientHandle ?? "") ||
+          !/^\d+$/.test(c.rootId ?? "") ||
+          !Number.isInteger(c.round) ||
+          c.round < 1
+        )
+          return "reply-conversation-review-required";
+        if (c.automatedLoop === true) return "reply-automated-loop";
+        const used = (state.actions ?? []).filter(
+          (a: any) =>
+            a.id !== action.id &&
+            a.kind === "reply" &&
+            ["verified", "intent", "unknown"].includes(a.status) &&
+            same(a.conversation?.recipientHandle, c.recipientHandle) &&
+            a.conversation?.rootId === c.rootId,
+        ).length;
+        if (c.round > 3 || used >= 3) return "reply-conversation-limit";
+      }
+
     }
     return null;
   }

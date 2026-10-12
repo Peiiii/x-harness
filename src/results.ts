@@ -207,6 +207,10 @@ export function readResult(
     Object.assign(out, pick(raw, ["accountHandle", "accountURL"]));
   if (mode === "receipt") return out;
   if (operation === "readPost") {
+    if (raw.context)
+      out.context = list(raw.context).map((p) =>
+        source(p, typeof raw.page === "string" ? raw.page : undefined),
+      );
     const posts = list(raw.posts);
     if (posts.length === 1)
       out.post = source(

@@ -89,6 +89,7 @@ export interface ReadResult {
   accountURL?: string | null;
   sources?: PostEvidence[];
   post?: PostEvidence;
+  context?: PostEvidence[];
   person?: PersonEvidence;
   feedback?: FeedbackEvidence[];
   unchangedIds?: string[];
@@ -159,6 +160,12 @@ export type PreparedAction = PreparedActionBase &
       }
     | {
         kind: "reply";
+        conversation?: {
+          recipientHandle: string;
+          rootId: string;
+          round: number;
+          automatedLoop?: boolean;
+        };
         postId: string;
         url: string;
         evidenceRef: EvidenceRef;
@@ -350,7 +357,11 @@ export interface XGrowthHarness {
   readBookmarks(args: BookmarkOptions): Promise<ReadResult>;
   searchSources(args: SearchOptions): Promise<ReadResult>;
   readIncomingReplies(args?: IncomingReplyOptions): Promise<ReadResult>;
-  readPost(args: { target: PostTarget; mode?: ReadMode }): Promise<ReadResult>;
+  readPost(args: {
+    target: PostTarget;
+    mode?: ReadMode;
+    includeContext?: boolean;
+  }): Promise<ReadResult>;
   readPerson(args: {
     target: PersonTarget;
     mode?: ReadMode;

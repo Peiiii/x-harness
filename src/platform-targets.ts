@@ -156,9 +156,37 @@ export class PlatformTargets {
       if (!Number.isFinite(Date.parse(posts[0].datetime)))
         missing.push("absolute-time-unconfirmed");
     }
+    let context: any[] | undefined;
+    if (target.includeContext) {
+      const thread = await this.#observed({ view: "posts", limit: 5 });
+      const index = (thread.posts ?? []).findIndex(
+        (p: any) => p.id === target.postId,
+      );
+      if (
+        thread.page !== value.page ||
+        thread.needsStateCheck ||
+        thread.alerts?.length ||
+        index < 0
+      )
+        missing.push("conversation-context-unconfirmed");
+      else {
+        context = thread.posts.slice(0, index + 1);
+        if (
+          context!.some(
+            (p: any) =>
+              !p.body ||
+              !p.author ||
+              p.needsExpansion ||
+              !Number.isFinite(Date.parse(p.datetime)),
+          )
+        )
+          missing.push("conversation-context-incomplete");
+      }
+    }
     return {
       ...value,
       posts,
+      ...(context ? { context } : {}),
       complete:
         !missing.length && !value.needsStateCheck && !value.alerts?.length,
       missing,

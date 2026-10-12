@@ -27,7 +27,7 @@ Optional independentExecution:{tabId,evidenceRef,scopeEvidenceRef} requires real
 
 ## Reply
 
-Additional fields: kind:'reply', postId, url, evidenceRef (observed parent), text; optional assets/activation as above. Common account/quality fields still required. The exact parent is verified by the API.
+Additional fields: kind:'reply', postId, url, evidenceRef (observed parent), text; optional assets/activation as above. Common account/quality fields still required. The exact parent is verified by the API. Incoming conversations require reviewed conversation:{recipientHandle,rootId,round,automatedLoop?}; at most 3 own rounds per recipient/root, with intent/unknown counted. Mark observed automatic loops to stop earlier.
 
 ```js
 var result = await x.replyToPost({ taskId, postId, text, preparedAction: {
