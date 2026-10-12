@@ -165,6 +165,13 @@ export function readXSurface({
                     if (node.nodeType === 3) return node.textContent ?? "";
                     if (
                       node.nodeType === 1 &&
+                      (node as Element).getAttribute("aria-hidden") ===
+                        "true" &&
+                      getComputedStyle(node as Element).opacity === "0"
+                    )
+                      return "";
+                    if (
+                      node.nodeType === 1 &&
                       (node as Element).tagName === "A"
                     ) {
                       const href = (node as Element).getAttribute("href") ?? "";

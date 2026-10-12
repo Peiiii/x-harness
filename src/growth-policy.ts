@@ -1,3 +1,4 @@
+import { DraftSchedule } from "./draft-schedule.js";
 import type { GrowthDependencies } from "./growth-dependencies.js";
 
 import { xURL } from "./platform-rules.js";
@@ -218,6 +219,8 @@ export class GrowthPolicy {
             this.#store.fingerprint(action.draftPath))
       )
         return "draft-changed-since-quality-review";
+      const scheduleReason = new DraftSchedule().reason(action, this.#clock());
+      if (scheduleReason) return scheduleReason;
       if (
         action.kind === "original" &&
         (!this.#evidenceExists(action.composeEvidenceRef) ||

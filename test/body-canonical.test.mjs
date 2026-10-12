@@ -55,3 +55,59 @@ test("body keeps paragraph text and mentions, resolves observed X permalink with
     "学 @AxtonLiu\n原帖：https://x.com/Axton…\n#AI实测",
   );
 });
+
+test("invisible aria-hidden protocol is not code text, while visible protocol remains", () => {
+  class Element {
+    constructor(tagName, children = [], attrs = {}) {
+      Object.assign(this, {
+        tagName,
+        childNodes: children,
+        attrs,
+        nodeType: 1,
+      });
+    }
+    getAttribute(name) {
+      return this.attrs[name] ?? null;
+    }
+    getClientRects() {
+      return [1];
+    }
+  }
+  const text = (value) => ({ nodeType: 3, textContent: value });
+  const protocol = new Element("SPAN", [text("http://")], {
+    "aria-hidden": "true",
+    opacity: "0",
+  });
+  const body = new Element("DIV", [
+    new Element("A", [protocol, text("memory.search")], {
+      href: "https://t.co/observed",
+    }),
+    text("(query=q)"),
+  ]);
+  const primary = new Element("A", [], { href: "/owner/status/123" });
+  const article = new Element("ARTICLE");
+  article.querySelectorAll = (query) =>
+    query === "time"
+      ? [{ getClientRects: () => [1], closest: () => primary }]
+      : [body];
+  const context = vm.createContext({
+    HTMLElement: Element,
+    location: { href: "https://x.com/owner/status/123" },
+    getComputedStyle: (el) => ({ opacity: el.attrs.opacity ?? "1" }),
+    document: { querySelectorAll: (q) => (q === "article" ? [article] : []) },
+  });
+  vm.runInContext(`var read=${readXSurface.toString()}`, context);
+  context.input = {
+    view: "posts",
+    posts: [{ id: "123", primary: "/owner/status/123" }],
+  };
+  assert.equal(
+    vm.runInContext("read(input)", context).bodies[0].body,
+    "memory.search(query=q)",
+  );
+  protocol.attrs.opacity = "1";
+  assert.equal(
+    vm.runInContext("read(input)", context).bodies[0].body,
+    "http://memory.search(query=q)",
+  );
+});

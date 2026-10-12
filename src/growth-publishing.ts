@@ -1,3 +1,4 @@
+import { DraftSchedule } from "./draft-schedule.js";
 import type { GrowthDependencies } from "./growth-dependencies.js";
 
 import { kinds, same } from "./growth-constants.js";
@@ -245,6 +246,14 @@ export class IndependentPublishing {
           state.items.find((i: any) => i.kind === "original").unknown -= 1;
           await this.#save(snapshot, state);
         });
+      if (error.message === "draft-not-before-not-reached")
+        return {
+          status: "waiting",
+          taskId,
+          mayEnd: false,
+          reason: error.message,
+          resumeAt: new DraftSchedule().resolve(action ?? preparedAction).at,
+        };
       return {
         status: "needsDecision",
         taskId,

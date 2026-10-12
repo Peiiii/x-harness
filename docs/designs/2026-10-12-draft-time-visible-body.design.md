@@ -1,0 +1,11 @@
+# Draft scheduling and visible body recovery
+
+Flow bugfix, risk L2, retrospective_state completed. Two observed defects: caller-only schedule checks failed across separate executors; an invisible X auto-link protocol span polluted code in an original post body. Restore the original draft's declared earliest-time constraint at the existing input guard, before intent and immediately before submit. No schedule exception inferred from general publishing authorization. Read explicit original metadata only, reject invalid/zoneless values, choose the later action/draft date. Existing unknown recovery remains read-only and untouched.
+
+Reader canonicalization skips only DOM-observed aria-hidden elements with computed opacity zero; preserve visible protocol, mentions, paragraphs and permalink normalization. External rendered URL recovery retains actual observed short-link destination proof, supports scheme-hidden display form and still checks exact remaining text, identity/time/ID/media.
+
+Acceptance: pre-boundary original produces no intent, attempt or browser write; equality submits once; later declared constraint wins; invalid dates block. Invisible auto-link protocol omitted, visible protocol retained. Existing HTTPS/source/media and full gates pass. Live original same-ID recovery after release, no duplicate submission. Ordinary current window work resumes afterward.
+
+Design review: local owner checks and DOM-backed visible text, no fallback publisher, no deletion or metadata-only approval. Findings none. Isolated checkout protects concurrent WIP.
+
+Validation: 113 full-suite tests passed, including equality boundary, zero write/intent/attempt before deadline, scoped decision and hidden/visible protocol regression; types/contracts/CLI/format/build/skill/maintainability passed. Implementation review no findings. Draft constraint is evaluated by the existing guard before intent and again before final browser click; no permissive date fallback. Missing draft still has the prior source/fingerprint guard. Retrospective: a declared deadline needs enforcement in the publishing owner, not caller narration alone; canonical body must reflect observed visible DOM text, not hidden accessibility protocol. Live same-ID recovery and affected post windows are consumer follow-through; real account/evidence remains outside this source repository.

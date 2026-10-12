@@ -128,10 +128,15 @@ export class GrowthRecovery {
         p.links?.includes(sourceLink.href)
       ) {
         try {
-          const displayed = new URL(
-            sourceLink.renderedText.replace(/\s/g, "").replace(/…$/, ""),
-          );
           const resolved = new URL(sourceLink.resolvedURL);
+          const rawDisplay = sourceLink.renderedText
+            .replace(/\s/g, "")
+            .replace(/…$/, "");
+          const displayed = new URL(
+            /^https?:\/\//.test(rawDisplay)
+              ? rawDisplay
+              : `${resolved.protocol}//${rawDisplay}`,
+          );
           // This rendering allowance requires the observed short link's actual
           // destination to equal the reviewed source URL in the guard above.
           if (resolved.hostname === `www.${displayed.hostname}`)

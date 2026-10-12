@@ -12,6 +12,8 @@ Action APIs return status/actionId/publicURL/evidenceRef and reason/missing/resu
 
 ## Publish
 
+Original action optional notBefore is an ISO timestamp with timezone. Explicit draft header notBefore or 最早发布窗口 is also enforced; the later constraint wins. Invalid metadata blocks, and before-window independent publishing returns waiting; scoped rounds report draft-not-before-not-reached. Both preserve no intent or submission. Recovery of an already submitted post is unaffected.
+
 Additional fields: kind:'original', draftPath (existing .post.md), text (complete approved text), composeURL, composeEvidenceRef; optional assets:[{path,alt}], activation:'click'|'keyboard'. Every media path must exist and be reviewed. The DOM uploader supports one absolute PNG/JPEG/WebP image with required ALT, or one absolute MP4 video. Video uploads wait for a visible preview and public settlement requires a video on the exact fresh post; image ALT controls are not applied to videos.
 
 ```js

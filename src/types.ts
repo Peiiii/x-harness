@@ -193,6 +193,7 @@ export type PreparedAction = PreparedActionBase &
     | {
         kind: "original";
         draftPath: string;
+        notBefore?: string;
         text: string;
         composeURL: string;
         composeEvidenceRef: EvidenceRef;
