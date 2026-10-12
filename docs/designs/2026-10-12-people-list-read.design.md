@@ -17,9 +17,11 @@ controls; absent handle/intro remains null. Native badge color is unsupported
 and returns needsCapability. Existing write/unknown/budget policy is unchanged.
 
 CL-1 parser regressions: passed. CL-2 root/proof/same-page and guarded advance:
-passed. CL-3 source types/tests/maintainability/Review: passed (140 tests). CL-4 published
+passed. CL-3 source types/tests/maintainability/Review: passed (145 tests after upstream integration). CL-4 published
 artifact identity, consumer adoption and necessary live list/prepare read:
-pending. Data in source/tests is synthetic; consumer evidence stays private.
+passed for 0.2.24. Twenty primary-list cells were read on the same page and six
+qualified candidates entered the original prepare-only queue without profile
+navigation. Data in source/tests is synthetic; consumer evidence stays private.
 
 Design review: URL whitelist rejects arbitrary pages; control identities must
 be unique; badges/relationships are independent unknowns. Read evidence does
@@ -32,5 +34,11 @@ proof/delta projection in the original reader owner; writes remain separate.
 Live acceptance found sidebar UserCells visible before the primary list loaded.
 Restrict parser, readiness and advance links to the actual primary column; a
 loading primary list remains missing rather than borrowing recommendations.
-The synthetic loading/sidebar regression covers this boundary. CL-4 remains
-pending until the corrective published artifact is adopted and read live.
+The synthetic loading/sidebar regression covers this boundary.
+
+Live advancement exposed a separate input boundary: the locator key returned
+without scrolling, while the supported Tab key moved the page. Prefer that Tab
+input after the same fresh unique-handle and alert guards; retain the locator
+fallback for adapters without it. Stale or ambiguous rows still refuse input.
+The published advancement fix needs its own live acceptance; list reading and
+candidate preparation are already verified, and no follow write is implied.

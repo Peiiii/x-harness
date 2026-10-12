@@ -302,7 +302,9 @@ export class DOMEditing {
       .filter({ visible: true, hasText: new RegExp(`^@${handle}$`, "i") });
     const unique = await this.#unique(anchor);
     this.#session.current = null;
-    await unique.press("PageDown");
+    if (typeof this.#tab.pressKey === "function")
+      await this.#tab.pressKey(null, "PageDown");
+    else await unique.press("PageDown");
     return { completed: true };
   }
   private async handleNextPosts(command: any) {

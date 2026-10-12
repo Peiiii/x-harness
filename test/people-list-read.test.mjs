@@ -174,15 +174,20 @@ test("root read proof and delta preserve complete evidence without approving or 
 test("DOM list advance uses one unique freshly observed handle and rejects stale reuse", async () => {
   const { createDOMXBrowser } = await import(root + "browser-dom.js");
   const presses = [];
+  const locatorPresses = [];
   let count = 1;
   const link = {
     filter() {
       return this;
     },
     count: async () => count,
-    press: async (key) => presses.push(key),
+    press: async (key) => locatorPresses.push(key),
   };
   const tab = {
+    pressKey: async (target, key) => {
+      assert.equal(target, null);
+      presses.push(key);
+    },
     playwright: {
       evaluate: async () => ({
         page: target.url,
@@ -198,6 +203,7 @@ test("DOM list advance uses one unique freshly observed handle and rejects stale
   await browser.observe({ view: "people", limit: 1 });
   await browser.act({ operation: "nextPeople" });
   assert.deepEqual(presses, ["PageDown"]);
+  assert.deepEqual(locatorPresses, []);
   await assert.rejects(() => browser.act({ operation: "nextPeople" }));
   count = 2;
   await browser.observe({ view: "people", limit: 1 });
