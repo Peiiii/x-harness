@@ -95,14 +95,28 @@ export class GrowthRecovery {
       url: publicURL,
       evidenceRef,
     });
-    const trailing = action.text.match(/\n+(https:\/\/\S+)$/);
+    const trailing = action.text.match(
+      /\n+((?:https:\/\/|(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\/)\S+)$/,
+    );
+    let sourceURL: string | null = null;
+    if (trailing) {
+      try {
+        sourceURL = new URL(
+          trailing[1].startsWith("https://")
+            ? trailing[1]
+            : `https://${trailing[1]}`,
+        ).href;
+      } catch {
+        /* Invalid source text cannot authorize link normalization. */
+      }
+    }
     const matches = (observation.posts ?? []).filter((p: any) => {
       const exact = p.body === action.text;
       const card =
         trailing &&
         sourceLink &&
         this.#evidenceExists(sourceLink.evidenceRef) &&
-        sourceLink.resolvedURL === trailing[1] &&
+        sourceLink.resolvedURL === sourceURL &&
         p.links?.includes(sourceLink.href) &&
         p.body === action.text.slice(0, -trailing[0].length);
       let renderedSource = false;
@@ -110,7 +124,7 @@ export class GrowthRecovery {
         trailing &&
         sourceLink?.renderedText &&
         this.#evidenceExists(sourceLink.evidenceRef) &&
-        sourceLink.resolvedURL === trailing[1] &&
+        sourceLink.resolvedURL === sourceURL &&
         p.links?.includes(sourceLink.href)
       ) {
         try {
