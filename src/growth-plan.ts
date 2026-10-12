@@ -146,8 +146,11 @@ export class PlannedRound {
     decision,
     selector,
     requestedKind,
+    maxActions,
   }: any = {}): Promise<any> {
     try {
+      if (maxActions === 0 && decision?.type !== "prepareActions")
+        throw new Error("maxActions:0仅用于prepareActions（只准备）");
       return await this.#store.withLock(async () => {
         let snapshot = await this.#load(taskId);
         const activeKinds = snapshot.state.scopeKinds ?? kinds;
@@ -165,6 +168,12 @@ export class PlannedRound {
           decision,
           activeKinds,
         );
+        if (maxActions === 0)
+          return {
+            ...this.#result(snapshot),
+            status: "checkpoint",
+            mayEnd: false,
+          };
         const needs: any[] = [];
         for (const kind of activeKinds) {
           const queue = (snapshot.state.actions ?? [])

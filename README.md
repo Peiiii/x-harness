@@ -54,3 +54,7 @@ npm run check
 Bootstrap installs the shared Qingtian AI development system and enables the staged Git hook. Its managed local files are excluded from Git and npm. Business owners use TypeScript classes with explicit constructor dependencies, private instance state and named methods. Pure functions and self-contained browser programs remain serializable. The file limit is 1000 lines; each hand-written source function has at most 150 own logic lines; runtime dependency cycles are rejected. Check/build/prepack/release and the staged hook reuse these rules.
 
 The private parent content repository consumes the published npm package. These are two independent Git repositories; the parent development workflow can maintain this checkout directly. Account ledgers, browser evidence, publishing contracts and content-specific context adapters remain in the parent. They are not dependencies of this project.
+
+### Prepare without submitting
+
+`runGrowthRound({taskId, maxActions:0, decision:{type:'prepareActions', accountHandle, ownershipEvidenceRef, actions}})` saves reviewed candidates in the original ledger without browser navigation, unknown verification or submission. This works during write backoff; qualification reads remain separate normal task APIs. It returns `checkpoint`, `mayEnd:false`: preparing a queue does not complete the original goal. Existing IDs, target capacity, scope and evidence gates remain in force; zero without a preparation decision is rejected.

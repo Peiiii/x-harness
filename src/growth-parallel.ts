@@ -87,8 +87,13 @@ export class ParallelRound {
     let completed = 0;
     const needs: any[] = [];
     try {
-      if (!Number.isInteger(maxActions) || maxActions < 1 || maxActions > 100)
-        throw new Error("maxActions须为1–100");
+      if (
+        !Number.isInteger(maxActions) ||
+        maxActions < 0 ||
+        maxActions > 100 ||
+        (maxActions === 0 && decision?.type !== "prepareActions")
+      )
+        throw new Error("maxActions须为1–100；仅prepareActions允许0（只准备）");
       let snapshot = await this.#load(taskId);
       const activeKinds = this.#scope(snapshot.state);
       if (requestedKind && !activeKinds.includes(requestedKind))
@@ -203,6 +208,12 @@ export class ParallelRound {
         next.updatedAt = this.#stamp();
         return next;
       });
+      if (maxActions === 0)
+        return {
+          ...this.#result(snapshot),
+          status: "checkpoint",
+          mayEnd: false,
+        };
       for (const kind of activeKinds) {
         const queue = (snapshot.state.actions ?? [])
           .filter((a: any) => a.kind === kind && (!selector || selector(a)))

@@ -257,6 +257,7 @@ export type RoundDecision =
 export interface RoundOptions {
   taskId: string;
   decision?: RoundDecision;
+  /** 0 with prepareActions persists the reviewed queue without reads or writes. */
   maxActions?: number;
 }
 export interface IndependentExecution {
