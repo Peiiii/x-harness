@@ -40,5 +40,14 @@ Live advancement exposed a separate input boundary: the locator key returned
 without scrolling, while the supported Tab key moved the page. Prefer that Tab
 input after the same fresh unique-handle and alert guards; retain the locator
 fallback for adapters without it. Stale or ambiguous rows still refuse input.
-The published advancement fix needs its own live acceptance; list reading and
-candidate preparation are already verified, and no follow write is implied.
+Published 0.2.26 was adopted and the original root API moved the live viewport
+through four observed positions without navigation or reload. Source checks
+passed 152 tests and consumer checks passed 188. Candidate storage reached the
+original remaining target via the same reader and prepare-only API; no follow
+write is implied. This proves viewport input and same-page reading, not complete
+follower coverage: finite windows and missing identities still stay explicit.
+
+Consumer usage also verified the queue target guard. Rejected preparation is
+not stored; inspect the receipt and original action count, then fit reviewed
+actions to remaining slots with their unchanged IDs. Never report a requested
+preparation count as the stored result.
