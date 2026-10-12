@@ -35,3 +35,11 @@ navigation diff and positive/negative tests. No additional page data is exposed.
 
 Retrospective: document load and public article readiness are distinct conditions.
 Use URL commit plus target content, not a longer fixed delay or another write.
+
+Delivery: 0.2.23 was published with source revision 1ae20f4, passed four release
+checks, artifact identity and all 188 consumer checks. PD-4 passed. PD-5 passed
+on an agent-owned cold Chrome tab: one root read navigated to the formerly failing
+detail and returned complete fresh body, author, absolute time, ID and media state.
+No submission or ledger settlement was used. This is a measured sample, not a
+claim that every public route is available. A separate quoted-post route exposed
+no article after bounded waiting and stayed unconfirmed; no source ID was inferred.
