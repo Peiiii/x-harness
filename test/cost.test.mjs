@@ -287,6 +287,9 @@ test("an inert observed permalink gets one bounded direct navigation; alerts or 
         },
         getByRole() {
           return {
+            filter() {
+              return this;
+            },
             first() {
               return { async waitFor() {} };
             },

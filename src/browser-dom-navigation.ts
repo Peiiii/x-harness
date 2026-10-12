@@ -143,7 +143,10 @@ export class DOMNavigation {
     if (clickedLink) await link.click();
     else await this.#tab.goto(command.url);
     try {
-      await this.#tab.playwright.waitForURL(command.url, { timeoutMs: 5000 });
+      await this.#tab.playwright.waitForURL(command.url, {
+        timeoutMs: command.view === "posts" ? 15000 : 5000,
+        ...(command.view === "posts" ? { waitUntil: "commit" as const } : {}),
+      });
     } catch (error: unknown) {
       // One inert client-link timeout may use the same observed URL directly.
       // A changed route, warning, unknown UI or interrupted connection never falls back.
@@ -166,7 +169,10 @@ export class DOMNavigation {
       )
         throw error;
       await this.#tab.goto(command.url);
-      await this.#tab.playwright.waitForURL(command.url, { timeoutMs: 5000 });
+      await this.#tab.playwright.waitForURL(command.url, {
+        timeoutMs: command.view === "posts" ? 15000 : 5000,
+        ...(command.view === "posts" ? { waitUntil: "commit" as const } : {}),
+      });
     }
     if (command.view === "person") {
       // Profile readiness belongs to profile content; self profiles have no Follow button.
@@ -183,10 +189,17 @@ export class DOMNavigation {
         .getByRole("textbox", { name: /^(帖子文本|Post text)$/i })
         .waitFor({ state: "visible", timeoutMs: 5000 });
     } else if (command.view === "posts") {
-      await this.#tab.playwright
-        .getByRole("article")
-        .first()
-        .waitFor({ state: "visible", timeoutMs: 5000 });
+      // URL commit is not document/network idle. Wait on the exact observed
+      // permalink, so a stale timeline article cannot satisfy detail readiness.
+      const articles = this.#tab.playwright.getByRole("article");
+      const detail = /^\/\w{1,15}\/status\/\d+$/.test(path)
+        ? articles.filter({
+            has: this.#tab.playwright.locator(
+              `a[href=${JSON.stringify(path)}]`,
+            ),
+          })
+        : articles;
+      await detail.first().waitFor({ state: "visible", timeoutMs: 15000 });
     }
     return;
   }
