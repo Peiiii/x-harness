@@ -373,6 +373,7 @@ export interface Executor {
   scopeKinds: OperationKind[];
   evidenceRef: EvidenceRef;
   replyMaxRootAgeHours?: number;
+  replyEmojiPolicy?: { sampleRate: number; maxInRecent: number };
 }
 /** Structural host ports: the package reuses the provided CUA connection. */
 export interface LocatorPort {

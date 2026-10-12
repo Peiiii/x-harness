@@ -57,3 +57,5 @@ Review an existing action with decision:{actionId,approved,evidenceRef,approvedT
 ## Incoming likes
 
 `likeIncomingBatch({batchId,targets:[{postId,url,evidenceRef,author,incomingEvidenceRef}],sampleRate:0.3})` samples once per stable batch (1–5 observed received comments), retains selection in the original ledger, serially likes and verifies exact public state. Existing likes never toggle. Each fresh click has a 30-second minimum gap; waiting returns resumeAt rather than polling. Unknown intent freezes that object. No reply-goal credit or guarantee against platform restrictions; alerts stop the batch.
+
+Optional executor.replyEmojiPolicy={sampleRate,maxInRecent} gates new reply drafts: stable original-ID sampling, no consecutive emoji, at most maxInRecent in the latest ten intents/unknown/verified replies. Plain text remains allowed; existing unknown recovery is unchanged.
