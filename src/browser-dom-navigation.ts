@@ -65,7 +65,10 @@ export class DOMNavigation {
       (await this.#tab.url()) === xURL(command.url).href
     )
       return;
-    const originalPage = this.#session.current?.result?.page;
+    const originalPage =
+      typeof this.#tab.url === "function"
+        ? await this.#tab.url()
+        : this.#session.current?.result?.page;
     this.#session.replyBinding = null;
     this.#session.current = null;
     // Keep the loaded X client when the exact observed permalink is already visible.
@@ -109,8 +112,7 @@ export class DOMNavigation {
       )
         throw error;
       const check = await this.#observe({
-        view: command.view,
-        handle: command.handle,
+        view: "account",
         limit: 1,
       });
       if (
