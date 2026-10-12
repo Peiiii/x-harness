@@ -2,9 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DOMNavigation } from "../dist/browser-dom-navigation.js";
 const url = "https://x.com/example_owner/status/123";
-async function open(fault) {
+async function open(t, fault) {
   const calls = [];
-  let page = "https://x.com/example_owner";
+  let page = "https://x.com/example_owner",
+    time = 0,
+    waits = 0;
+  t.mock.method(Date, "now", () => time);
   const permalink = {
     filter() {
       return this;
@@ -19,8 +22,24 @@ async function open(fault) {
     first() {
       return {
         waitFor: async (options) => {
+          assert.deepEqual(Object.keys(options).sort(), ["state", "timeoutMs"]);
           calls.push(["article", options]);
-          if (fault === "article-timeout") throw Error("article timeout");
+          waits++;
+          time += options.timeoutMs;
+          if (
+            (fault === "late-article" && waits === 1) ||
+            [
+              "article-timeout",
+              "alert",
+              "changed-route",
+              "interrupted-article",
+            ].includes(fault)
+          )
+            throw Error(
+              fault === "interrupted-article"
+                ? "connection interrupted"
+                : "Playwright selector deadline exceeded",
+            );
         },
       };
     },
@@ -28,27 +47,29 @@ async function open(fault) {
   const navigation = new DOMNavigation({
     session: {},
     observe: async () => {
-      throw Error("No fallback observation for direct navigation");
+      calls.push(["observe"]);
+      return {
+        page: fault === "changed-route" ? "https://x.com/home" : page,
+        alerts: fault === "alert" ? ["challenge"] : [],
+        needsStateCheck: true,
+      };
     },
     tab: {
       url: async () => page,
       goto: async (destination) => {
         calls.push(["goto", destination]);
-        page = destination;
+        if (fault !== "url-timeout") page = destination;
       },
       playwright: {
-        locator: (selector) =>
-          selector.startsWith("a[href=") ? permalink : null,
-        getByRole: (role) => {
-          assert.equal(role, "article");
-          return articles;
-        },
+        locator: () => permalink,
+        getByRole: () => articles,
         waitForURL: async (destination, options) => {
           calls.push(["url", options]);
           assert.equal(destination, url);
           assert.equal(options.waitUntil, "commit");
           if (fault === "interrupted") throw Error("connection interrupted");
-          if (fault === "url-timeout") throw Error("Timed out waiting for URL");
+          if (["committed-url-timeout", "url-timeout"].includes(fault))
+            throw Error("Timed out waiting for URL");
         },
       },
     },
@@ -59,27 +80,46 @@ async function open(fault) {
       view: "posts",
       evidenceRef: "synthetic-proof",
     });
-    return { calls };
+    return { calls, waits };
   } catch (error) {
-    return { calls, error };
+    return { calls, waits, error };
   }
 }
-test("cold public detail waits for URL commit then the exact permalink article, not page load or a stale article", async () => {
-  const r = await open();
+test("cold detail uses CUA timeoutMs, URL commit and the exact public permalink article", async (t) => {
+  const r = await open(t);
   assert.equal(r.error, undefined);
   assert.deepEqual(
     r.calls.map((x) => x[0]),
     ["goto", "url", "target", "article"],
   );
-  assert.equal(r.calls[1][1].timeoutMs, 15000);
-  assert.equal(r.calls[3][1].state, "visible");
-  assert.equal(r.calls[3][1].timeoutMs, 15000);
+  assert.equal(r.calls.at(-1)[1].timeoutMs, 5000);
 });
-test("detail route timeout, interruption and article timeout remain failures without another navigation or any submit", async () => {
-  for (const fault of ["url-timeout", "interrupted", "article-timeout"]) {
-    const r = await open(fault);
+test("a host URL timeout on the fresh committed target continues to strict article readiness", async (t) => {
+  const r = await open(t, "committed-url-timeout");
+  assert.equal(r.error, undefined);
+  assert.equal(r.calls.filter((x) => x[0] === "goto").length, 1);
+  assert.equal(r.waits, 1);
+});
+test("a host capped article wait resumes only after fresh unchanged alert-free route evidence", async (t) => {
+  const r = await open(t, "late-article");
+  assert.equal(r.error, undefined);
+  assert.equal(r.waits, 2);
+  assert.equal(r.calls.filter((x) => x[0] === "observe").length, 1);
+});
+for (const fault of [
+  "url-timeout",
+  "interrupted",
+  "article-timeout",
+  "alert",
+  "changed-route",
+  "interrupted-article",
+])
+  test(`detail ${fault} never renavigates or submits`, async (t) => {
+    const r = await open(t, fault);
     assert.ok(r.error);
     assert.equal(r.calls.filter((x) => x[0] === "goto").length, 1);
-    assert.ok(!r.calls.some((x) => x[0] === "submit"));
-  }
-});
+    assert.ok(r.waits <= 3);
+    if (fault === "article-timeout") assert.equal(r.waits, 3);
+    if (["alert", "changed-route", "interrupted-article"].includes(fault))
+      assert.equal(r.waits, 1);
+  });

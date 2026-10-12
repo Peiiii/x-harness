@@ -43,3 +43,25 @@ detail and returned complete fresh body, author, absolute time, ID and media sta
 No submission or ledger settlement was used. This is a measured sample, not a
 claim that every public route is available. A separate quoted-post route exposed
 no article after bounded waiting and stayed unconfirmed; no source ID was inferred.
+
+## Regression: host-capped waits
+
+The first delivery did not cover hosts that return URL timeout despite the exact
+committed route, or cap each locator wait below timeoutMs. Increasing a per-call
+number was insufficient. The root API has no Promise.race/deadline override in
+this chain. CUA uses timeoutMs, not standard Playwright's timeout; tests now assert
+that signature and simulate elapsed time without real sleep.
+
+Revision PD-R1: on URL timeout only, fresh account observation must show the exact
+target route without alerts before proceeding to content. Changed route,
+interruption or warnings still fail. No additional direct navigation is added.
+PD-R2: exact-article waits use up to 5-second condition waits inside one 15-second
+absolute deadline and at most four host calls. A host timeout can resume only
+after fresh unchanged route and no alerts; interruption is never resumed. A stale
+article still cannot satisfy the exact permalink locator. Timeout remains failure.
+
+PD-R1/R2 signature, elapsed deadline, late arrival, wrong route, alert,
+interruption and no-renavigation regressions pass. Full checks pass 152 tests.
+Implementation and design review: no findings. Real original failed detail was
+complete in one dev root read after cold navigation; formal package adoption
+remains required. No writes or account settlement occur in this validation.

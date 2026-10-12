@@ -148,31 +148,36 @@ export class DOMNavigation {
         ...(command.view === "posts" ? { waitUntil: "commit" as const } : {}),
       });
     } catch (error: unknown) {
-      // One inert client-link timeout may use the same observed URL directly.
-      // A changed route, warning, unknown UI or interrupted connection never falls back.
       if (
-        !clickedLink ||
-        !originalPage ||
         !/Timed out waiting for URL/.test(
           error instanceof Error ? error.message : "",
         )
       )
         throw error;
-      const check = await this.#observe({
-        view: "account",
-        limit: 1,
-      });
+      const check = await this.#observe({ view: "account", limit: 1 });
+      // Some hosts time out a URL wait even after the exact route committed.
+      // Fresh route evidence may continue to content readiness, never acceptance.
       if (
-        check.page !== originalPage ||
-        check.needsStateCheck ||
-        check.alerts?.length
-      )
-        throw error;
-      await this.#tab.goto(command.url);
-      await this.#tab.playwright.waitForURL(command.url, {
-        timeoutMs: command.view === "posts" ? 15000 : 5000,
-        ...(command.view === "posts" ? { waitUntil: "commit" as const } : {}),
-      });
+        command.view === "posts" &&
+        check.page === command.url &&
+        !check.alerts?.length
+      ) {
+        // The exact article wait below is still mandatory while UI is loading.
+      } else {
+        if (
+          !clickedLink ||
+          !originalPage ||
+          check.page !== originalPage ||
+          check.needsStateCheck ||
+          check.alerts?.length
+        )
+          throw error;
+        await this.#tab.goto(command.url);
+        await this.#tab.playwright.waitForURL(command.url, {
+          timeoutMs: command.view === "posts" ? 15000 : 5000,
+          ...(command.view === "posts" ? { waitUntil: "commit" as const } : {}),
+        });
+      }
     }
     if (command.view === "person") {
       // Profile readiness belongs to profile content; self profiles have no Follow button.
@@ -199,9 +204,32 @@ export class DOMNavigation {
             ),
           })
         : articles;
-      await detail.first().waitFor({ state: "visible", timeoutMs: 15000 });
+      await this.handleWaitPublicArticle(detail.first(), command.url);
     }
     return;
+  }
+  private async handleWaitPublicArticle(detail: any, url: string) {
+    const deadline = Date.now() + 15000;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) throw Error("public-article-readiness-timeout");
+      try {
+        await detail.waitFor({
+          state: "visible",
+          timeoutMs: Math.min(5000, remaining),
+        });
+        return;
+      } catch (error: any) {
+        if (
+          !/timed out|timeout|deadline exceeded/i.test(error.message) ||
+          attempt === 3 ||
+          Date.now() >= deadline
+        )
+          throw error;
+        const check = await this.#observe({ view: "account", limit: 1 });
+        if (check.page !== url || check.alerts?.length) throw error;
+      }
+    }
   }
   private async handleRefreshPerson(command: any) {
     const at = xURL(await this.#tab.url());
