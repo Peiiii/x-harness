@@ -24,6 +24,7 @@ export interface BusinessDependencies {
 
 export class BusinessHarness implements XGrowthHarness {
   #reactions!: IncomingReactions;
+  #platform!: BusinessDependencies["platform"];
   #store!: BusinessDependencies["store"];
   #core!: ReturnType<typeof createGrowthHarness>;
   #readCache!: Map<string, string>;
@@ -50,7 +51,8 @@ export class BusinessHarness implements XGrowthHarness {
     this.searchSources = this.searchSources.bind(this);
     this.readBookmarks = this.readBookmarks.bind(this);
     this.readCreator = this.readCreator.bind(this);
-    const { store } = dependencies;
+    const { store, platform } = dependencies;
+    this.#platform = platform;
     this.#store = store;
     this.#core = createGrowthHarness(dependencies);
     this.#readCache = new Map<string, string>();
@@ -400,9 +402,64 @@ export class BusinessHarness implements XGrowthHarness {
   public async readIncomingConversations(
     args: import("./types.js").IncomingConversationOptions = {},
   ) {
+    // Check the entire deterministic read path before any navigation.
+    const operations = args.targets
+      ? ["readPost"]
+      : ["searchSources", "readPost"];
+    const capabilities = operations.map((operation) => {
+      const cap = this.#platform.preflight({
+        operation: operation === "readPost" ? "read" : operation,
+      });
+      return {
+        ...cap,
+        covered: cap.covered && typeof this.#platform[operation] === "function",
+        missing: [
+          ...(cap.missing ?? []),
+          ...(typeof this.#platform[operation] === "function"
+            ? []
+            : [`platform.${operation}`]),
+        ],
+      };
+    });
+    const missing = [
+      ...new Set(capabilities.flatMap((c) => c.missing ?? [])),
+    ] as string[];
+    if (capabilities.some((c) => !c.covered))
+      return {
+        status: "needsCapability" as const,
+        reason: "incoming-capability-missing",
+        missing,
+        conversations: [],
+        pageComplete: false as const,
+      };
     const inbox = args.targets
       ? undefined
       : await this.readIncomingReplies({ ...args, mode: "decision" });
+    if (
+      inbox &&
+      (inbox.status === "needsCapability" ||
+        inbox.diagnostic ||
+        !inbox.sources?.length ||
+        inbox.missing?.some((m) =>
+          [
+            "platform-alert",
+            "search-query-unconfirmed",
+            "source-page-unconfirmed",
+          ].includes(m),
+        ))
+    )
+      return {
+        status:
+          inbox.status === "needsCapability"
+            ? ("needsCapability" as const)
+            : ("needsDecision" as const),
+        reason: inbox.reason ?? "incoming-source-incomplete",
+        missing: inbox.missing,
+        evidenceRef: inbox.evidenceRef,
+        diagnostic: inbox.diagnostic,
+        conversations: [],
+        pageComplete: false as const,
+      };
     const targets =
       args.targets ??
       inbox?.sources?.map((p) => ({
@@ -498,6 +555,9 @@ export class BusinessHarness implements XGrowthHarness {
           ? ("observed" as const)
           : ("needsDecision" as const),
       conversations,
+      ...(inbox
+        ? { sourceComplete: inbox.complete === true, missing: inbox.missing }
+        : {}),
       pageComplete: false as const,
     };
   }

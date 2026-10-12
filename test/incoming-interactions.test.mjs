@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createBusinessHarness } from "../dist/diagnostics.js";
+import { createBusinessHarness, createXPlatform } from "../dist/diagnostics.js";
 import { fixture, NOW } from "./fixtures.mjs";
 
 test("cold incoming page reobserves once and never approves a target-only conversation", async (t) => {
@@ -182,4 +182,127 @@ test("likes persist a single intent, freeze uncertain click, enforce pacing and 
   const state = (await f.store.load()).state;
   assert.equal(state.items.find((i) => i.kind === "reply").verified, 0);
   assert.equal(state.reactionSamples.length, 2);
+});
+
+test("composed incoming read preflights the whole path before navigation", async (t) => {
+  const f = fixture(t);
+  let navigations = 0;
+  const api = createBusinessHarness({
+    store: f.store,
+    platform: {
+      preflight: ({ operation }) => ({
+        covered: operation !== "searchSources",
+        missing: operation === "searchSources" ? ["native.searchSources"] : [],
+      }),
+      searchSources: async () => {
+        navigations++;
+      },
+      readPost: async () => {
+        navigations++;
+      },
+    },
+  });
+  const out = await api.readIncomingConversations();
+  assert.equal(out.status, "needsCapability");
+  assert.deepEqual(out.missing, ["native.searchSources"]);
+  assert.equal(navigations, 0);
+  assert.notEqual(out.reason, "incoming-target-window-required");
+});
+
+test("composed incoming read preserves an incomplete source diagnostic", async (t) => {
+  const f = fixture(t);
+  const api = createBusinessHarness({
+    store: f.store,
+    platform: {
+      preflight: () => ({ covered: true }),
+      captureProof: ({ observation }) => ({ observation }),
+      readPost: async () => {
+        throw Error("source failure must stop before reading posts");
+      },
+      searchSources: async () => ({
+        complete: false,
+        missing: ["platform-alert"],
+        sources: [],
+        alerts: ["challenge"],
+      }),
+    },
+  });
+  const out = await api.readIncomingConversations();
+  assert.equal(out.status, "needsDecision");
+  assert.notEqual(out.reason, "incoming-target-window-required");
+  assert.ok(out.evidenceRef);
+  assert.equal(out.pageComplete, false);
+});
+
+test("bounded source window with fewer valid candidates still reads them once", async (t) => {
+  const f = fixture(t);
+  let searches = 0,
+    reads = 0;
+  const root = {
+    id: "1",
+    author: "Pei",
+    body: "Root",
+    datetime: new Date(NOW).toISOString(),
+  };
+  const comment = {
+    id: "2",
+    author: "Reader",
+    body: "Full comment",
+    datetime: new Date(NOW).toISOString(),
+    url: "https://x.com/Reader/status/2",
+    replyToId: "1",
+  };
+  const api = createBusinessHarness({
+    store: f.store,
+    platform: {
+      preflight: () => ({ covered: true }),
+      captureProof: ({ observation }) => ({ observation }),
+      searchSources: async () => {
+        searches++;
+        return {
+          sources: [comment],
+          complete: false,
+          missing: ["bounded-source-window-exhausted"],
+        };
+      },
+      readPost: async () => {
+        reads++;
+        return { complete: true, context: [root, comment], posts: [comment] };
+      },
+    },
+  });
+  const out = await api.readIncomingConversations({ limit: 5 });
+  assert.equal(searches, 1);
+  assert.equal(reads, 1);
+  assert.equal(out.conversations.length, 1);
+  assert.equal(out.conversations[0].complete, true);
+  assert.equal(out.sourceComplete, false);
+  assert.ok(out.missing.includes("bounded-source-window-exhausted"));
+  assert.equal(out.pageComplete, false);
+});
+
+test("one reviewed replyBatch call submits once and settles the original action", async (t) => {
+  const f = fixture(t, { planned: [0, 0, 1], actionKinds: ["reply"] });
+  const api = createBusinessHarness({
+    store: f.store,
+    platform: createXPlatform(f.browser, { clock: () => NOW }),
+    clock: () => NOW,
+  });
+  const action = f.read().actions[0];
+  f.edit((s) => {
+    s.actions = [];
+  });
+  const out = await api.replyBatch({
+    taskId: "round-1",
+    actions: [action],
+  });
+  assert.equal(out.status, "verified");
+  assert.equal(out.results[0].status, "verified");
+  assert.equal(f.writes.length, 1);
+  const settled = (await f.store.load()).state;
+  assert.equal(
+    settled.actions.find((a) => a.id === action.id).status,
+    "verified",
+  );
+  assert.equal(settled.items.find((a) => a.kind === "reply").verified, 1);
 });

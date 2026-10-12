@@ -140,7 +140,11 @@ export interface IncomingConversationOptions extends IncomingReplyOptions {
   targets?: PostTarget[];
 }
 export interface IncomingConversationResult {
-  status: "observed" | "needsDecision";
+  sourceComplete?: boolean;
+  status: "observed" | "needsDecision" | "needsCapability";
+  missing?: string[];
+  evidenceRef?: string;
+  diagnostic?: Diagnostic;
   reason?: string;
   pageComplete: false;
   conversations: {
