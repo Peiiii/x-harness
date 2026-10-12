@@ -3,7 +3,6 @@ import type { GrowthDependencies } from "./growth-dependencies.js";
 
 import { xURL } from "./platform-rules.js";
 import { replyRootAgeReason } from "./reply-root-policy.js";
-import { replyEmojiReason } from "./reply-emoji-policy.js";
 import { kinds, followWindows, operations, same } from "./growth-constants.js";
 export class GrowthPolicy {
   #executor!: GrowthDependencies["executor"];
@@ -169,12 +168,6 @@ export class GrowthPolicy {
         this.#clock(),
       );
       if (reason) return reason;
-      const emojiReason = replyEmojiReason(
-        state,
-        action,
-        executor?.replyEmojiPolicy,
-      );
-      if (emojiReason) return emojiReason;
     }
     if (independentExecution) {
       if (
