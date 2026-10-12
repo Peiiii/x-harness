@@ -62,13 +62,22 @@ export class PlatformObservation {
   }
   private async handleReady(query: any): Promise<any> {
     let value = await this.handleObserved(query);
+    const waitingForOffset =
+      query.view === "posts" &&
+      Number.isInteger(query.offset) &&
+      query.offset > 0 &&
+      value.renderedArticles > 0 &&
+      !value.posts?.length;
     if (
-      value.needsStateCheck &&
+      (value.needsStateCheck || waitingForOffset) &&
       !value.alerts?.length &&
       query.view === "posts"
     ) {
       try {
-        await this.#browser.act({ operation: "waitForPosts" });
+        await this.#browser.act({
+          operation: "waitForPosts",
+          ...(waitingForOffset ? { offset: query.offset } : {}),
+        });
       } catch (error: any) {
         if (!/timed out|timeout/i.test(error.message)) throw error;
       }

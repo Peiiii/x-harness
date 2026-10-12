@@ -62,6 +62,23 @@ export class PlatformCollections {
           complete: false,
           missing: ["source-page-unconfirmed"],
         };
+      if (
+        offset &&
+        firstDOMId &&
+        last.firstRenderedId &&
+        last.firstRenderedId !== firstDOMId
+      ) {
+        offset = 0;
+        firstDOMId = last.firstRenderedId;
+        last = await this.#ready({ view: "posts", offset, limit: 5 });
+        if (last.needsStateCheck || last.alerts?.length)
+          return {
+            ...last,
+            sources,
+            complete: false,
+            missing: ["source-page-unconfirmed"],
+          };
+      }
       if (offset && !last.posts?.length) {
         missing.push("source-window-not-yet-rendered");
         break;

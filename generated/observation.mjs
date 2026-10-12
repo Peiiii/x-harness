@@ -13,6 +13,7 @@ export const readXObservation = (query) => {
     const primaryTime = (a) => Array.from(a.querySelectorAll("time")).find((t) => visible(t) &&
         /\/status\/\d+(?:$|[/?#])/.test(t.closest("a")?.getAttribute("href") ?? "")) ?? null;
     const all = Array.from(document.querySelectorAll("article")).filter(visible);
+    const firstTime = all[0] && primaryTime(all[0]);
     const candidates = targetId
         ? all.filter((a) => {
             const primary = primaryTime(a)?.closest("a")?.getAttribute("href");
@@ -97,6 +98,10 @@ export const readXObservation = (query) => {
         ].slice(0, 2)
         : [];
     return {
+        firstRenderedId: firstTime
+            ?.closest("a")
+            ?.getAttribute("href")
+            ?.match(/\/status\/(\d+)/)?.[1] ?? null,
         renderedArticles: all.length,
         matched: candidates.length,
         offset,

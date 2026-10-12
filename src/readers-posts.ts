@@ -26,6 +26,7 @@ export function readPosts({
   const all = Array.from<any>(
     document.querySelectorAll<HTMLElement>("article"),
   ).filter(visible);
+  const firstTime = all[0] && primaryTime(all[0]);
   const candidates = targetId
     ? all.filter((a: any) => {
         const primary = primaryTime(a)?.closest("a")?.getAttribute("href");
@@ -131,6 +132,11 @@ export function readPosts({
         ].slice(0, 2)
       : [];
   return {
+    firstRenderedId:
+      firstTime
+        ?.closest("a")
+        ?.getAttribute("href")
+        ?.match(/\/status\/(\d+)/)?.[1] ?? null,
     renderedArticles: all.length,
     matched: candidates.length,
     offset,

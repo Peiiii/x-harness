@@ -88,10 +88,14 @@ export class DOMNavigation {
     return;
   }
   private async handleWaitForPosts(command: any) {
-    await this.#tab.playwright
-      .getByRole("article")
-      .first()
-      .waitFor({ state: "visible", timeoutMs: 5000 });
+    const offset = command.offset ?? 0;
+    if (!Number.isInteger(offset) || offset < 0)
+      throw Error("帖子等待窗口须为非负整数offset");
+    const articles = this.#tab.playwright.getByRole("article");
+    await (offset ? articles.nth(offset) : articles.first()).waitFor({
+      state: "visible",
+      timeoutMs: 5000,
+    });
     return;
   }
   private async handleOpenObserved(command: any) {
