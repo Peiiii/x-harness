@@ -346,6 +346,7 @@ export interface Executor {
   id: string;
   scopeKinds: OperationKind[];
   evidenceRef: EvidenceRef;
+  replyMaxRootAgeHours?: number;
 }
 /** Structural host ports: the package reuses the provided CUA connection. */
 export interface LocatorPort {

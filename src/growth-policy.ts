@@ -1,6 +1,7 @@
 import type { GrowthDependencies } from "./growth-dependencies.js";
 
 import { xURL } from "./platform-rules.js";
+import { replyRootAgeReason } from "./reply-root-policy.js";
 import { kinds, followWindows, operations, same } from "./growth-constants.js";
 export class GrowthPolicy {
   #executor!: GrowthDependencies["executor"];
@@ -159,6 +160,14 @@ export class GrowthPolicy {
     const executor = this.#executor;
     if (!independentExecution && !this.handleScope(state).includes(action.kind))
       return "kind-outside-round-scope";
+    if (action.kind === "reply") {
+      const reason = replyRootAgeReason(
+        action,
+        executor?.replyMaxRootAgeHours,
+        this.#clock(),
+      );
+      if (reason) return reason;
+    }
     if (independentExecution) {
       if (
         action.kind !== "original" ||
