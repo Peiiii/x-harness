@@ -65,3 +65,18 @@ interruption and no-renavigation regressions pass. Full checks pass 152 tests.
 Implementation and design review: no findings. Real original failed detail was
 complete in one dev root read after cold navigation; formal package adoption
 remains required. No writes or account settlement occur in this validation.
+
+PD-R delivery: formal 0.2.25 (revision b3a1f06) passed 152 source tests, four
+release tests and 188 consumer checks. Cold live detail reading passed on the
+original regression target. The installed recovery method also passed a
+read-only replay using the original submitted action and fresh public detail;
+the historical unknown was modeled in memory because production had already
+verified it. Only observation/result proof was written; account ledger, action,
+post and schedule were untouched. This validates body, author, absolute time,
+ID, baseline and reviewed media gates through the actual recovery method.
+
+Retrospective update: the previous per-request timeout test proved arguments,
+not host behavior. Acceptance now includes a host-capped error, fresh route
+confirmation, simulated elapsed deadline and resumed content readiness. An
+unavailable quoted detail remained unavailable after the bounded waits; no
+quoted source binding was inferred from it.
