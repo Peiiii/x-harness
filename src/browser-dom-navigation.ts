@@ -181,7 +181,7 @@ export class DOMNavigation {
         .waitFor({ state: "visible", timeoutMs: 5000 });
     } else if (command.view === "people") {
       await this.#tab.playwright
-        .locator('[data-testid="UserCell"]')
+        .locator('main [data-testid="primaryColumn"] [data-testid="UserCell"]')
         .first()
         .waitFor({ state: "visible", timeoutMs: 5000 });
     } else if (command.view === "composer") {

@@ -296,7 +296,9 @@ export class DOMEditing {
     )
       throw new Error("people-page-unconfirmed");
     const anchor = this.#tab.playwright
-      .locator(`a[href=${JSON.stringify("/" + handle)}]`)
+      .locator(
+        `main [data-testid="primaryColumn"] a[href=${JSON.stringify("/" + handle)}]`,
+      )
       .filter({ visible: true, hasText: new RegExp(`^@${handle}$`, "i") });
     const unique = await this.#unique(anchor);
     this.#session.current = null;

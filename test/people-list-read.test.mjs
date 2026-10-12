@@ -219,3 +219,32 @@ test("native list badge evidence is explicitly unavailable without browser I/O",
   );
   assert.equal(observed, false);
 });
+
+test("sidebar recommendations never masquerade as a loaded follower list", () => {
+  const saved = [
+    globalThis.document,
+    globalThis.location,
+    globalThis.getComputedStyle,
+  ];
+  let primary = [];
+  try {
+    globalThis.document = {
+      querySelectorAll: (s) =>
+        s === 'main [data-testid="primaryColumn"] [data-testid="UserCell"]'
+          ? primary
+          : s.includes("UserCell")
+            ? [cell("sidebar_user")]
+            : [],
+    };
+    globalThis.location = { href: target.url };
+    globalThis.getComputedStyle = (e) => ({ color: e.color, fill: e.color });
+    assert.equal(readPeople().needsStateCheck, true);
+    assert.deepEqual(readPeople().people, []);
+    primary = [cell("fixture_primary")];
+    assert.equal(readPeople().renderedPeople, 1);
+    assert.equal(readPeople().people[0].handle, "fixture_primary");
+  } finally {
+    [globalThis.document, globalThis.location, globalThis.getComputedStyle] =
+      saved;
+  }
+});

@@ -201,7 +201,7 @@ export const readXObservation = (query) => {
         limit > 5)
         throw new Error("人物窗口须为非负offset及1–5 limit");
     const visible = (el) => el.getClientRects().length > 0;
-    const cells = Array.from(document.querySelectorAll('main [data-testid="UserCell"]')).filter(visible);
+    const cells = Array.from(document.querySelectorAll('main [data-testid="primaryColumn"] [data-testid="UserCell"]')).filter(visible);
     const people = cells.slice(offset, offset + limit).map((cell) => {
         const links = Array.from(cell.querySelectorAll("a[href]"))
             .filter(visible)

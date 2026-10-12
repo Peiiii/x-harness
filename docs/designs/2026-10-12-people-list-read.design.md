@@ -17,7 +17,7 @@ controls; absent handle/intro remains null. Native badge color is unsupported
 and returns needsCapability. Existing write/unknown/budget policy is unchanged.
 
 CL-1 parser regressions: passed. CL-2 root/proof/same-page and guarded advance:
-passed. CL-3 source types/tests/maintainability/Review: passed. CL-4 published
+passed. CL-3 source types/tests/maintainability/Review: passed (140 tests). CL-4 published
 artifact identity, consumer adoption and necessary live list/prepare read:
 pending. Data in source/tests is synthetic; consumer evidence stays private.
 
@@ -28,3 +28,9 @@ not establish follow-back probability or approve any candidate.
 Implementation review: no open findings after preserving biography control-like
 lines and validating the target URL again after advance. The public API keeps
 proof/delta projection in the original reader owner; writes remain separate.
+
+Live acceptance found sidebar UserCells visible before the primary list loaded.
+Restrict parser, readiness and advance links to the actual primary column; a
+loading primary list remains missing rather than borrowing recommendations.
+The synthetic loading/sidebar regression covers this boundary. CL-4 remains
+pending until the corrective published artifact is adopted and read live.

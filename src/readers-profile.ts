@@ -113,7 +113,9 @@ export function readPeople({ offset = 0, limit = 5 }: any = {}): any {
     throw new Error("人物窗口须为非负offset及1–5 limit");
   const visible = (el: any) => el.getClientRects().length > 0;
   const cells = Array.from<any>(
-    document.querySelectorAll<HTMLElement>('main [data-testid="UserCell"]'),
+    document.querySelectorAll<HTMLElement>(
+      'main [data-testid="primaryColumn"] [data-testid="UserCell"]',
+    ),
   ).filter(visible);
   const people = cells.slice(offset, offset + limit).map((cell: any) => {
     const links = Array.from<any>(cell.querySelectorAll("a[href]"))
