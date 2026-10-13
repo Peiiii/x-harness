@@ -176,8 +176,14 @@ export class DOMNavigation {
       !command.forceNavigation &&
       typeof this.#tab.url === "function" &&
       (await this.#tab.url()) === xURL(command.url).href
-    )
+    ) {
+      if (command.view === "person")
+        await this.handleWaitProfileContent(
+          this.#tab.playwright.locator('[data-testid="UserName"]'),
+          command.url,
+        );
       return;
+    }
     const originalPage =
       typeof this.#tab.url === "function"
         ? await this.#tab.url()
@@ -250,7 +256,7 @@ export class DOMNavigation {
     }
     if (command.view === "person") {
       // Profile readiness belongs to profile content; self profiles have no Follow button.
-      await this.handleWaitTargetContent(
+      await this.handleWaitProfileContent(
         this.#tab.playwright.locator('[data-testid="UserName"]'),
         command.url,
       );
@@ -278,6 +284,23 @@ export class DOMNavigation {
     }
     return;
   }
+  private async handleWaitProfileContent(target: any, url: string) {
+    try {
+      await this.handleWaitTargetContent(target, url);
+      return;
+    } catch (error: any) {
+      if (!/timed out|timeout|deadline exceeded/i.test(error.message))
+        throw error;
+      const check = await this.#observe({ view: "account", limit: 1 });
+      if (check.page !== url || check.alerts?.length)
+        throw Error("target-readiness-route-or-alert", { cause: error });
+      // A loaded X error view does not become a profile by waiting longer.
+      // Reopen this exact observed route once; never repeat a Follow click.
+      this.#session.current = null;
+      await this.#tab.goto(url);
+      await this.handleWaitTargetContent(target, url);
+    }
+  }
   private async handleWaitTargetContent(detail: any, url: string) {
     const deadline = Date.now() + 15000;
     for (let attempt = 0; attempt < 4; attempt++) {
@@ -297,7 +320,8 @@ export class DOMNavigation {
         )
           throw error;
         const check = await this.#observe({ view: "account", limit: 1 });
-        if (check.page !== url || check.alerts?.length) throw error;
+        if (check.page !== url || check.alerts?.length)
+          throw Error("target-readiness-route-or-alert", { cause: error });
       }
     }
   }
@@ -325,7 +349,7 @@ export class DOMNavigation {
       idleTimedOut = true;
     }
     await this.#tab.reload();
-    await this.handleWaitTargetContent(
+    await this.handleWaitProfileContent(
       this.#tab.playwright.getByRole("button", {
         name: new RegExp(
           `^(?:正在关注|取消关注|关注|回关) @${command.handle}$`,

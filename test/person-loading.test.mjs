@@ -9,6 +9,7 @@ for (const operation of ["openObserved", "refreshPerson"]) {
     "changed-route",
     "transport",
     "absent",
+    "reopen",
   ]) {
     test(`person ${operation} preserves bounded readiness: ${signal}`, async () => {
       let page = "https://x.com/reader",
@@ -24,7 +25,11 @@ for (const operation of ["openObserved", "refreshPerson"]) {
           return 0;
         },
         async waitFor() {
-          if (++waits === 1 || signal === "absent")
+          if (
+            ++waits === 1 ||
+            signal === "absent" ||
+            (signal === "reopen" && waits <= 4)
+          )
             throw Error(
               signal === "transport"
                 ? "host disconnected"
@@ -73,20 +78,24 @@ for (const operation of ["openObserved", "refreshPerson"]) {
           url: page,
           evidenceRef: "synthetic-source",
         });
-      if (signal === "loading") {
+      if (signal === "loading" || signal === "reopen") {
         await action();
-        assert.equal(waits, 2);
-        assert.equal(observations, 1);
+        assert.equal(waits, signal === "reopen" ? 5 : 2);
+        assert.equal(observations, signal === "reopen" ? 4 : 1);
       } else {
         await assert.rejects(action());
-        assert.equal(waits, signal === "absent" ? 4 : 1);
+        assert.equal(waits, signal === "absent" ? 8 : 1);
         assert.equal(
           observations,
-          signal === "transport" ? 0 : signal === "absent" ? 3 : 1,
+          signal === "transport" ? 0 : signal === "absent" ? 7 : 1,
         );
       }
       assert.equal(reloads, operation === "refreshPerson" ? 1 : 0);
-      assert.equal(navigations, operation === "openObserved" ? 1 : 0);
+      assert.equal(
+        navigations,
+        (operation === "openObserved" ? 1 : 0) +
+          (["absent", "reopen"].includes(signal) ? 1 : 0),
+      );
     });
   }
 }
