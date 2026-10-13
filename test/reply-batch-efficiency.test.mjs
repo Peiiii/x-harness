@@ -31,6 +31,16 @@ test("reply submission baseline never reloads; verification still does", async (
 });
 test("batch owns one due pacing wait and read-only unknown recovery, no resend", async (t) => {
   const f = fixture(t);
+  await f.store.transaction(({ state }) => {
+    state.actions.push({
+      id: "a",
+      kind: "reply",
+      status: "unknown",
+      observedPublicURL: "https://x.com/Pei/status/99",
+      observedPublicEvidenceRef: f.proof,
+    });
+    return state;
+  });
   const api = createBusinessHarness({
     store: f.store,
     platform: {},

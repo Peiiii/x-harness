@@ -355,11 +355,16 @@ export class BusinessHarness implements XGrowthHarness {
           });
         }
       }
-      if (result.status === "unknown")
-        result = await this.verifySubmission({
-          taskId: args.taskId,
-          actionId: action.id,
-        });
+      if (result.status === "unknown") {
+        const current = (await this.#store.load()).state.actions.find(
+          (a: BoundaryRecord) => a.id === action.id,
+        );
+        if (current?.observedPublicURL && current?.observedPublicEvidenceRef)
+          result = await this.verifySubmission({
+            taskId: args.taskId,
+            actionId: action.id,
+          });
+      }
       results.push(result);
       if (
         ["waiting", "needsCapability", "needsDecision"].includes(result.status)
