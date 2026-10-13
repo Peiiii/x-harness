@@ -17,6 +17,13 @@ export class PlatformCapabilities {
       typeof this.#browser.collectCreator !== "function"
     )
       absent.push("browser.collectCreator");
+    if (input.quoteTarget)
+      absent.push(
+        ...(this.#browser.capabilities?.("openQuoteComposer") ?? [
+          "openQuoteComposer",
+        ]),
+        ...(this.#browser.capabilities?.("openQuote") ?? ["openQuote"]),
+      );
     if (input.resolveQuote)
       absent.push(
         ...(this.#browser.capabilities?.("openQuote") ?? ["openQuote"]),

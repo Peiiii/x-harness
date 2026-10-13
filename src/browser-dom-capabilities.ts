@@ -126,7 +126,7 @@ export class DOMCapabilities {
           ]),
         );
     }
-    if (operation === "submitPost" || operation === "openQuoteComposer") {
+    if (operation === "openQuoteComposer") {
       base.push(
         ...missingMethods(this.#tab?.playwright, ["locator", "getByRole"]),
       );
