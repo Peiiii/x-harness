@@ -102,6 +102,9 @@ export interface ReadResult {
   offset?: number;
   renderedPeople?: number;
   moreInDOM?: boolean;
+  folders?: string[];
+  folder?: string;
+  folderEvidence?: { entryPage?: string; selectedPage?: string; name?: string };
   sources?: PostEvidence[];
   post?: PostEvidence;
   context?: PostEvidence[];
@@ -169,7 +172,9 @@ export interface IncomingConversationResult {
   }[];
 }
 export interface BookmarkOptions extends WindowOptions {
-  folder: string;
+  folder?: string;
+  /** Discover names only; never read all bookmarks as a named folder. */
+  discoverOnly?: boolean;
 }
 export interface SearchOptions extends WindowOptions {
   query: string;

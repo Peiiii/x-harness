@@ -451,7 +451,19 @@ export const readXObservation = (query) => {
             source: "exact-visible-folder-label",
         })));
     }
+    // Folder names exist as plain text cards in the history tab dropdown.
+    // Only a visible bookmark-specific menu can supply names, never articles
+    // or unrelated menus. "All bookmarks" remains an option, not a folder.
+    const bookmarkFolders = [
+        ...new Set(Array.from(document.querySelectorAll('[role="menu"],[role="dialog"],[data-testid="Dropdown"]'))
+            .filter((root) => visible(root) && /所有书签|All bookmarks/i.test(root.innerText))
+            .flatMap((root) => Array.from(root.querySelectorAll("span")))
+            .filter((el) => visible(el) && !el.closest("article") && !el.querySelector("span"))
+            .map((el) => el.innerText.trim())
+            .filter((name) => name && !/^(书签|Bookmarks|所有书签|All bookmarks)$/i.test(name))),
+    ];
     return {
+        bookmarkFolders,
         page: location.href,
         controls: controls.slice(0, 40),
         headings: Array.from(primary?.querySelectorAll('h1,h2,[role="heading"]') ?? [])

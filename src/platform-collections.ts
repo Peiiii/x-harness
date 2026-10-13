@@ -192,9 +192,10 @@ export class PlatformCollections {
   }
   private async handleReadBookmarks({
     folder,
+    discoverOnly = false,
     ...window
   }: any = {}): Promise<any> {
-    if (typeof folder !== "string" || !folder.trim())
+    if (!discoverOnly && (typeof folder !== "string" || !folder.trim()))
       throw new Error("需指定收藏文件夹；不以全部书签冒充命名文件夹");
     let nav = await this.#ready({ view: "navigation", targetLabel: folder });
     const bookmark = (c: any) => /^(书签|收藏|Bookmarks)$/i.test(c.label);
@@ -233,7 +234,10 @@ export class PlatformCollections {
     }
     nav = await this.#ready({ view: "navigation", targetLabel: folder });
     const tabs = (nav.controls ?? []).filter(
-      (c: any) => c.role === "tab" && bookmark(c),
+      (c: any) =>
+        c.role === "tab" &&
+        (bookmark(c) ||
+          (discoverOnly && c.selected && !/^(喜欢|Likes)$/i.test(c.label))),
     );
     if (
       tabs.length === 1 &&
@@ -246,6 +250,19 @@ export class PlatformCollections {
         activateSelected: true,
       });
       nav = await this.#ready({ view: "navigation", targetLabel: folder });
+    }
+    if (discoverOnly) {
+      const folders = nav.bookmarkFolders ?? [];
+      return {
+        page: nav.page,
+        accountHandle: nav.accountHandle,
+        observedAt: nav.observedAt,
+        fresh: true,
+        complete: folders.length > 0 && !nav.alerts?.length,
+        pageComplete: false,
+        folders,
+        missing: folders.length ? [] : ["bookmark-folder-menu-unconfirmed"],
+      };
     }
     if (
       !(nav.controls ?? []).some((c: any) => c.label.split("\n")[0] === folder)

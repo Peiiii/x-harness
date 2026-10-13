@@ -209,6 +209,16 @@ export function readResult(
       "renderedPeople",
       "moreInDOM",
     ]) as unknown as ReadResult;
+  if (operation === "readBookmarks") {
+    if (raw.folders !== undefined) out.folders = strings(raw.folders);
+    if (typeof raw.folder === "string") out.folder = raw.folder;
+    if (raw.folderEvidence)
+      out.folderEvidence = pick(raw.folderEvidence, [
+        "entryPage",
+        "selectedPage",
+        "name",
+      ]);
+  }
   if (out.reason) out.reason = stableReason(out.reason);
   if (!["observed", "needsDecision", "needsCapability"].includes(out.status))
     out.status = "needsDecision";

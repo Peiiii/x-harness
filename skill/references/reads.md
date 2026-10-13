@@ -4,7 +4,7 @@
 | --- | --- | --- |
 | readIncomingReplies | none | processedIds, limit (5), maxPages (3), mode |
 | readCreator | handle | target (10;1–50), maxScrolls, navigate, expand, mode |
-| readBookmarks | folder (observed name) | processedIds, limit, maxPages, mode |
+| readBookmarks | folder (observed name), or discoverOnly:true | processedIds, limit, maxPages, mode |
 | searchSources | query | processedIds, limit, maxPages, mode |
 | readPost | target: {postId,url,evidenceRef} | includeContext, resolveQuote, mode |
 | readPerson | target: {handle,url,evidenceRef} | mode |
@@ -24,3 +24,5 @@ Incoming work: use `readIncomingConversations({targets?,...window})` once for di
 `resolveQuote:true` follows one observed card and returns `post.quoteSource` only after exact destination/body/author/time binding.
 
 `readPeople`: observed follower/following lists; offsets reuse cells. advance scrolls a unique fresh handle. people has full bio, blue/relationship. Dedup; unknowns need profiles. Native unsupported.
+
+Discovery returns names only.

@@ -83,7 +83,34 @@ export function readNavigation({ targetLabel }: any = {}): any {
       })),
     );
   }
+  // Folder names exist as plain text cards in the history tab dropdown.
+  // Only a visible bookmark-specific menu can supply names, never articles
+  // or unrelated menus. "All bookmarks" remains an option, not a folder.
+  const bookmarkFolders = [
+    ...new Set(
+      Array.from<any>(
+        document.querySelectorAll(
+          '[role="menu"],[role="dialog"],[data-testid="Dropdown"]',
+        ),
+      )
+        .filter(
+          (root: any) =>
+            visible(root) && /所有书签|All bookmarks/i.test(root.innerText),
+        )
+        .flatMap((root: any) => Array.from<any>(root.querySelectorAll("span")))
+        .filter(
+          (el: any) =>
+            visible(el) && !el.closest("article") && !el.querySelector("span"),
+        )
+        .map((el: any) => el.innerText.trim())
+        .filter(
+          (name: string) =>
+            name && !/^(书签|Bookmarks|所有书签|All bookmarks)$/i.test(name),
+        ),
+    ),
+  ];
   return {
+    bookmarkFolders,
     page: location.href,
     controls: controls.slice(0, 40),
     headings: Array.from<any>(
