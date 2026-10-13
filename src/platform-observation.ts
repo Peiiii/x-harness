@@ -66,10 +66,11 @@ export class PlatformObservation {
       query.view === "posts" &&
       Number.isInteger(query.offset) &&
       query.offset > 0 &&
-      value.renderedArticles > 0 &&
       !value.posts?.length;
+    const waitingForList =
+      query.view === "posts" && !query.targetId && !value.posts?.length;
     if (
-      (value.needsStateCheck || waitingForOffset) &&
+      (value.needsStateCheck || waitingForOffset || waitingForList) &&
       !value.alerts?.length &&
       query.view === "posts"
     ) {
@@ -82,6 +83,8 @@ export class PlatformObservation {
         if (!/timed out|timeout/i.test(error.message)) throw error;
       }
       value = await this.handleObserved(query);
+      if (waitingForList && !query.offset && !value.posts?.length)
+        value = { ...value, needsStateCheck: true };
     }
     return value;
   }

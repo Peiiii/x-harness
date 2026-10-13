@@ -191,3 +191,90 @@ test("source pagination reaches the loaded tail before waiting for asynchronous 
   assert.deepEqual(keys, ["End"]);
   assert.equal(session.current, null);
 });
+
+test("empty first bookmark screen waits even when DOM marks navigation ready", async () => {
+  let loaded = false;
+  const actions = [];
+  const browser = {
+    observe: async () => ({
+      page: "https://x.com/i/bookmarks/folder/7",
+      renderedArticles: loaded ? 1 : 0,
+      posts: loaded ? [post(7)] : [],
+      needsStateCheck: false,
+      alerts: [],
+    }),
+    act: async (q) => {
+      actions.push(q);
+      loaded = true;
+    },
+  };
+  const observation = new PlatformObservation({ browser, clock: () => 0 });
+  const result = await observation.ready({
+    view: "posts",
+    offset: 0,
+    limit: 5,
+  });
+  assert.deepEqual(
+    result.posts.map((p) => p.id),
+    ["7"],
+  );
+  assert.deepEqual(actions, [{ operation: "waitForPosts" }]);
+});
+
+test("an offset window survives transient removal of every rendered article", async () => {
+  let loaded = false;
+  const actions = [];
+  const browser = {
+    observe: async ({ offset }) => ({
+      page: "https://x.com/i/bookmarks/folder/7",
+      renderedArticles: loaded ? 6 : 0,
+      firstRenderedId: loaded ? "1" : undefined,
+      posts: loaded && offset === 5 ? [post(6)] : [],
+      needsStateCheck: false,
+      alerts: [],
+    }),
+    act: async (q) => {
+      actions.push(q);
+      loaded = true;
+    },
+  };
+  const observation = new PlatformObservation({ browser, clock: () => 0 });
+  const result = await observation.ready({
+    view: "posts",
+    offset: 5,
+    limit: 5,
+  });
+  assert.deepEqual(
+    result.posts.map((p) => p.id),
+    ["6"],
+  );
+  assert.deepEqual(actions, [{ operation: "waitForPosts", offset: 5 }]);
+});
+
+test("an empty first list stays unconfirmed after timeout and never scrolls an absent card", async () => {
+  const actions = [];
+  const browser = {
+    observe: async () => ({
+      page: "https://x.com/i/bookmarks/folder/7",
+      renderedArticles: 0,
+      posts: [],
+      needsStateCheck: false,
+      alerts: [],
+    }),
+    act: async (q) => {
+      actions.push(q);
+      throw Error("timed out");
+    },
+  };
+  const observation = new PlatformObservation({ browser, clock: () => 0 });
+  const collections = new PlatformCollections({
+    browser,
+    ready: observation.ready,
+    observed: observation.observed,
+    choose: observation.choose,
+  });
+  const result = await collections.collectSources({ maxPages: 2, limit: 1 });
+  assert.equal(result.complete, false);
+  assert.deepEqual(result.missing, ["source-page-unconfirmed"]);
+  assert.deepEqual(actions, [{ operation: "waitForPosts" }]);
+});
