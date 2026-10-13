@@ -67,3 +67,46 @@ test("missing history fails closed; received conversations outside active catego
     null,
   );
 });
+
+test("a third active comment is rejected before navigation, intent or click", async (t) => {
+  const { fixture, NOW } = await import("./fixtures.mjs");
+  const { createBusinessHarness } = await import("../dist/diagnostics.js");
+  const f = fixture(t, { actionKinds: ["reply"], planned: [0, 0, 3] });
+  f.edit((s) => {
+    s.actions[0].sourceCategory = "mutual";
+    s.actions[0].conversation = {
+      recipientHandle: "peer",
+      rootId: "123",
+      round: 1,
+    };
+    s.replyAuthorPolicy = {
+      userAuthorized: true,
+      max: 2,
+      evidenceRef: f.proof,
+    };
+    s.replyAuthorHistory = {
+      complete: true,
+      evidenceRef: f.proof,
+      entries: [
+        { id: "first", kind: "reply", author: "peer", status: "verified" },
+        { id: "second", kind: "reply", author: "peer", status: "unknown" },
+      ],
+    };
+  });
+  const a = f.read().actions[0];
+  const api = createBusinessHarness({
+    store: f.store,
+    platform: f.platform,
+    clock: () => NOW,
+  });
+  const r = await api.replyToPost({
+    taskId: "round-1",
+    postId: a.postId,
+    text: a.text,
+    preparedAction: a,
+  });
+  assert.equal(r.status, "needsDecision");
+  assert.match(JSON.stringify(r), /reply-author-limit/);
+  assert.equal(f.writes.length, 0);
+  assert.equal(f.read().attempts.length, 0);
+});
