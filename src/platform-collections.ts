@@ -345,15 +345,8 @@ export class PlatformCollections {
         folder,
         controls: nav.controls,
       };
-    const selected = await this.#ready({ view: "navigation" });
-    if (selected.page === nav.page && !selected.headings?.includes(folder))
-      return {
-        status: "needsDecision",
-        complete: false,
-        missing: ["folder-selection-unconfirmed"],
-        folder,
-        page: selected.page,
-      };
+    const selected = await this.confirmBookmarkFolder(folder);
+    if (selected.status) return selected;
     const value = await this.handleCollectSources(window);
     return {
       ...value,
@@ -364,6 +357,35 @@ export class PlatformCollections {
         name: folder,
       },
     };
+  }
+  private async confirmBookmarkFolder(folder: string) {
+    let selected = await this.#ready({ view: "navigation" });
+    if (!selected.headings?.includes(folder)) {
+      try {
+        await this.#browser.act({
+          operation: "waitForFolder",
+          folder,
+          selected: true,
+        });
+      } catch (error: any) {
+        if (!/timed out|timeout/i.test(error.message)) throw error;
+      }
+      selected = await this.#ready({ view: "navigation" });
+    }
+    if (
+      !selected.headings?.includes(folder) ||
+      !/\/i\/(?:history\/)?bookmarks\//.test(selected.page ?? "") ||
+      selected.needsStateCheck ||
+      selected.alerts?.length
+    )
+      return {
+        status: "needsDecision",
+        complete: false,
+        missing: ["folder-selection-unconfirmed"],
+        folder,
+        page: selected.page,
+      };
+    return selected;
   }
   private bookmarkDiscovery(nav: any) {
     const folders = nav.bookmarkFolders ?? [];

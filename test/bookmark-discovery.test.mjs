@@ -165,3 +165,77 @@ test("DOM folder discovery waits for a named card rather than the static all-boo
   assert.equal(calls[2][1], "span:not(:has(span))");
   assert.equal(calls.at(-1)[1].state, "visible");
 });
+
+test("a no-href bookmark label waits for selected-folder navigation before reading sources", async () => {
+  for (const outcome of ["selected", "timeout", "wrong-url"]) {
+    let clicked = false,
+      selected = false,
+      postReads = 0;
+    const actions = [];
+    const adapter = new PlatformCollections({
+      ready: async (q) => {
+        if (q.view === "posts") {
+          postReads++;
+          assert.equal(selected, true);
+          return {
+            page: "https://x.com/i/history/bookmarks/7",
+            posts: [
+              {
+                id: "1",
+                author: "source",
+                body: "Specific original body",
+                datetime: "2026-01-01T00:00:00Z",
+                primary: "/source/status/1",
+              },
+            ],
+          };
+        }
+        return {
+          page:
+            selected && outcome !== "wrong-url"
+              ? "https://x.com/i/history/bookmarks/7"
+              : "https://x.com/i/history",
+          headings: selected ? ["Remakes"] : ["History"],
+          controls: [
+            { role: "tab", label: "Bookmarks", selected: true },
+            { role: "text", label: "Remakes", href: null },
+          ],
+        };
+      },
+      observed: async () => ({}),
+      choose: async (value, predicate) => {
+        const found = value.controls.filter(predicate);
+        if (found.length !== 1) return false;
+        if (found[0].label === "Remakes") clicked = true;
+        return true;
+      },
+      browser: {
+        act: async (q) => {
+          actions.push(q);
+          assert.equal(clicked, true);
+          assert.deepEqual(q, {
+            operation: "waitForFolder",
+            folder: "Remakes",
+            selected: true,
+          });
+          if (outcome === "timeout") throw Error("timed out");
+          selected = true;
+        },
+      },
+    });
+    const result = await adapter.readBookmarks({
+      folder: "Remakes",
+      limit: 1,
+      maxPages: 1,
+    });
+    assert.equal(actions.length, 1);
+    if (outcome === "selected") {
+      assert.equal(postReads, 1);
+      assert.equal(result.complete, true);
+    } else {
+      assert.equal(postReads, 0);
+      assert.equal(result.complete, false);
+      assert.deepEqual(result.missing, ["folder-selection-unconfirmed"]);
+    }
+  }
+});

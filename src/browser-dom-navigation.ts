@@ -91,6 +91,12 @@ export class DOMNavigation {
     return;
   }
   private async handleWaitForFolder(command: any) {
+    if (command.selected) {
+      await this.#tab.playwright
+        .getByRole("heading", { name: command.folder, exact: true })
+        .waitFor({ state: "visible", timeoutMs: 5000 });
+      return;
+    }
     if (command.folderDiscovery) {
       // "All bookmarks" renders before the asynchronously loaded named cards.
       // Wait for any named card inside that specific menu, never an unrelated
