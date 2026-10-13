@@ -149,16 +149,20 @@ export class FollowbackAudit {
       return "account-identity-unconfirmed";
     const before = Object.keys(state.entries).length;
     for (const person of value.people ?? []) {
-      if (
-        !person.handle ||
-        (kind === "following" && person.relationship !== "following")
-      ) {
+      if (!person.handle || person.relationship === "unknown") {
         state.gaps.push({
           reason: "following-control-or-identity-unconfirmed",
           evidenceRef: value.evidenceRef,
         });
         continue;
       }
+      if (kind === "following" && person.relationship !== "following") continue;
+      if (
+        kind === "followers" &&
+        person.relationship !== "follows-you" &&
+        !person.followsYou
+      )
+        continue;
       state.entries[person.handle.toLowerCase()] = {
         handle: person.handle,
         url: person.url,
@@ -179,7 +183,9 @@ export class FollowbackAudit {
     if (state.complete) return null;
     if (target.expectedCount !== undefined && count > target.expectedCount)
       return "observed-count-changed";
-    return state.stalled >= 2 ? "list-progress-stalled" : null;
+    return state.stalled >= 2 && value.atDocumentEnd !== false
+      ? "list-progress-stalled"
+      : null;
   }
   private async result(
     job: BoundaryRecord,

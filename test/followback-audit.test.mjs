@@ -54,6 +54,7 @@ function fixture({
             handle,
             url: "https://x.com/" + handle,
             relationship: "following",
+            followsYou: true,
           })),
         page: q.target.url,
       };
@@ -237,4 +238,45 @@ test("new runtime resumes the saved immutable checkpoint on the retained list bi
   });
   assert.equal(resumed.complete, true);
   assert.equal(resumed.nonFollowerCount, 2);
+});
+
+test("unchanged cells before the real document tail do not prematurely end the scan", async () => {
+  const f = fixture({
+    pages: {
+      following: [["alpha"], ["alpha"], ["alpha"], ["beta"], ["gamma"]],
+      followers: [["beta", "delta"]],
+    },
+  });
+  const read = f.platform.readPeople;
+  f.platform.readPeople = async (q) => ({
+    ...(await read(q)),
+    atDocumentEnd: false,
+  });
+  const r = await f.x.readFollowbackAudit(targets);
+  assert.equal(r.complete, true);
+  assert.equal(r.followingCount, 3);
+});
+test("recommendation cells without reciprocal evidence do not complete the follower count", async () => {
+  const f = fixture({
+    pages: {
+      following: [["alpha", "beta", "gamma"]],
+      followers: [["beta", "delta"]],
+    },
+  });
+  const read = f.platform.readPeople;
+  f.platform.readPeople = async (q) => {
+    const r = await read(q);
+    if (q.target.url.endsWith("/followers"))
+      r.people = r.people.map((p) =>
+        p.handle === "delta"
+          ? { ...p, relationship: "not-following", followsYou: false }
+          : p,
+      );
+    return r;
+  };
+  const r = await f.x.readFollowbackAudit(targets);
+  assert.equal(r.complete, false);
+  assert.equal(r.followersCount, 1);
+  assert.equal(r.nonFollowerCount, 0);
+  assert.equal(r.provisionalCount, 2);
 });

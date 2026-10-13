@@ -284,6 +284,9 @@ export const readXObservation = (query) => {
             url: handle ? "https://x.com/" + handle : null,
             blue,
             relationship,
+            followsYou: Array.from(cell.querySelectorAll('[data-testid="userFollowIndicator"]'))
+                .filter(visible)
+                .some((e) => /^(?:关注了你|Follows you)$/i.test(e.innerText?.trim() ?? e.textContent?.trim() ?? "")),
             biography,
         };
     });
@@ -319,6 +322,11 @@ export const readXObservation = (query) => {
             : null,
         offset,
         renderedPeople: cells.length,
+        atDocumentEnd: typeof document.scrollingElement?.scrollTop === "number"
+            ? document.scrollingElement.scrollTop +
+                document.scrollingElement.clientHeight >=
+                document.scrollingElement.scrollHeight - 3
+            : null,
         moreInDOM: offset + limit < cells.length,
         pageComplete: false,
         needsStateCheck: !people.length,
