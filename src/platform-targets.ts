@@ -128,7 +128,7 @@ export class PlatformTargets {
       offset < 0 ||
       !Number.isInteger(limit) ||
       limit < 1 ||
-      limit > (bulk === true ? 100 : 5) ||
+      limit > (bulk === true ? 1000 : 5) ||
       typeof advance !== "boolean"
     )
       throw new Error("people-window-invalid");

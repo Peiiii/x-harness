@@ -101,7 +101,8 @@ export class FollowbackAudit {
       target = job.targets[kind];
     const value = await this.#read({
       target,
-      limit: 100,
+      limit: 1000,
+      offset: state.offset ?? 0,
       bulk: true,
       advance: state.advance,
       mode: "decision",
@@ -137,8 +138,12 @@ export class FollowbackAudit {
       target.expectedCount !== undefined &&
       count === target.expectedCount &&
       !state.gaps.length;
-    state.stalled = count === before ? state.stalled + 1 : 0;
-    state.advance = true;
+    state.stalled =
+      count > before ? 0 : value.moreInDOM ? state.stalled : state.stalled + 1;
+    state.offset = value.moreInDOM
+      ? (value.offset ?? state.offset ?? 0) + (value.people?.length ?? 0)
+      : 0;
+    state.advance = !value.moreInDOM;
     if (state.complete) return null;
     if (target.expectedCount !== undefined && count > target.expectedCount)
       return "observed-count-changed";

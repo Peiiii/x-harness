@@ -42,11 +42,15 @@ function fixture({
         pages[kind][Math.min(position[kind], pages[kind].length - 1)] ?? [];
       return {
         complete: true,
-        people: page.map((handle) => ({
-          handle,
-          url: "https://x.com/" + handle,
-          relationship: "following",
-        })),
+        offset: q.offset ?? 0,
+        moreInDOM: (q.offset ?? 0) + q.limit < page.length,
+        people: page
+          .slice(q.offset ?? 0, (q.offset ?? 0) + q.limit)
+          .map((handle) => ({
+            handle,
+            url: "https://x.com/" + handle,
+            relationship: "following",
+          })),
         page: q.target.url,
       };
     },
@@ -71,7 +75,7 @@ test("root bulk audit deduplicates virtual overlaps and stores the complete diff
   assert.equal(r.nonFollowerCount, 2);
   assert.equal(r.mutualCount, 1);
   assert.equal(f.calls.length, 3);
-  assert.ok(f.calls.every((c) => c.limit === 100 && c.bulk === true));
+  assert.ok(f.calls.every((c) => c.limit === 1000 && c.bulk === true));
   assert.deepEqual(
     f.proofs.at(-1).nonFollowers.map((p) => p.handle),
     ["alpha", "gamma"],
@@ -183,4 +187,21 @@ test("zero expected counts do not hide unexpected visible accounts", async () =>
   });
   assert.equal(r.complete, false);
   assert.equal(r.reason, "observed-count-changed");
+});
+
+test("bulk reads remaining DOM offsets before advancing rather than repeating the first window", async () => {
+  const names = Array.from({ length: 1100 }, (_, i) => "fixture" + i);
+  const f = fixture({
+    pages: { following: [names], followers: [["fixture0", "other"]] },
+  });
+  const r = await f.x.readFollowbackAudit({
+    ...targets,
+    following: { ...targets.following, expectedCount: 1100 },
+  });
+  assert.equal(r.complete, true);
+  assert.equal(r.followingCount, 1100);
+  assert.equal(f.calls[0].limit, 1000);
+  assert.equal(f.calls[1].offset, 1000);
+  assert.equal(f.calls[1].advance, false);
+  assert.equal(r.nonFollowerCount, 1099);
 });

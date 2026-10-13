@@ -112,7 +112,7 @@ export function readPeople({
     offset < 0 ||
     !Number.isInteger(limit) ||
     limit < 1 ||
-    limit > (bulk === true ? 100 : 5)
+    limit > (bulk === true ? 1000 : 5)
   )
     throw new Error("人物窗口须为非负offset及1–5 limit");
   const visible = (el: any) => el.getClientRects().length > 0;
