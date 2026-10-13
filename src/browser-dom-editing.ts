@@ -319,7 +319,7 @@ export class DOMEditing {
     const anchor = await this.#unique(
       this.#tab.playwright
         .locator(`a[href=${JSON.stringify(primary)}]`)
-        .filter({ visible: true }),
+        .filter({ has: this.#tab.playwright.locator("time") }),
     );
     this.#session.current = null;
     await anchor.press("PageDown");

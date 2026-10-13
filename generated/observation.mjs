@@ -445,7 +445,7 @@ export const readXObservation = (query) => {
         ...new Set([
             ...Array.from(document.querySelectorAll("nav a[href],nav button")).filter((el) => !el.closest("main")),
             ...Array.from(primary?.querySelectorAll('a[href],button,[role="button"],[role="tab"]') ?? []),
-            ...Array.from(document.querySelectorAll('[role="menu"] a[href], [role="menu"] button, [data-testid="Dropdown"] a[href], [data-testid="Dropdown"] button')),
+            ...Array.from(document.querySelectorAll('[role="menu"] a[href], [role="menu"] button, [data-testid="Dropdown"] a[href], [data-testid="Dropdown"] button, [data-testid="Dropdown"] [role="menuitemradio"]')),
         ]),
     ].filter((el) => visible(el) &&
         !el.closest("article") &&

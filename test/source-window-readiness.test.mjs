@@ -181,6 +181,7 @@ test("source pagination advances one viewport before waiting for asynchronous ca
     tab: {
       playwright: {
         locator: (selector) => {
+          if (selector === "time") return {};
           assert.equal(selector, 'a[href="/example_user/status/5"]');
           return anchor;
         },

@@ -283,3 +283,39 @@ test("bookmark resume keeps the observed named folder and does not reopen or nav
     "https://x.com/i/history/bookmarks/7",
   );
 });
+
+test("observed bookmark menu radio activates the actual semantic item, never an inner text click", async () => {
+  const { DOMEditing } = await import("../dist/browser-dom-editing.js");
+  const actions = [];
+  const current = {
+    query: { view: "navigation" },
+    result: {
+      controls: [{ role: "menuitemradio", label: "Remakes", href: null }],
+    },
+  };
+  const adapter = new DOMEditing({
+    session: { current },
+    unique: async (x) => x,
+    locator: (role, label) => {
+      assert.equal(role, "menuitemradio");
+      assert.equal(label, "Remakes");
+      return {
+        click: async () => actions.push("click"),
+      };
+    },
+    tab: {
+      playwright: {
+        getByText: () => {
+          throw Error("must not target inner text");
+        },
+      },
+    },
+    observe: async () => ({}),
+  });
+  await adapter.openControl({
+    role: "menuitemradio",
+    label: "Remakes",
+    href: null,
+  });
+  assert.deepEqual(actions, ["click"]);
+});

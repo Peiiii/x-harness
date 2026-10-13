@@ -47,7 +47,7 @@ export function readNavigation({
       ),
       ...Array.from<any>(
         document.querySelectorAll<HTMLElement>(
-          '[role="menu"] a[href], [role="menu"] button, [data-testid="Dropdown"] a[href], [data-testid="Dropdown"] button',
+          '[role="menu"] a[href], [role="menu"] button, [data-testid="Dropdown"] a[href], [data-testid="Dropdown"] button, [data-testid="Dropdown"] [role="menuitemradio"]',
         ),
       ),
     ]),
