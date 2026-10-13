@@ -26,7 +26,10 @@ export function readMenu(): any {
 }
 
 // Bounded visible navigation only. Never include article links as navigation controls.
-export function readNavigation({ targetLabel }: any = {}): any {
+export function readNavigation({
+  targetLabel,
+  bookmarkNavigation = false,
+}: any = {}): any {
   const visible = (el: any) =>
     el.getClientRects().length > 0 && !el.closest('[aria-hidden="true"]');
   const primary =
@@ -48,7 +51,16 @@ export function readNavigation({ targetLabel }: any = {}): any {
         ),
       ),
     ]),
-  ].filter((el: any) => visible(el) && !el.closest("article"));
+  ].filter(
+    (el: any) =>
+      visible(el) &&
+      !el.closest("article") &&
+      (!bookmarkNavigation ||
+        (el.closest("nav") && !el.closest("main")) ||
+        el.getAttribute("role") === "tab" ||
+        el.closest('[role="menu"],[role="dialog"],[data-testid="Dropdown"]')),
+  );
+
   const controls: any[] = nodes.map((el: any) => ({
     role: el.getAttribute("role") || (el.tagName === "A" ? "link" : "button"),
     label: el.getAttribute("aria-label") || el.innerText.trim(),

@@ -417,7 +417,7 @@ export const readXObservation = (query) => {
             .map((el) => el.innerText),
     };
 };
-  const readNavigation = function readNavigation({ targetLabel } = {}) {
+  const readNavigation = function readNavigation({ targetLabel, bookmarkNavigation = false, } = {}) {
     const visible = (el) => el.getClientRects().length > 0 && !el.closest('[aria-hidden="true"]');
     const primary = document.querySelector('[data-testid="primaryColumn"]') ??
         document.querySelector("main");
@@ -427,7 +427,12 @@ export const readXObservation = (query) => {
             ...Array.from(primary?.querySelectorAll('a[href],button,[role="button"],[role="tab"]') ?? []),
             ...Array.from(document.querySelectorAll('[role="menu"] a[href], [role="menu"] button, [data-testid="Dropdown"] a[href], [data-testid="Dropdown"] button')),
         ]),
-    ].filter((el) => visible(el) && !el.closest("article"));
+    ].filter((el) => visible(el) &&
+        !el.closest("article") &&
+        (!bookmarkNavigation ||
+            (el.closest("nav") && !el.closest("main")) ||
+            el.getAttribute("role") === "tab" ||
+            el.closest('[role="menu"],[role="dialog"],[data-testid="Dropdown"]')));
     const controls = nodes.map((el) => ({
         role: el.getAttribute("role") || (el.tagName === "A" ? "link" : "button"),
         label: el.getAttribute("aria-label") || el.innerText.trim(),

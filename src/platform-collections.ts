@@ -197,7 +197,11 @@ export class PlatformCollections {
   }: any = {}): Promise<any> {
     if (!discoverOnly && (typeof folder !== "string" || !folder.trim()))
       throw new Error("需指定收藏文件夹；不以全部书签冒充命名文件夹");
-    let nav = await this.#ready({ view: "navigation", targetLabel: folder });
+    let nav = await this.#ready({
+      view: "navigation",
+      targetLabel: folder,
+      bookmarkNavigation: true,
+    });
     const bookmark = (c: any) => /^(书签|收藏|Bookmarks)$/i.test(c.label);
     if (
       !(await this.#choose(nav, bookmark, { activateSelected: true })) &&
@@ -212,7 +216,11 @@ export class PlatformCollections {
         if (!(await this.#choose(nav, bookmark))) {
           if (nav.items?.length)
             await this.#browser.act({ operation: "dismissMenu" });
-          nav = await this.#ready({ view: "navigation", targetLabel: folder });
+          nav = await this.#ready({
+            view: "navigation",
+            targetLabel: folder,
+            bookmarkNavigation: true,
+          });
           if (
             !(await this.#choose(nav, (c: any) =>
               /^(历史|History)$/i.test(c.label),
@@ -235,7 +243,11 @@ export class PlatformCollections {
           missing: ["bookmarks-entry-not-observed"],
         };
     }
-    nav = await this.#ready({ view: "navigation", targetLabel: folder });
+    nav = await this.#ready({
+      view: "navigation",
+      targetLabel: folder,
+      bookmarkNavigation: true,
+    });
     const tabs = (nav.controls ?? []).filter(
       (c: any) =>
         c.role === "tab" &&
@@ -255,7 +267,11 @@ export class PlatformCollections {
       await this.#choose(nav, (c: any) => c === tabs[0], {
         activateSelected: true,
       });
-      nav = await this.#ready({ view: "navigation", targetLabel: folder });
+      nav = await this.#ready({
+        view: "navigation",
+        targetLabel: folder,
+        bookmarkNavigation: true,
+      });
     }
     if (discoverOnly) {
       const folders = nav.bookmarkFolders ?? [];
@@ -278,7 +294,11 @@ export class PlatformCollections {
       } catch (error: any) {
         if (!/timed out|timeout/i.test(error.message)) throw error;
       }
-      nav = await this.#ready({ view: "navigation", targetLabel: folder });
+      nav = await this.#ready({
+        view: "navigation",
+        targetLabel: folder,
+        bookmarkNavigation: true,
+      });
     }
     if (
       !(await this.#choose(nav, (c: any) => c.label.split("\n")[0] === folder))
