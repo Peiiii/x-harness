@@ -319,3 +319,29 @@ test("unfiltered scoped follower membership can prove the positive direction wit
   assert.equal(r.complete, true);
   assert.equal(r.notFollowedBackCount, 1);
 });
+
+test("revised observed counters need new proof and retain the same audit history", async () => {
+  const f = fixture({
+    pages: {
+      following: [["alpha", "beta", "gamma"]],
+      followers: [["beta", "delta"]],
+    },
+  });
+  const initial = await f.x.readFollowbackAudit({
+    ...targets,
+    followers: { ...targets.followers, expectedCount: 3 },
+  });
+  await assert.rejects(() =>
+    f.x.readFollowbackAudit({ ...targets, scanId: initial.scanId }),
+  );
+  const r = await f.x.readFollowbackAudit({
+    ...targets,
+    scanId: initial.scanId,
+    followers: {
+      ...targets.followers,
+      evidenceRef: "fixture:new-profile-counter",
+    },
+  });
+  assert.equal(r.complete, true);
+  assert.equal(f.proofs.at(-1).counterRevisions.length, 1);
+});

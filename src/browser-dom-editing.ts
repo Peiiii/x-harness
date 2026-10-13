@@ -289,15 +289,23 @@ export class DOMEditing {
   }
   private async handleNextPeople(_command: any) {
     const current = this.#session.current;
+    const reset = _command.reset === true;
     const handle = current?.result?.people?.at(-1)?.handle;
     if (
       current?.query?.view !== "people" ||
-      current.result.needsStateCheck ||
+      (!reset && current.result.needsStateCheck) ||
       current.result.alerts?.length ||
-      !/^[A-Za-z0-9_]{1,15}$/.test(handle ?? "")
+      (!reset && !/^[A-Za-z0-9_]{1,15}$/.test(handle ?? ""))
     )
       throw new Error("people-page-unconfirmed");
     this.#session.current = null;
+    if (reset) {
+      await this.#tab.getAXState({ emit: false });
+      await this.#tab.pressKey(null, "Control+Home");
+      await this.#tab.getAXState({ emit: false });
+      return { completed: true };
+    }
+
     if (
       typeof this.#tab.getAXState === "function" &&
       typeof this.#tab.scroll === "function"

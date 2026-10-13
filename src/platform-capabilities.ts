@@ -17,6 +17,10 @@ export class PlatformCapabilities {
       typeof this.#browser.collectCreator !== "function"
     )
       absent.push("browser.collectCreator");
+    if (operation === "readPeople" && input.reset)
+      absent.push(
+        ...(this.#browser.capabilities?.("resetPeople") ?? ["resetPeople"]),
+      );
     if (input.quoteTarget)
       absent.push(
         ...(this.#browser.capabilities?.("openQuoteComposer") ?? [

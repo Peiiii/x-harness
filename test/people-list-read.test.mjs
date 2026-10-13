@@ -356,3 +356,41 @@ test("native list scroll prefers the observed viewport control over a covered ti
   await browser.act({ operation: "nextPeople" });
   assert.deepEqual(scrolls, [[23, "down", 10]]);
 });
+
+test("an audit head reset uses native Control+Home and requires a confirmed document start", async () => {
+  const { createDOMXBrowser } = await import(root + "browser-dom.js");
+  const keys = [];
+  const tab = {
+    getAXState: async () => "fixture",
+    pressKey: async (...args) => keys.push(args),
+    playwright: {
+      evaluate: async () => ({
+        page: target.url,
+        people: [],
+        needsStateCheck: true,
+        alerts: [],
+      }),
+    },
+  };
+  const browser = createDOMXBrowser(tab);
+  await browser.observe({ view: "people" });
+  await browser.act({ operation: "nextPeople", reset: true });
+  assert.deepEqual(keys, [[null, "Control+Home"]]);
+  const acts = [];
+  const p = createXPlatform({
+    capabilities: () => [],
+    observe: async () => ({
+      page: target.url,
+      accountHandle: "fixture_self",
+      people: [row],
+      alerts: [],
+      needsStateCheck: false,
+      atDocumentStart: false,
+    }),
+    act: async (cmd) => acts.push(cmd),
+  });
+  const result = await p.readPeople({ target, reset: true });
+  assert.equal(result.complete, false);
+  assert.ok(result.missing.includes("people-list-start-unconfirmed"));
+  assert.equal(acts[0].reset, true);
+});

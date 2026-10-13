@@ -99,8 +99,36 @@ export class FollowbackAudit {
         }
         prior = checkpoint;
       }
-      if (!prior || JSON.stringify(prior.targets) !== JSON.stringify(targets))
-        throw new Error("followback-resume-mismatch");
+      if (!prior) throw new Error("followback-resume-mismatch");
+      if (JSON.stringify(prior.targets) !== JSON.stringify(targets)) {
+        for (const kind of ["following", "followers"] as const) {
+          const old = prior.targets[kind],
+            target = targets[kind];
+          if (
+            old.url !== target.url ||
+            !this.#evidenceExists(target.evidenceRef)
+          )
+            throw new Error("followback-resume-mismatch");
+          if (
+            old.expectedCount !== target.expectedCount &&
+            old.evidenceRef === target.evidenceRef
+          )
+            throw new Error("followback-counter-revision-proof-required");
+        }
+        prior.counterRevisions ??= [];
+        prior.counterRevisions.push({
+          at: new Date(this.#clock()).toISOString(),
+          before: prior.targets,
+          after: targets,
+        });
+        prior.targets = targets;
+        for (const kind of ["following", "followers"] as const)
+          prior[kind].complete =
+            targets[kind].expectedCount !== undefined &&
+            Object.keys(prior[kind].entries).length ===
+              targets[kind].expectedCount &&
+            !prior[kind].gaps.length;
+      }
       this.#jobs.set(args.scanId, prior);
       return prior;
     }
@@ -133,9 +161,10 @@ export class FollowbackAudit {
     const value = await this.#read({
       target,
       limit: 1000,
-      offset: state.offset ?? 0,
+      offset: state.started ? (state.offset ?? 0) : 0,
+      reset: !state.started,
       bulk: true,
-      advance: state.advance,
+      advance: state.started ? state.advance : false,
       mode: "decision",
     });
     job.windows.push({
@@ -149,6 +178,7 @@ export class FollowbackAudit {
     const owner = new URL(target.url).pathname.split("/")[1];
     if (value.accountHandle?.toLowerCase() !== owner.toLowerCase())
       return "account-identity-unconfirmed";
+    state.started = true;
     const before = Object.keys(state.entries).length;
     for (const person of value.people ?? []) {
       if (

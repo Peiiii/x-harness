@@ -11,6 +11,11 @@ export class DOMCapabilities {
   }
   public capabilities(operation: any): any {
     const base = missingMethods(this.#tab?.playwright, ["evaluate"]);
+    if (operation === "resetPeople")
+      return [
+        ...base,
+        ...missingMethods(this.#tab, ["getAXState", "pressKey"]),
+      ];
     if (operation === "readPeople") {
       base.push(
         ...missingMethods(this.#tab, ["goto", "url"]),

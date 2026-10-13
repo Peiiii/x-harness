@@ -113,6 +113,7 @@ export class PlatformTargets {
     limit = 5,
     advance = false,
     bulk = false,
+    reset = false,
   }: any): Promise<any> {
     const url = xURL(target?.url);
     if (
@@ -138,7 +139,20 @@ export class PlatformTargets {
       limit,
       bulk,
     });
-    if (advance) {
+    if (reset) {
+      if (value.page !== url.href || value.alerts?.length)
+        return { ...value, complete: false };
+      await this.#browser.act({ operation: "nextPeople", reset: true });
+      value = await this.#ready({ view: "people", offset: 0, limit, bulk });
+      if (value.atDocumentStart !== true)
+        return {
+          ...value,
+          complete: false,
+          needsStateCheck: true,
+          missing: [...(value.missing ?? []), "people-list-start-unconfirmed"],
+        };
+    }
+    if (advance && !reset) {
       if (
         value.needsStateCheck ||
         value.alerts?.length ||

@@ -337,6 +337,9 @@ export const readXObservation = (query) => {
             : null,
         offset,
         renderedPeople: cells.length,
+        atDocumentStart: typeof document.scrollingElement?.scrollTop === "number"
+            ? document.scrollingElement.scrollTop <= 3
+            : null,
         atDocumentEnd: typeof document.scrollingElement?.scrollTop === "number"
             ? document.scrollingElement.scrollTop +
                 document.scrollingElement.clientHeight >=

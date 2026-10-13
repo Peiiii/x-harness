@@ -103,6 +103,11 @@ export class FollowBatch {
           b.handles.length === handles.length &&
           b.handles.every((h: any, i: any) => same(h, handles[i])),
       );
+      pacing ??=
+        previous?.pacing ??
+        next.executions?.[executor?.id]?.followCadence?.intentPacing ??
+        next.followCadence?.intentPacing;
+      FollowBatchPacing.validate(pacing);
       resumedBatch = Boolean(previous);
       batchId = previous?.id ?? `${taskId}-FOLLOW-${this.#stamp()}`;
       if (previous)
