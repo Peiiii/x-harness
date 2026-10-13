@@ -1,3 +1,4 @@
+import { actionableForExecutor } from "./executor-actionability.js";
 import type { BoundaryRecord } from "./boundary.js";
 import type { RoundSnapshot } from "./store.js";
 interface ExecutionStep {
@@ -19,6 +20,7 @@ export class GrowthExecution {
   #authorizedWindow!: GrowthDependencies["authorizedWindow"];
   #stamp!: GrowthDependencies["stamp"];
   #store!: GrowthDependencies["store"];
+  #evidenceExists!: GrowthDependencies["evidenceExists"];
   #executor!: GrowthDependencies["executor"];
   #session!: GrowthDependencies["session"];
   execute!: (snapshot: any, action: any) => Promise<ExecutionStep>;
@@ -35,6 +37,7 @@ export class GrowthExecution {
       | "authorizedWindow"
       | "stamp"
       | "store"
+      | "evidenceExists"
       | "executor"
       | "session"
     >,
@@ -51,6 +54,7 @@ export class GrowthExecution {
       stamp,
       store,
       executor,
+      evidenceExists,
       session,
     } = dependencies;
     this.#capability = capability;
@@ -64,6 +68,7 @@ export class GrowthExecution {
     this.#stamp = stamp;
     this.#store = store;
     this.#executor = executor;
+    this.#evidenceExists = evidenceExists;
     this.#session = session;
     this.execute = this.handleExecute.bind(this);
   }
@@ -101,13 +106,21 @@ export class GrowthExecution {
       };
     return null;
   }
+  private actionIsActionable(state: any, kind: string): boolean {
+    return actionableForExecutor(
+      state,
+      kind,
+      this.#executor,
+      this.#evidenceExists,
+    );
+  }
   private async admitAction(
     snapshot: any,
     action: any,
   ): Promise<ActionAdmission> {
     const state = snapshot.state;
     const item = state.items.find((i: any) => i.kind === action.kind);
-    if (!item.actionable)
+    if (!this.actionIsActionable(state, action.kind))
       return {
         snapshot,
         need: {

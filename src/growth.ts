@@ -140,6 +140,7 @@ export class GrowthHarness {
     this.#settleProof = settleProof;
     this.#releaseSession = releaseSession;
     const { execute } = createGrowthExecution({
+      evidenceExists: this.#evidenceExists,
       capability: this.#capability,
       platform: this.#platform,
       settleProof: this.#settleProof,

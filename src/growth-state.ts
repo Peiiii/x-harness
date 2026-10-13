@@ -1,3 +1,4 @@
+import { actionableForExecutor } from "./executor-actionability.js";
 import type { GrowthDependencies } from "./growth-dependencies.js";
 
 import { checkRound } from "./round-state.js";
@@ -130,7 +131,15 @@ export class GrowthState {
       const reservation =
         before.status === "prepared" && after.status === "intent";
       if (reservation) {
-        if (!item.actionable || item.verified + item.unknown >= item.planned)
+        if (
+          !actionableForExecutor(
+            next,
+            entry.kind,
+            executor,
+            this.#evidenceExists,
+          ) ||
+          item.verified + item.unknown >= item.planned
+        )
           throw new Error("shared-target-capacity-exhausted");
         if (entry.kind === "follow" && this.#waitBudget(next))
           throw new Error("shared-follow-budget-exhausted");
