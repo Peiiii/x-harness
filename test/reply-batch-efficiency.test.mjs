@@ -116,3 +116,182 @@ test("batch discovery preserves visible metrics without exposing raw UI or inven
     [],
   );
 });
+
+test("one lookup recovers unique own-account permalinks for the whole unknown batch", async (t) => {
+  const f = fixture(t, { actionKinds: ["reply"], planned: [0, 0, 2] });
+  const snap = await f.store.load();
+  const a = snap.state.actions[0];
+  a.id = "a";
+  a.status = "unknown";
+  a.intentAt = new Date(NOW).toISOString();
+  a.text = "first";
+  a.beforeIds = [];
+  const b = { ...a, id: "b", text: "second", postId: "456" };
+  snap.state.actions.push(b);
+  await f.store.transaction(() => snap.state);
+  const api = createBusinessHarness({
+    store: f.store,
+    platform: {},
+    clock: () => NOW,
+  });
+  let lookups = 0,
+    writes = 0;
+  api.replyToPost = async (q) => {
+    writes++;
+    return { status: "unknown", actionId: q.postId === "123" ? "a" : "b" };
+  };
+  api.verifySubmission = async (q) => {
+    const a = (await f.store.load()).state.actions.find(
+      (a) => a.id === q.actionId,
+    );
+    return {
+      status: a.observedPublicURL ? "verified" : "unknown",
+      actionId: q.actionId,
+    };
+  };
+  api.searchSources = async (q) => {
+    lookups++;
+    assert.match(q.query, /from:Pei/);
+    assert.match(q.query, /first.*OR.*second/);
+    return {
+      fresh: true,
+      evidenceRef: f.proof,
+      sources: [
+        {
+          id: "11",
+          author: "Pei",
+          body: "first",
+          datetime: new Date(NOW + 1000).toISOString(),
+          url: "https://x.com/Pei/status/11",
+        },
+        {
+          id: "12",
+          author: "Pei",
+          body: "second",
+          datetime: new Date(NOW + 1000).toISOString(),
+          url: "https://x.com/Pei/status/12",
+        },
+      ],
+    };
+  };
+  const r = await api.replyBatch({ taskId: "round-1", actions: [a, b] });
+  assert.equal(r.status, "verified");
+  assert.equal(lookups, 1);
+  assert.equal(writes, 2);
+  const s = (await f.store.load()).state;
+  assert.equal(s.actions[0].observedPublicURL, "https://x.com/Pei/status/11");
+  assert.equal(s.actions[1].observedPublicURL, "https://x.com/Pei/status/12");
+});
+
+test("ambiguous, changed, old or foreign lookup rows never bind an unknown receipt", async (t) => {
+  const f = fixture(t, { actionKinds: ["reply"], planned: [0, 0, 1] });
+  await f.store.transaction(({ state }) => {
+    Object.assign(state.actions[0], {
+      status: "unknown",
+      intentAt: new Date(NOW).toISOString(),
+      beforeIds: ["9"],
+    });
+    return state;
+  });
+  const action = (await f.store.load()).state.actions[0];
+  const row = {
+    id: "11",
+    author: "Pei",
+    body: action.text,
+    datetime: new Date(NOW + 1000).toISOString(),
+    url: "https://x.com/Pei/status/11",
+  };
+  const api = createBusinessHarness({
+    store: f.store,
+    platform: {},
+    clock: () => NOW,
+  });
+  api.replyToPost = async () => ({ status: "unknown", actionId: action.id });
+  api.verifySubmission = async () => ({
+    status: "unknown",
+    actionId: action.id,
+  });
+  for (const rows of [
+    [row, { ...row, id: "12", url: "https://x.com/Pei/status/12" }],
+    [{ ...row, author: "other" }],
+    [{ ...row, body: "changed" }],
+    [{ ...row, id: "9", url: "https://x.com/Pei/status/9" }],
+    [{ ...row, datetime: new Date(NOW - 1000).toISOString() }],
+    [{ ...row, datetime: new Date(NOW + 6000).toISOString() }],
+    [{ ...row, url: "https://other.example/status/11" }],
+  ]) {
+    api.searchSources = async () => ({
+      fresh: true,
+      evidenceRef: f.proof,
+      sources: rows,
+    });
+    const r = await api.replyBatch({ taskId: "round-1", actions: [action] });
+    assert.equal(r.results[0].status, "unknown");
+    assert.equal(
+      (await f.store.load()).state.actions[0].observedPublicURL,
+      undefined,
+    );
+  }
+});
+
+test("conditional reply end-check accounts only for its original action IDs without changing daily goals", async (t) => {
+  const { execFileSync } = await import("node:child_process");
+  const { readFileSync } = await import("node:fs");
+  const f = fixture(t, { actionKinds: ["reply"], planned: [0, 0, 200] });
+  const now = new Date().toISOString();
+  await f.store.transaction(({ state }) => {
+    const first = state.actions[0];
+    first.status = "verified";
+    first.resultEvidence = f.proof;
+    const second = { ...first, id: "gap-second", status: "unknown" };
+    state.actions.push(second);
+    const i = state.items.find((i) => i.kind === "reply");
+    Object.assign(i, { verified: 50, unknown: 10 });
+    state.executions = {
+      gap: {
+        scopeKinds: ["reply"],
+        evidenceRef: f.proof,
+        status: "WAITING",
+        currentWork: "Original conditional submissions await public evidence",
+        followGapCondition: {
+          sourceExecutor: "follow",
+          authorizationEvidenceRef: f.proof,
+          planned: 2,
+          actionIds: [first.id, second.id],
+        },
+        stop: {
+          independentActionsHandled: true,
+          evidenceRef: f.proof,
+          nextEligibleCheckAt: new Date(Date.now() + 60000).toISOString(),
+          nextScheduledCheckAt: new Date(Date.now() + 60000).toISOString(),
+          replyExit: {
+            reason: "pending-results",
+            observedAt: now,
+            evidenceRef: f.proof,
+            independentEvidenceRef: f.proof,
+          },
+        },
+      },
+    };
+    return state;
+  });
+  const before = readFileSync(f.ledger, "utf8");
+  const cli = new URL("../dist/round-state.js", import.meta.url).pathname;
+  const out = execFileSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `import {runRoundCLI} from ${JSON.stringify("file://" + cli)};process.argv.splice(1,0,'cli');runRoundCLI();`,
+      "--",
+      f.ledger,
+      "--execution=gap",
+      "--check-end",
+    ],
+    { encoding: "utf8" },
+  );
+  const r = JSON.parse(out);
+  assert.equal(r.mayEnd, true);
+  assert.deepEqual(r.pending, [{ kind: "reply", remaining: 1, unknown: 1 }]);
+  assert.equal(readFileSync(f.ledger, "utf8"), before);
+});

@@ -182,6 +182,49 @@ export function runRoundCLI(): void {
         scopeEvidenceRef: execution.evidenceRef,
         stop: execution.stop,
       };
+      const gap = execution.followGapCondition;
+      if (
+        gap &&
+        execution.scopeKinds.length === 1 &&
+        execution.scopeKinds[0] === "reply"
+      ) {
+        const ids = gap.actionIds;
+        if (
+          !gap.sourceExecutor ||
+          !existsSync(gap.authorizationEvidenceRef ?? "") ||
+          !Array.isArray(ids) ||
+          !ids.length ||
+          new Set(ids).size !== ids.length ||
+          gap.planned !== ids.length
+        )
+          throw Error("conditional-reply-scope-unconfirmed");
+        const actions = ids.map((id: string) =>
+          state.actions.find((a: any) => a.id === id),
+        );
+        if (actions.some((a: any) => !a || a.kind !== "reply"))
+          throw Error("conditional-reply-actions-unconfirmed");
+        scoped.items = state.items.map((item: any) =>
+          item.kind !== "reply"
+            ? item
+            : {
+                ...state.items.find((i: any) => i.kind === "reply"),
+                planned: ids.length,
+                verified: actions.filter((a: any) => a.status === "verified")
+                  .length,
+                unknown: actions.filter((a: any) =>
+                  ["intent", "unknown"].includes(a.status),
+                ).length,
+                actionable: actions.some((a: any) => a.status === "prepared"),
+                reason: execution.currentWork,
+                resumeAt: execution.stop?.nextEligibleCheckAt,
+                resumeWhen: execution.currentWork,
+                blockEvidence: [execution.stop?.evidenceRef].filter(Boolean),
+                resultEvidence: actions
+                  .filter((a: any) => a.status === "verified")
+                  .map((a: any) => a.resultEvidence),
+              },
+        );
+      }
     }
     const result = checkRound(scoped);
     console.log(JSON.stringify(result));

@@ -26,3 +26,7 @@ Design review: passed for the bounded existing-chain changes; no new public para
 The code fixes alone do not satisfy R4. Synthetic fixtures contain no live account/proof data. Follow/reply operations and application contracts remain in the consumer repository.
 
 Validation: npm run check passed (251 tests), release build and four isolated release tests passed. Diff implementation review: no findings; public signature and exact verification/state owners unchanged. R4 awaits published-consumer execution.
+
+Published 0.2.58 consumer replay showed a real unique public reply still needed a manual own-account search to capture its permalink. The batch now performs one shared lookup for remaining unknowns, strictly matches owner/full text/intent time/baseline and only binds a unique observed link before exact-parent verification. Missing/ambiguous rows remain unknown. The conditional reply CLI check projects only authorized original action IDs; account daily goals and other executors remain untouched. This closes the new conditional workflow instead of inheriting all primary reply backlog.
+
+R5 (Required, passed): conditional end-check derives its two-action scope from authorized original IDs and never mutates global goals or other duties. Final source regression: 254 tests passed, including ambiguous/old/foreign receipts and conditional CLI accounting. Implementation review found and corrected a projection issue: preserve all global item kinds, overlay only the conditional reply item and carry its actual resume condition. No open implementation findings.
