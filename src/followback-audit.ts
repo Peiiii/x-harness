@@ -33,6 +33,8 @@ export class FollowbackAudit {
     );
   }
   private validate(args: FollowbackAuditOptions) {
+    if (args.direction && !["both", "followback"].includes(args.direction))
+      throw new Error("followback-direction-invalid");
     const a = new URL(args.following.url),
       b = new URL(args.followers.url);
     const match = a.pathname.match(/^\/([A-Za-z0-9_]{1,15})\/following\/?$/);
@@ -167,6 +169,8 @@ export class FollowbackAudit {
         handle: person.handle,
         url: person.url,
         evidenceRef: value.evidenceRef,
+        relationship: person.relationship,
+        followsYou: person.followsYou,
       };
     }
     const count = Object.keys(state.entries).length;
@@ -198,14 +202,18 @@ export class FollowbackAudit {
     const absent = following.filter(
       (p) => !job.followers.entries[p.handle.toLowerCase()],
     );
-    const complete = job.following.complete && job.followers.complete;
+    const complete =
+      job.direction === "followback"
+        ? job.followers.complete
+        : job.following.complete && job.followers.complete;
     const nonFollowers = job.followers.complete ? absent : [];
     const provisional = job.followers.complete ? [] : absent;
-    const notFollowedBack = job.following.complete
-      ? Object.values(job.followers.entries).filter(
-          (p: any) => !job.following.entries[p.handle.toLowerCase()],
-        )
-      : [];
+    const notFollowedBack = Object.values(job.followers.entries).filter(
+      (p: any) =>
+        p.relationship === "follows-you" ||
+        (job.following.complete &&
+          !Object.hasOwn(job.following.entries, p.handle.toLowerCase())),
+    );
     const observedAt = new Date(this.#clock()).toISOString();
     const evidenceRef = await this.#proof({
       schema: "followback-audit/v1",
@@ -219,6 +227,7 @@ export class FollowbackAudit {
       notFollowedBack,
     });
     return {
+      direction: job.direction,
       status:
         reason === "night-window"
           ? "waiting"
@@ -246,10 +255,13 @@ export class FollowbackAudit {
   ): Promise<FollowbackAuditResult> {
     if (this.#running) throw new Error("followback-audit-running");
     const job = this.job(args);
+    job.direction = args.direction ?? job.direction ?? "both";
     this.#running = true;
     let reason: string | null = null;
     try {
-      for (const kind of ["following", "followers"]) {
+      for (const kind of job.direction === "followback"
+        ? ["followers"]
+        : ["following", "followers"]) {
         job[kind].stalled = 0;
         for (
           let n = 0;

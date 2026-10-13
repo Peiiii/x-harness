@@ -53,7 +53,10 @@ function fixture({
           .map((handle) => ({
             handle,
             url: "https://x.com/" + handle,
-            relationship: "following",
+            relationship:
+              kind === "followers" && handle === "delta"
+                ? "follows-you"
+                : "following",
             followsYou: true,
           })),
         page: q.target.url,
@@ -279,4 +282,18 @@ test("recommendation cells without reciprocal evidence do not complete the follo
   assert.equal(r.followersCount, 1);
   assert.equal(r.nonFollowerCount, 0);
   assert.equal(r.provisionalCount, 2);
+});
+
+test("positive followback candidates use exact controls without scanning the following list first", async () => {
+  const f = fixture();
+  const r = await f.x.readFollowbackAudit({
+    ...targets,
+    direction: "followback",
+  });
+  assert.equal(r.complete, true);
+  assert.equal(r.direction, "followback");
+  assert.equal(r.followingComplete, false);
+  assert.equal(r.notFollowedBackCount, 1);
+  assert.ok(f.calls.every((c) => c.target.url.endsWith("/followers")));
+  assert.equal(f.proofs.at(-1).notFollowedBack[0].handle, "delta");
 });

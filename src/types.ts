@@ -122,6 +122,7 @@ export interface ReadResult {
   creator?: CreatorEvidence;
 }
 export interface FollowbackAuditOptions {
+  direction?: "both" | "followback";
   /** Explicit user permission for this read task during 00–07; never authorizes writes. */
   nightReadAuthorization?: {
     userAuthorized: boolean;
@@ -135,6 +136,7 @@ export interface FollowbackAuditOptions {
   resumeEvidenceRef?: EvidenceRef;
 }
 export interface FollowbackAuditResult {
+  direction: "both" | "followback";
   status: "observed" | "needsDecision" | "waiting";
   scanId: string;
   complete: boolean;
