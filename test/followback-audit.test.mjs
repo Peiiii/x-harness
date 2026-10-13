@@ -297,3 +297,25 @@ test("positive followback candidates use exact controls without scanning the fol
   assert.ok(f.calls.every((c) => c.target.url.endsWith("/followers")));
   assert.equal(f.proofs.at(-1).notFollowedBack[0].handle, "delta");
 });
+
+test("unfiltered scoped follower membership can prove the positive direction without a displayed badge", async () => {
+  const f = fixture();
+  const read = f.platform.readPeople;
+  f.platform.readPeople = async (q) => {
+    const r = await read(q);
+    r.listBound = true;
+    if (q.target.url.endsWith("/followers"))
+      r.people = r.people.map((p) =>
+        p.handle === "delta"
+          ? { ...p, relationship: "not-following", followsYou: false }
+          : p,
+      );
+    return r;
+  };
+  const r = await f.x.readFollowbackAudit({
+    ...targets,
+    direction: "followback",
+  });
+  assert.equal(r.complete, true);
+  assert.equal(r.notFollowedBackCount, 1);
+});

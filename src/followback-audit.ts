@@ -151,7 +151,11 @@ export class FollowbackAudit {
       return "account-identity-unconfirmed";
     const before = Object.keys(state.entries).length;
     for (const person of value.people ?? []) {
-      if (!person.handle || person.relationship === "unknown") {
+      if (
+        !person.handle ||
+        (person.relationship === "unknown" &&
+          (kind === "following" || !value.listBound))
+      ) {
         state.gaps.push({
           reason: "following-control-or-identity-unconfirmed",
           evidenceRef: value.evidenceRef,
@@ -161,17 +165,24 @@ export class FollowbackAudit {
       if (kind === "following" && person.relationship !== "following") continue;
       if (
         kind === "followers" &&
+        !value.listBound &&
         person.relationship !== "follows-you" &&
         !person.followsYou
       )
         continue;
-      state.entries[person.handle.toLowerCase()] = {
-        handle: person.handle,
-        url: person.url,
-        evidenceRef: value.evidenceRef,
-        relationship: person.relationship,
-        followsYou: person.followsYou,
-      };
+      Object.defineProperty(state.entries, person.handle.toLowerCase(), {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: {
+          handle: person.handle,
+          url: person.url,
+          evidenceRef: value.evidenceRef,
+          relationship: person.relationship,
+          followsYou: person.followsYou,
+          listMembership: value.listBound ? kind : undefined,
+        },
+      });
     }
     const count = Object.keys(state.entries).length;
     state.complete =
@@ -196,11 +207,11 @@ export class FollowbackAudit {
     reason: string | null,
   ): Promise<FollowbackAuditResult> {
     const following = Object.values(job.following.entries) as BoundaryRecord[];
-    const mutual = following.filter(
-      (p) => job.followers.entries[p.handle.toLowerCase()],
+    const mutual = following.filter((p) =>
+      Object.hasOwn(job.followers.entries, p.handle.toLowerCase()),
     );
     const absent = following.filter(
-      (p) => !job.followers.entries[p.handle.toLowerCase()],
+      (p) => !Object.hasOwn(job.followers.entries, p.handle.toLowerCase()),
     );
     const complete =
       job.direction === "followback"
@@ -211,10 +222,12 @@ export class FollowbackAudit {
     const notFollowedBack = Object.values(job.followers.entries).filter(
       (p: any) =>
         p.relationship === "follows-you" ||
+        (p.listMembership === "followers" &&
+          p.relationship === "not-following") ||
         (job.following.complete &&
           !Object.hasOwn(job.following.entries, p.handle.toLowerCase())),
     );
-    const observedAt = new Date(this.#clock()).toISOString();
+    const observedAt = job.windows.at(-1)?.at ?? job.startedAt;
     const evidenceRef = await this.#proof({
       schema: "followback-audit/v1",
       ...job,
