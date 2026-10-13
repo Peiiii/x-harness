@@ -132,7 +132,7 @@ export function readPeople({
   ).filter(
     (e: any) =>
       visible(e) &&
-      (labelsByList[suffix] ?? []).includes(e.getAttribute("aria-label")),
+      (labelsByList[suffix ?? ""] ?? []).includes(e.getAttribute("aria-label")),
   );
   const scope = scopes.length === 1 ? scopes[0] : null;
   const cells = Array.from<any>(

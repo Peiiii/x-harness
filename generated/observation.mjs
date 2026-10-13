@@ -213,7 +213,21 @@ export const readXObservation = (query) => {
         limit > (bulk === true ? 1000 : 5))
         throw new Error("人物窗口须为非负offset及1–5 limit");
     const visible = (el) => el.getClientRects().length > 0;
-    const cells = Array.from(document.querySelectorAll('main [data-testid="primaryColumn"] [data-testid="UserCell"]')).filter(visible);
+    const suffix = new URL(location.href).pathname
+        .split("/")
+        .filter(Boolean)
+        .at(-1);
+    const labelsByList = {
+        following: ["时间线：正在关注", "Timeline: Following"],
+        followers: ["时间线：关注者", "Timeline: Followers"],
+        verified_followers: ["时间线：认证关注者", "Timeline: Verified followers"],
+    };
+    const scopes = Array.from(document.querySelectorAll('main [data-testid="primaryColumn"] [aria-label]')).filter((e) => visible(e) &&
+        (labelsByList[suffix ?? ""] ?? []).includes(e.getAttribute("aria-label")));
+    const scope = scopes.length === 1 ? scopes[0] : null;
+    const cells = Array.from(scope
+        ? scope.querySelectorAll('[data-testid="UserCell"]')
+        : document.querySelectorAll('main [data-testid="primaryColumn"] [data-testid="UserCell"]')).filter(visible);
     const people = cells.slice(offset, offset + limit).map((cell) => {
         const links = Array.from(cell.querySelectorAll("a[href]"))
             .filter(visible)
@@ -317,6 +331,7 @@ export const readXObservation = (query) => {
     return {
         page: location.href,
         people,
+        listBound: Boolean(scope),
         scrollAnchor: anchorHandles.length === 1
             ? { handle: anchorHandles[0], pages: anchorPages }
             : null,
