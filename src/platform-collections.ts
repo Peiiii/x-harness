@@ -199,7 +199,10 @@ export class PlatformCollections {
       throw new Error("需指定收藏文件夹；不以全部书签冒充命名文件夹");
     let nav = await this.#ready({ view: "navigation", targetLabel: folder });
     const bookmark = (c: any) => /^(书签|收藏|Bookmarks)$/i.test(c.label);
-    if (!(await this.#choose(nav, bookmark, { activateSelected: true }))) {
+    if (
+      !(await this.#choose(nav, bookmark, { activateSelected: true })) &&
+      !(await this.#choose(nav, (c: any) => /^(历史|History)$/i.test(c.label)))
+    ) {
       if (
         await this.#choose(nav, (c: any) =>
           /^(更多菜单项|More menu items)$/i.test(c.label),
@@ -237,7 +240,10 @@ export class PlatformCollections {
       (c: any) =>
         c.role === "tab" &&
         (bookmark(c) ||
-          (discoverOnly && c.selected && !/^(喜欢|Likes)$/i.test(c.label))),
+          (discoverOnly &&
+            /\/i\/(?:history|bookmarks)(?:\/|$)/.test(nav.page ?? "") &&
+            c.selected &&
+            !/^(喜欢|Likes)$/i.test(c.label))),
     );
     if (
       tabs.length === 1 &&

@@ -70,3 +70,28 @@ test("selected folder binding is retained in compact business result", () => {
   assert.equal(r.folderEvidence.name, "Remakes");
   assert.equal(r.folderEvidence.noise, undefined);
 });
+
+test("discovery never activates an unrelated selected subscription tab", async () => {
+  const selected = [];
+  const adapter = new PlatformCollections({
+    ready: async () => ({
+      page: "https://x.com/i/premium-business",
+      controls: [
+        { role: "tab", label: "Annually", selected: true },
+        { role: "link", label: "历史", href: "/i/history" },
+      ],
+      bookmarkFolders: [],
+    }),
+    observed: async () => ({}),
+    browser: { act: async () => {} },
+    choose: async (value, p) => {
+      const matches = value.controls.filter(p);
+      if (matches.length !== 1) return false;
+      selected.push(matches[0].label);
+      return true;
+    },
+  });
+  await adapter.readBookmarks({ discoverOnly: true });
+  assert.equal(selected.includes("Annually"), false);
+  assert.deepEqual(selected, ["历史"]);
+});
