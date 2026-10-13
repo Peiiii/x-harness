@@ -40,6 +40,7 @@ export const source = (post: any, page: any) => ({
   images: post.images ?? [],
   media: post.media ?? [],
   links: post.links ?? [],
+  metrics: post.metrics ?? post.buttons ?? [],
   needsExpansion: post.needsExpansion,
   missing: [
     ...(post.missing ?? []),

@@ -21,10 +21,12 @@ observed ≠ field completeness; pageComplete:false = scope. View media before d
 
 `readIncomingReplies`: ledger account; skip settled/intent/unknown and processedIds across dates. readPost(includeContext:true) for ancestors; missing context blocks review. Dedup publicly.
 
-Incoming: `readIncomingConversations({targets?,...window})` combines discovery/context (≤5); no preceding `readIncomingReplies`. Preflight/source failures remain visible. Returns ancestorPath, nodes, confirmed edges, unknown parents and attempts; rootCandidateId is only the earliest loaded ancestor. Missing context blocks review; never guess roots/edges or inbox clearance. Use `readIncomingReplies` only when the candidate list alone is the goal; it excludes settled/intent/unknown + cross-date processedIds.
+Incoming: `readIncomingConversations({targets?,...window})` combines discovery/context (≤5); no preceding `readIncomingReplies`. Preflight/source failures remain visible. Returns ancestorPath, nodes, confirmed edges, unknown parents and attempts; rootCandidateId is only the earliest loaded ancestor. Missing context blocks review; never guess roots/edges or inbox clearance.
 
 `resolveQuote:true` follows one observed card and returns `post.quoteSource` only after exact destination/body/author/time binding.
 
 `readPeople`: observed follower/following; offset reuses cells; advance scrolls a fresh unique handle. Full bio/blue/relationship; dedup; unknowns need profiles. No Native.
 
 Discovery: names only.
+
+Source decisions retain visible metric labels for batch screening; absent counts stay unknown.

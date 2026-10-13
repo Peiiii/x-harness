@@ -49,7 +49,7 @@ Optional independentExecution:{tabId,evidenceRef,scopeEvidenceRef} requires real
 
 ## Reply
 
-Additional fields: kind:'reply', postId, url, evidenceRef (observed parent), text; optional assets/activation as above. Common account/quality fields still required. The exact parent is verified by the API. `replyBatch({taskId,actions})` accepts 1–5 reviewed replies, submits serially and recovers an observed receipt once without resending; waiting returns unfinished work. Incoming clicks have a ≥30s minimum gap, not a safety guarantee. Incoming conversations require reviewed conversation:{recipientHandle,rootId,round,automatedLoop?}; at most 3 own rounds per recipient/root, with intent/unknown counted. Mark observed automatic loops to stop earlier.
+Additional fields: kind:'reply', postId, url, evidenceRef (observed parent), text; optional assets/activation as above. Common account/quality fields still required. The exact parent is verified by the API. `replyBatch({taskId,actions})` accepts 1–5 reviewed replies, submits serially and recovers an observed receipt once without resending; The batch owns one normal pacing wait (up to 30 seconds) per action and one read-only verification for an unknown result, including when no permalink was captured. Longer or renewed waits and capability/decision failures return unfinished work. Unknown results are never submitted again. Incoming clicks have a ≥30s minimum gap, not a safety guarantee. Incoming conversations require reviewed conversation:{recipientHandle,rootId,round,automatedLoop?}; at most 3 own rounds per recipient/root, with intent/unknown counted. Mark observed automatic loops to stop earlier.
 
 ```js
 var result = await x.replyToPost({

@@ -224,10 +224,10 @@ export class GrowthExecution {
     if (action.kind !== "follow") {
       let baseline: any;
       try {
-        baseline = await this.#platform.findSubmission({
-          ...action,
-          intentAt: this.#stamp(),
-        });
+        baseline = await this.#platform.findSubmission(
+          { ...action, intentAt: this.#stamp() },
+          { phase: "baseline" },
+        );
       } catch (error: any) {
         return {
           snapshot,

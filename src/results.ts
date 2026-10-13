@@ -62,6 +62,21 @@ export function source(value: unknown, page?: string): PostEvidence {
       /* explicit missing below */
     }
   }
+  if (raw.metrics !== undefined)
+    out.metrics = [
+      ...new Set(
+        list(raw.metrics).flatMap((m) => {
+          const label = typeof m === "string" ? m : object(m).label;
+          return typeof label === "string" &&
+            /\d/.test(label) &&
+            /回复|转帖|喜欢|书签|观看|查看|replies|reposts?|likes?|bookmarks?|views?/i.test(
+              label,
+            )
+            ? [label]
+            : [];
+        }),
+      ),
+    ];
   if (raw.quoteCards)
     out.quoteCards = list(raw.quoteCards).map((v) =>
       pick(v, ["text", "datetime", "body"]),

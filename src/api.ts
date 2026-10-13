@@ -28,6 +28,7 @@ export class BusinessHarness implements XGrowthHarness {
   #store!: BusinessDependencies["store"];
   #core!: ReturnType<typeof createGrowthHarness>;
   #readCache!: Map<string, string>;
+  #clock!: () => number;
   constructor(dependencies: BusinessDependencies) {
     this.replyBatch = this.replyBatch.bind(this);
     this.likeIncomingBatch = this.likeIncomingBatch.bind(this);
@@ -52,6 +53,7 @@ export class BusinessHarness implements XGrowthHarness {
     this.readBookmarks = this.readBookmarks.bind(this);
     this.readCreator = this.readCreator.bind(this);
     const { store, platform } = dependencies;
+    this.#clock = dependencies.clock ?? Date.now;
     this.#platform = platform;
     this.#store = store;
     this.#core = createGrowthHarness(dependencies);
@@ -335,16 +337,28 @@ export class BusinessHarness implements XGrowthHarness {
         text: action.text,
         preparedAction: action,
       });
-      if (result.status === "unknown") {
-        const current = (await this.#store.load()).state.actions.find(
-          (a: BoundaryRecord) => a.id === action.id,
-        );
-        if (current?.observedPublicURL && current?.observedPublicEvidenceRef)
-          result = await this.verifySubmission({
+      if (
+        result.status === "waiting" &&
+        result.reason === "incoming-interaction-pacing" &&
+        result.resumeAt
+      ) {
+        const delay = Date.parse(result.resumeAt) - this.#clock();
+        if (Number.isFinite(delay) && delay <= 30000) {
+          if (delay > 0)
+            await new Promise((resolve) => setTimeout(resolve, delay));
+          result = await this.replyToPost({
             taskId: args.taskId,
-            actionId: action.id,
+            postId: action.postId,
+            text: action.text,
+            preparedAction: action,
           });
+        }
       }
+      if (result.status === "unknown")
+        result = await this.verifySubmission({
+          taskId: args.taskId,
+          actionId: action.id,
+        });
       results.push(result);
       if (
         ["waiting", "needsCapability", "needsDecision"].includes(result.status)
