@@ -95,3 +95,34 @@ test("discovery never activates an unrelated selected subscription tab", async (
   assert.equal(selected.includes("Annually"), false);
   assert.deepEqual(selected, ["历史"]);
 });
+
+test("discovery waits for delayed menu render without toggling the selected tab twice", async () => {
+  let opened = false,
+    rendered = false,
+    clicks = 0;
+  const adapter = new PlatformCollections({
+    ready: async () => ({
+      page: "https://x.com/i/history",
+      controls: [{ role: "tab", label: "书签", selected: true }],
+      bookmarkFolders: opened && rendered ? ["Remakes"] : [],
+    }),
+    observed: async () => ({}),
+    browser: {
+      act: async (c) => {
+        assert.equal(c.operation, "waitForFolder");
+        assert.equal(c.folder, "所有书签");
+        rendered = true;
+      },
+    },
+    choose: async (v, p) => {
+      if (v.controls.filter(p).length !== 1) return false;
+      opened = !opened;
+      clicks++;
+      return true;
+    },
+  });
+  const result = await adapter.readBookmarks({ discoverOnly: true });
+  assert.deepEqual(result.folders, ["Remakes"]);
+  assert.equal(result.complete, true);
+  assert.equal(clicks, 1);
+});

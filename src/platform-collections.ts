@@ -202,9 +202,17 @@ export class PlatformCollections {
       targetLabel: folder,
       bookmarkNavigation: true,
     });
+    if (discoverOnly && nav.bookmarkFolders?.length)
+      return this.bookmarkDiscovery(nav);
     const bookmark = (c: any) => /^(书签|收藏|Bookmarks)$/i.test(c.label);
+    const matching = (nav.controls ?? []).filter(bookmark);
+    const entered = await this.#choose(nav, bookmark, {
+      activateSelected: true,
+    });
+    const openedTab =
+      entered && matching.length === 1 && matching[0].role === "tab";
     if (
-      !(await this.#choose(nav, bookmark, { activateSelected: true })) &&
+      !entered &&
       !(await this.#choose(nav, (c: any) => /^(历史|History)$/i.test(c.label)))
     ) {
       if (
@@ -248,6 +256,13 @@ export class PlatformCollections {
       targetLabel: folder,
       bookmarkNavigation: true,
     });
+    if (
+      discoverOnly &&
+      !(nav.controls ?? []).some((c: any) => c.role === "tab")
+    ) {
+      await this.waitForBookmarkLabel(nav, "书签", "Bookmarks");
+      nav = await this.#ready({ view: "navigation", bookmarkNavigation: true });
+    }
     const tabs = (nav.controls ?? []).filter(
       (c: any) =>
         c.role === "tab" &&
@@ -258,6 +273,7 @@ export class PlatformCollections {
             !/^(喜欢|Likes)$/i.test(c.label))),
     );
     if (
+      !openedTab &&
       tabs.length === 1 &&
       (!tabs[0].selected ||
         !(nav.controls ?? []).some(
@@ -274,17 +290,14 @@ export class PlatformCollections {
       });
     }
     if (discoverOnly) {
-      const folders = nav.bookmarkFolders ?? [];
-      return {
-        page: nav.page,
-        accountHandle: nav.accountHandle,
-        observedAt: nav.observedAt,
-        fresh: true,
-        complete: folders.length > 0 && !nav.alerts?.length,
-        pageComplete: false,
-        folders,
-        missing: folders.length ? [] : ["bookmark-folder-menu-unconfirmed"],
-      };
+      if (!nav.bookmarkFolders?.length) {
+        await this.waitForBookmarkLabel(nav, "所有书签", "All bookmarks");
+        nav = await this.#ready({
+          view: "navigation",
+          bookmarkNavigation: true,
+        });
+      }
+      return this.bookmarkDiscovery(nav);
     }
     if (
       !(nav.controls ?? []).some((c: any) => c.label.split("\n")[0] === folder)
@@ -330,6 +343,35 @@ export class PlatformCollections {
         name: folder,
       },
     };
+  }
+  private bookmarkDiscovery(nav: any) {
+    const folders = nav.bookmarkFolders ?? [];
+    return {
+      page: nav.page,
+      accountHandle: nav.accountHandle,
+      observedAt: nav.observedAt,
+      fresh: true,
+      complete: folders.length > 0 && !nav.alerts?.length,
+      pageComplete: false,
+      folders,
+      missing: folders.length ? [] : ["bookmark-folder-menu-unconfirmed"],
+    };
+  }
+  private async waitForBookmarkLabel(
+    nav: any,
+    chinese: string,
+    english: string,
+  ) {
+    const folder = (nav.controls ?? []).some((c: any) =>
+      /^(History|Bookmarks)$/i.test(c.label),
+    )
+      ? english
+      : chinese;
+    try {
+      await this.#browser.act({ operation: "waitForFolder", folder });
+    } catch (error: any) {
+      if (!/timed out|timeout/i.test(error.message)) throw error;
+    }
   }
   private async handleSearchSources({
     query,
