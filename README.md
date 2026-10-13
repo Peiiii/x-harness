@@ -34,6 +34,8 @@ const result = await x.readCreator({
 ```
 
 Read APIs: `readCreator`, `readBookmarks`, `searchSources`, `readPost`, `readPerson`, `readFeedback`, `inspectAccount`, `inspectRound`.
+Bulk list audit: `readFollowbackAudit` saves deduplicated relationship lists and resumable coverage evidence. Followback direction reads unfiltered followers; unmatched profile counts remain incomplete. See [the API reference](skill/references/followback-audit.md). `followBatch` optionally persists bounded random intent gaps, while retaining all original budget, refusal and unknown guards.
+
 Write APIs: `publishPost`, `replyToPost`, `followOne`, `followBatch`, `runGrowthRound`.
 Recovery: `verifySubmission`, `verifyPublishedPost`, `verifyFollow`.
 
