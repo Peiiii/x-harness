@@ -288,3 +288,42 @@ test("list identity binds the relationship control instead of a second handle in
       saved;
   }
 });
+
+test("list advance scrolls the fresh named AX timeline when native PageDown cannot focus it", async () => {
+  const { createDOMXBrowser } = await import(root + "browser-dom.js");
+  const scrolls = [];
+  let keys = 0;
+  const link = {
+    filter() {
+      return this;
+    },
+    count: async () => 1,
+    press: async () => {
+      keys++;
+    },
+  };
+  const tab = {
+    getAXState: async () =>
+      "17 container 时间线：正在关注\n19 container 时间线：当前趋势",
+    scroll: async (...args) => scrolls.push(args),
+    pressKey: async () => {
+      keys++;
+    },
+    playwright: {
+      evaluate: async () => ({
+        page: target.url,
+        people: [row],
+        accountHandle: "fixture_self",
+        alerts: [],
+        needsStateCheck: false,
+      }),
+      locator: () => link,
+    },
+  };
+  const browser = createDOMXBrowser(tab);
+  await browser.observe({ view: "people", limit: 1 });
+  await browser.act({ operation: "nextPeople" });
+  assert.deepEqual(scrolls, [[17, "down", 1]]);
+  assert.equal(keys, 0);
+  await assert.rejects(() => browser.act({ operation: "nextPeople" }));
+});

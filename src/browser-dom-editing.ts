@@ -304,6 +304,25 @@ export class DOMEditing {
       .filter({ visible: true, hasText: new RegExp(`^@${handle}$`, "i") });
     const unique = await this.#unique(anchor);
     this.#session.current = null;
+    if (
+      typeof this.#tab.getAXState === "function" &&
+      typeof this.#tab.scroll === "function"
+    ) {
+      const ax = await this.#tab.getAXState({
+        emit: false,
+        disableDiffing: true,
+      });
+      const timeline =
+        typeof ax === "string"
+          ? ax.match(
+              /^.*?([0-9]+) (?:container|scroll area) (?:时间线：|Timeline: ?)(?:正在关注|关注者|认证关注者|Following|Followers|Verified followers)\s*$/m,
+            )
+          : null;
+      if (timeline) {
+        await this.#tab.scroll(Number(timeline[1]), "down", 1);
+        return { completed: true };
+      }
+    }
     if (typeof this.#tab.pressKey === "function")
       await this.#tab.pressKey(null, "PageDown");
     else await unique.press("PageDown");
