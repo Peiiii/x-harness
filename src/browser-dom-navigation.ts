@@ -248,10 +248,7 @@ export class DOMNavigation {
         )
           throw error;
         await this.#tab.goto(command.url);
-        await this.#tab.playwright.waitForURL(command.url, {
-          timeoutMs: command.view === "posts" ? 15000 : 5000,
-          ...(command.view === "posts" ? { waitUntil: "commit" as const } : {}),
-        });
+        await this.waitFallbackRoute(command);
       }
     }
     if (command.view === "person") {
@@ -283,6 +280,23 @@ export class DOMNavigation {
       await this.handleWaitTargetContent(detail.first(), command.url);
     }
     return;
+  }
+  private async waitFallbackRoute(command: any) {
+    try {
+      await this.#tab.playwright.waitForURL(command.url, {
+        timeoutMs: command.view === "posts" ? 15000 : 5000,
+        ...(command.view === "posts" ? { waitUntil: "commit" as const } : {}),
+      });
+    } catch (error: any) {
+      if (
+        command.view !== "posts" ||
+        !/Timed out waiting for URL/.test(error.message)
+      )
+        throw error;
+      const check = await this.#observe({ view: "account", limit: 1 });
+      if (check.page !== command.url || check.alerts?.length) throw error;
+      // Only a committed exact route is recovered; exact content readiness still follows.
+    }
   }
   private async handleWaitProfileContent(target: any, url: string) {
     try {
