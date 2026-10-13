@@ -105,6 +105,13 @@ export interface ReadResult {
   folders?: string[];
   folder?: string;
   folderEvidence?: { entryPage?: string; selectedPage?: string; name?: string };
+  paginationBoundary?: {
+    kind?: string;
+    lastId?: string;
+    renderedCount?: number;
+    waitMs?: number;
+    scopeComplete?: boolean;
+  };
   sources?: PostEvidence[];
   post?: PostEvidence;
   context?: PostEvidence[];
@@ -173,6 +180,8 @@ export interface IncomingConversationResult {
 }
 export interface BookmarkOptions extends WindowOptions {
   folder?: string;
+  /** Continue the currently observed named-folder window without reselecting it. */
+  resume?: boolean;
   /** Discover names only; never read all bookmarks as a named folder. */
   discoverOnly?: boolean;
 }

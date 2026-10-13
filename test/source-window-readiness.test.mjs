@@ -167,7 +167,7 @@ test("DOM pagination waits for a new card, not an already visible old prefix", a
   await assert.rejects(navigation.waitForPosts({ excludeIds: ["1]"] }));
 });
 
-test("source pagination reaches the loaded tail before waiting for asynchronous cards", async () => {
+test("source pagination advances one viewport before waiting for asynchronous cards", async () => {
   const keys = [];
   const anchor = { filter: () => anchor, press: async (key) => keys.push(key) };
   const session = {
@@ -188,7 +188,7 @@ test("source pagination reaches the loaded tail before waiting for asynchronous 
     },
   });
   await editing.nextPosts({});
-  assert.deepEqual(keys, ["End"]);
+  assert.deepEqual(keys, ["PageDown"]);
   assert.equal(session.current, null);
 });
 
@@ -277,4 +277,97 @@ test("an empty first list stays unconfirmed after timeout and never scrolls an a
   assert.equal(result.complete, false);
   assert.deepEqual(result.missing, ["source-page-unconfirmed"]);
   assert.deepEqual(actions, [{ operation: "waitForPosts" }]);
+});
+
+test("progressive virtual windows find an unprocessed middle source and wait on DOM IDs, not global processed IDs", async () => {
+  let stage = 0;
+  const global = Array.from({ length: 31 }, (_, i) => String(i + 1)).filter(
+    (id) => id !== "15",
+  );
+  const reads = [];
+  const browser = {
+    observe: async ({ offset = 0, limit = 5 }) => {
+      const rows = Array.from({ length: 10 }, (_, i) =>
+        post(1 + stage * 3 + i),
+      );
+      return {
+        page: "https://x.com/i/bookmarks/folder/7",
+        posts: rows.slice(offset, offset + limit),
+        renderedIds: rows.map((p) => p.id),
+        firstRenderedId: rows[0].id,
+        renderedArticles: rows.length,
+        moreInDOM: offset + limit < rows.length,
+        needsStateCheck: false,
+        alerts: [],
+      };
+    },
+    act: async (command) => {
+      if (command.operation === "nextPosts") {
+        stage++;
+        return;
+      }
+      assert.equal(command.operation, "waitForPosts");
+      const oldDOM = Array.from({ length: 10 }, (_, i) =>
+        String(1 + (stage - 1) * 3 + i),
+      );
+      assert.deepEqual(command.excludeIds, oldDOM);
+      reads.push(command.excludeIds);
+    },
+  };
+  const observation = new PlatformObservation({ browser, clock: () => 0 });
+  const adapter = new PlatformCollections({
+    browser,
+    ready: observation.ready,
+    observed: observation.observed,
+    choose: observation.choose,
+  });
+  const result = await adapter.collectSources({
+    processedIds: global,
+    limit: 1,
+    maxPages: 10,
+  });
+  assert.deepEqual(
+    result.sources.map((p) => p.id),
+    ["15"],
+  );
+  assert.equal(stage, 2);
+  assert.equal(reads.length, 2);
+});
+
+test("stable rendered tail is exposed as a boundary, never full-folder completion", async () => {
+  const rows = [post(1), post(2)];
+  const browser = {
+    observe: async ({ offset = 0, limit = 5 }) => ({
+      page: "https://x.com/i/bookmarks/folder/7",
+      posts: rows.slice(offset, offset + limit),
+      renderedIds: ["1", "2"],
+      firstRenderedId: "1",
+      renderedArticles: 2,
+      moreInDOM: false,
+      atRenderedTail: true,
+      loading: false,
+      needsStateCheck: false,
+      alerts: [],
+    }),
+    act: async (command) => {
+      if (command.operation === "waitForPosts") throw Error("timed out");
+    },
+  };
+  const observation = new PlatformObservation({ browser, clock: () => 0 });
+  const adapter = new PlatformCollections({
+    browser,
+    ready: observation.ready,
+    observed: observation.observed,
+    choose: observation.choose,
+  });
+  const result = await adapter.collectSources({
+    processedIds: ["1", "2"],
+    limit: 1,
+    maxPages: 10,
+  });
+  assert.equal(result.complete, false);
+  assert.equal(result.pageComplete, false);
+  assert.equal(result.paginationBoundary.scopeComplete, false);
+  assert.equal(result.paginationBoundary.lastId, "2");
+  assert.ok(result.missing.includes("stable-rendered-tail"));
 });

@@ -139,26 +139,19 @@ export class PlatformCollections {
         last = await this.#observed({ view: "posts", offset, limit: 5 });
         if (last.moreInDOM) offset += 5;
         else {
-          await this.#browser.act({ operation: "nextPosts" });
-          const scrolled = await this.#ready({ view: "posts", limit: 5 });
-          if (scrolled.needsStateCheck || scrolled.alerts?.length)
+          const advanced = await this.advanceSourceWindow(last, seen);
+          if (advanced.needsStateCheck || advanced.alerts?.length)
             return {
-              ...scrolled,
+              ...advanced,
               sources,
               complete: false,
               missing: ["source-page-unconfirmed"],
             };
-          // Scroll and lazy loading settle asynchronously. Existing cards are
-          // already visible, so waiting for the first article proves nothing.
-          try {
-            await this.#browser.act({
-              operation: "waitForPosts",
-              excludeIds: [...seen],
-            });
-          } catch (error: any) {
-            if (!/timed out|timeout/i.test(error.message)) throw error;
+          if (advanced.paginationBoundary) {
+            last = advanced;
+            missing.push("stable-rendered-tail");
+            break;
           }
-          const advanced = await this.#ready({ view: "posts", limit: 5 });
           // Retained DOM prefixes include a partial final window too; skip
           // exactly the consumed cards, while virtualized replacements restart.
           offset =
@@ -177,11 +170,48 @@ export class PlatformCollections {
       sources,
       complete: sources.length >= limit,
       pageComplete: false,
+      ...(last?.paginationBoundary
+        ? { paginationBoundary: last.paginationBoundary }
+        : {}),
       missing:
         sources.length >= limit
           ? []
           : [...new Set([...missing, "bounded-source-window-exhausted"])],
     };
+  }
+  private async advanceSourceWindow(previous: any, seen: Set<any>) {
+    const renderedIds = previous.renderedIds ?? [...seen];
+    await this.#browser.act({ operation: "nextPosts" });
+    let advanced = await this.#ready({ view: "posts", limit: 5 });
+    if (advanced.needsStateCheck || advanced.alerts?.length) return advanced;
+    let timedOut = false;
+    try {
+      // Wait for a newly rendered card, even if that source was processed on an
+      // earlier run. Global processed IDs do not describe the current DOM window.
+      await this.#browser.act({
+        operation: "waitForPosts",
+        excludeIds: renderedIds,
+      });
+    } catch (error: any) {
+      if (!/timed out|timeout/i.test(error.message)) throw error;
+      timedOut = true;
+    }
+    advanced = await this.#ready({ view: "posts", limit: 5 });
+    if (
+      timedOut &&
+      advanced.atRenderedTail &&
+      !advanced.loading &&
+      advanced.firstRenderedId === previous.firstRenderedId &&
+      advanced.renderedArticles === previous.renderedArticles
+    )
+      advanced.paginationBoundary = {
+        kind: "stable-rendered-tail",
+        lastId: advanced.renderedIds?.at(-1),
+        renderedCount: advanced.renderedArticles,
+        waitMs: 5000,
+        scopeComplete: false,
+      };
+    return advanced;
   }
   private async handleReadCreator(args: import("./types.js").CreatorOptions) {
     if (typeof this.#browser.collectCreator !== "function")
@@ -211,6 +241,7 @@ export class PlatformCollections {
   private async handleReadBookmarks({
     folder,
     discoverOnly = false,
+    resume = false,
     ...window
   }: any = {}): Promise<any> {
     if (!discoverOnly && (typeof folder !== "string" || !folder.trim()))
@@ -220,6 +251,9 @@ export class PlatformCollections {
       targetLabel: folder,
       bookmarkNavigation: true,
     });
+    if (resume && discoverOnly)
+      throw Error("bookmark-resume-discovery-conflict");
+    if (resume) return this.resumeBookmarks(folder, window, nav.page);
     if (discoverOnly && nav.bookmarkFolders?.length)
       return this.bookmarkDiscovery(nav);
     const bookmark = (c: any) => /^(书签|收藏|Bookmarks)$/i.test(c.label);
@@ -356,6 +390,20 @@ export class PlatformCollections {
         selectedPage: selected.page,
         name: folder,
       },
+    };
+  }
+  private async resumeBookmarks(
+    folder: string,
+    window: any,
+    entryPage: string,
+  ) {
+    const selected = await this.confirmBookmarkFolder(folder);
+    if (selected.status) return selected;
+    const value = await this.handleCollectSources(window);
+    return {
+      ...value,
+      folder,
+      folderEvidence: { entryPage, selectedPage: selected.page, name: folder },
     };
   }
   private async confirmBookmarkFolder(folder: string) {

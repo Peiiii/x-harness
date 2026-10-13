@@ -322,7 +322,7 @@ export class DOMEditing {
         .filter({ visible: true }),
     );
     this.#session.current = null;
-    await anchor.press("End");
+    await anchor.press("PageDown");
     return { completed: true };
     return { completed: false, loc, submittedEditor };
   }

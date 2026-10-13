@@ -138,6 +138,23 @@ export function readPosts({
         ?.getAttribute("href")
         ?.match(/\/status\/(\d+)/)?.[1] ?? null,
     renderedArticles: all.length,
+    renderedIds: all
+      .map(
+        (a) =>
+          primaryTime(a)
+            ?.closest("a")
+            ?.getAttribute("href")
+            ?.match(/\/status\/(\d+)/)?.[1],
+      )
+      .filter(Boolean),
+    atRenderedTail:
+      Boolean(document.scrollingElement) &&
+      document.scrollingElement!.scrollTop +
+        document.scrollingElement!.clientHeight >=
+        document.scrollingElement!.scrollHeight - 2,
+    loading: Array.from(document.querySelectorAll('[role="progressbar"]')).some(
+      visible,
+    ),
     matched: candidates.length,
     offset,
     moreInDOM: candidates.length > offset + posts.length,

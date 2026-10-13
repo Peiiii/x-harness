@@ -210,6 +210,14 @@ export function readResult(
       "moreInDOM",
     ]) as unknown as ReadResult;
   if (operation === "readBookmarks") {
+    if (raw.paginationBoundary)
+      out.paginationBoundary = pick(raw.paginationBoundary, [
+        "kind",
+        "lastId",
+        "renderedCount",
+        "waitMs",
+        "scopeComplete",
+      ]);
     if (raw.folders !== undefined) out.folders = strings(raw.folders);
     if (typeof raw.folder === "string") out.folder = raw.folder;
     if (raw.folderEvidence)

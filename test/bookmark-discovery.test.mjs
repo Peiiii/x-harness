@@ -239,3 +239,47 @@ test("a no-href bookmark label waits for selected-folder navigation before readi
     }
   }
 });
+
+test("bookmark resume keeps the observed named folder and does not reopen or navigate to the latest window", async () => {
+  const adapter = new PlatformCollections({
+    ready: async (q) =>
+      q.view === "posts"
+        ? {
+            page: "https://x.com/i/history/bookmarks/7",
+            posts: [
+              {
+                id: "7",
+                author: "source",
+                body: "Original",
+                datetime: "2026-01-01T00:00:00Z",
+              },
+            ],
+          }
+        : {
+            page: "https://x.com/i/history/bookmarks/7",
+            headings: ["Remakes"],
+            controls: [],
+          },
+    observed: async () => ({}),
+    choose: async () => {
+      throw Error("resume must not reopen a folder");
+    },
+    browser: {
+      act: async () => {
+        throw Error("already bound folder must not navigate");
+      },
+    },
+  });
+  const result = await adapter.readBookmarks({
+    folder: "Remakes",
+    resume: true,
+    limit: 1,
+    maxPages: 1,
+  });
+  assert.equal(result.complete, true);
+  assert.equal(result.sources[0].id, "7");
+  assert.equal(
+    result.folderEvidence.selectedPage,
+    "https://x.com/i/history/bookmarks/7",
+  );
+});
