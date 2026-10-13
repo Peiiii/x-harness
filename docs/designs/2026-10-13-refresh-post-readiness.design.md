@@ -17,3 +17,5 @@ Same-executor design review: the fresh publication baseline still reads only aft
 ## Source validation and implementation review
 
 Full source check passes 222 tests, format, source/CLI/contracts types, maintainability, Skill and generated consistency. Diff-only review confirms the change only delegates a bounded read wait; reload count and public verification gates are unchanged. No unresolved source findings. Artifact and live baseline recovery remain pending.
+
+Published/adopted 0.2.47 from b993ce6; four artifact tests and 193 consumer tests pass. The previously baseline-blocked original prepared action was submitted once and publicly verified through one root batch call. Live boundary recovery is confirmed for that action; overall reply throughput remains unproven.
