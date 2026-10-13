@@ -215,6 +215,8 @@ export class PlatformCollections {
         };
       if (
         advanced.paginationBoundary ||
+        !Number.isFinite(advanced.viewportScrollTop) ||
+        advanced.renderedArticles !== previous.renderedArticles ||
         (advanced.renderedIds ?? advanced.posts?.map((p: any) => p.id))?.some(
           (id: any) => !renderedIds.includes(id),
         )

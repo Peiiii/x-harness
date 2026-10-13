@@ -147,6 +147,7 @@ export function readPosts({
             ?.match(/\/status\/(\d+)/)?.[1],
       )
       .filter(Boolean),
+    viewportScrollTop: document.scrollingElement?.scrollTop,
     atRenderedTail:
       Boolean(document.scrollingElement) &&
       document.scrollingElement!.scrollTop +

@@ -95,11 +95,8 @@ test("an unrendered source window remains incomplete after bounded render waits"
   const { result, actions } = await collect("timeout");
   assert.equal(result.complete, false);
   assert.deepEqual(result.sources, []);
-  assert.ok(result.missing.includes("source-page-unconfirmed"));
-  assert.equal(
-    actions.filter((a) => a.operation === "waitForPosts").length,
-    10,
-  );
+  assert.ok(result.missing.includes("source-window-not-yet-rendered"));
+  assert.equal(actions.filter((a) => a.operation === "waitForPosts").length, 2);
 });
 
 test("a platform alert stops source pagination before an offset wait", async () => {
@@ -358,6 +355,7 @@ test("retained DOM survives several viewport scrolls before asynchronous cards c
         renderedIds: rows.map((p) => p.id),
         firstRenderedId: rows[0].id,
         renderedArticles: rows.length,
+        viewportScrollTop: scrolls * 600,
         moreInDOM: offset + limit < rows.length,
         needsStateCheck: false,
         alerts: [],
