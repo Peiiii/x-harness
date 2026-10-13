@@ -159,3 +159,56 @@ test("truncated quote binds only a substantial visible prefix plus author/time a
     } else assert.equal(result.posts[0].quoteSource.body, body);
   }
 });
+
+test("DOM quote selection compares exact observed text, ignoring empty link controls without relying on substring filters", async () => {
+  const { DOMNavigation } = await import("../dist/browser-dom-navigation.js");
+  for (const duplicate of [false, true]) {
+    let clicked = 0;
+    const texts = duplicate ? ["", card.text, card.text] : ["", card.text];
+    const controls = {
+      filter: (q) => {
+        assert.deepEqual(q, { visible: true });
+        return controls;
+      },
+      count: async () => texts.length,
+      nth: (i) => ({
+        innerText: async () => texts[i],
+        click: async () => clicked++,
+      }),
+    };
+    const article = { filter: () => article, locator: () => controls };
+    const nav = new DOMNavigation({
+      session: {
+        current: {
+          query: { view: "posts" },
+          result: {
+            page: "https://x.com/owner/status/10",
+            posts: [{ ...parent, primary: "/owner/status/10" }],
+          },
+        },
+      },
+      observe: async () => ({}),
+      tab: {
+        url: async () => "https://x.com/source/status/20",
+        playwright: {
+          getByRole: () => article,
+          locator: () => ({}),
+          expectNavigation: async (fn) => fn(),
+        },
+      },
+    });
+    if (duplicate) {
+      await assert.rejects(
+        nav.openQuote({ postId: "10", cardText: card.text }),
+        /controls:3:matches:2/,
+      );
+      assert.equal(clicked, 0);
+    } else {
+      assert.equal(
+        (await nav.openQuote({ postId: "10", cardText: card.text })).url,
+        "https://x.com/source/status/20",
+      );
+      assert.equal(clicked, 1);
+    }
+  }
+});

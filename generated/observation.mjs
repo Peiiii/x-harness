@@ -640,7 +640,7 @@ export const readXObservation = (query) => {
                                 .querySelector?.("time")
                                 ?.getAttribute("datetime"),
                         }))
-                            .filter((card) => card.text?.trim() && card.datetime)
+                            .filter((card) => card.text?.trim())
                         : [],
                 };
             }),

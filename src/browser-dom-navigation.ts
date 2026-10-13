@@ -38,20 +38,29 @@ export class DOMNavigation {
       posts[0].quoteCards?.length !== 1 ||
       posts[0].quoteCards[0].text !== command.cardText
     )
-      throw Error("unique-observed-quote-required");
+      throw Error(
+        `unique-observed-quote-required:snapshot:${posts?.length ?? 0}:${posts?.[0]?.quoteCards?.length ?? 0}`,
+      );
     const article = this.#tab.playwright.getByRole("article").filter({
       has: this.#tab.playwright.locator(
         `a[href=${JSON.stringify(posts[0].primary)}]`,
       ),
     });
-    const card = article
+    const cards = article
       .locator('[role="link"][tabindex="0"]')
-      .filter({ visible: true, hasText: command.cardText });
-    if (
-      (await card.count()) !== 1 ||
-      (await card.innerText()) !== command.cardText
-    )
-      throw Error("unique-observed-quote-required");
+      .filter({ visible: true });
+    const count = await cards.count();
+    const matches = [];
+    for (let i = 0; i < count; i++) {
+      const candidate = cards.nth(i);
+      if ((await candidate.innerText()) === command.cardText)
+        matches.push(candidate);
+    }
+    if (matches.length !== 1)
+      throw Error(
+        `unique-observed-quote-required:controls:${count}:matches:${matches.length}`,
+      );
+    const card = matches[0];
     this.#session.current = null;
     await this.#tab.playwright.expectNavigation(() => card.click(), {
       waitUntil: "commit",

@@ -39,6 +39,7 @@ export class DOMCapabilities {
           ...missingMethods(this.#tab.playwright.locator("div"), [
             "filter",
             "count",
+            "nth",
             "click",
             "innerText",
           ]),

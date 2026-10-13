@@ -197,7 +197,7 @@ export function readXSurface({
                       .querySelector?.("time")
                       ?.getAttribute("datetime"),
                   }))
-                  .filter((card: any) => card.text?.trim() && card.datetime)
+                  .filter((card: any) => card.text?.trim())
               : [],
         };
       }),
