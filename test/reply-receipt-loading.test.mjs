@@ -58,8 +58,14 @@ async function replay(last) {
     readPerson: () => {
       throw Error("No person");
     },
-    readPost: () => {
-      throw Error("No parent navigation");
+    readPost: async (target) => {
+      reads++;
+      assert.equal(target.postId, "11");
+      assert.equal(target.url, action.observedPublicURL);
+      assert.equal(target.expand, true);
+      assert.equal(target.includeContext, true);
+      assert.equal(target.includeThread, true);
+      return last(snapshot);
     },
   });
   const result = await writing.findSubmission(action);
@@ -67,7 +73,7 @@ async function replay(last) {
   assert.equal(reads, 1);
   return result;
 }
-test("detail loading gets one bounded fresh parent observation without resubmitting", async () => {
+test("detail loading delegates one bounded thread read without resubmitting", async () => {
   const r = await replay((s) => s([{ ...candidate, replyToId: "10" }]));
   assert.equal(r.verified, true);
   assert.equal(r.publicId, "11");

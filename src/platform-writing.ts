@@ -225,7 +225,6 @@ export class PlatformWriting {
         value = await this.readLoadedReplyReceipt(
           value,
           candidate.id,
-          action.postId,
           matchesContent,
         );
         matches = (value.posts ?? []).filter(matchesContent);
@@ -246,7 +245,6 @@ export class PlatformWriting {
   private async readLoadedReplyReceipt(
     value: any,
     targetId: string,
-    replyTargetId: string,
     matchesContent: (post: any) => boolean,
   ): Promise<any> {
     const candidates = (value.posts ?? []).filter(matchesContent);
@@ -258,8 +256,19 @@ export class PlatformWriting {
       candidates[0].replyToId != null
     )
       return value;
-    // One fresh observation after the detail opens; never infer a missing parent or submit again.
-    return this.#observed({ view: "posts", targetId, replyTargetId });
+    // Reuse the bounded thread reader; only its explicit parent receipt can confirm a reply.
+    return this.#readPost({
+      postId: targetId,
+      url: value.page,
+      evidenceRef: {
+        page: value.page,
+        observedAt: value.observedAt,
+        publicId: targetId,
+      },
+      expand: true,
+      includeContext: true,
+      includeThread: true,
+    });
   }
   private async handleSubmitFollow(action: any): Promise<any> {
     const value = await this.#followStage(action, "submit-preflight-read", () =>
