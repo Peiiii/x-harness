@@ -135,3 +135,29 @@ for (const mode of ["incomplete", "loaded", "alert"]) {
     assert.equal(result.blue, mode === "alert" ? null : true);
   });
 }
+
+test("native relationship proof does not reopen for unsupported color evidence", async () => {
+  const { createNativeXBrowser, createXPlatform } =
+    await import("../dist/diagnostics.js");
+  const clicks = [];
+  const app = {
+    async getAXState() {
+      return "0 标准窗口 Reader / X, URL: x.com/reader\n  1 link 个人资料, Value: x.com/Pei\n  2 container 主页时间线\n    3 按钮 关注 @reader\n    4 container 个人资料时间线\n  7 文本栏 (settable) 地址和搜索栏, Value: x.com/reader\n  8 按钮 重新加载\n";
+    },
+    async click(index) {
+      clicks.push(index);
+    },
+    async pressKey() {},
+    async paste() {},
+  };
+  const platform = createXPlatform(createNativeXBrowser(app));
+  const out = await platform.readPerson({
+    handle: "reader",
+    url: "https://x.com/reader",
+    evidenceRef: "observed-proof",
+  });
+  assert.equal(out.relationship, "not-following");
+  assert.equal(out.blue, null);
+  assert.equal(out.blueEvidenceSupported, false);
+  assert.deepEqual(clicks, []);
+});

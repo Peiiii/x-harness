@@ -149,6 +149,7 @@ export class NativeXBrowser {
                 ? "not-following"
                 : "unknown",
         blue: null,
+        blueEvidenceSupported: false,
       };
     }
     if (query.view === "composer") {

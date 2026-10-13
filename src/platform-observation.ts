@@ -47,7 +47,7 @@ export class PlatformObservation {
       query.view === "person" &&
       !value.alerts?.length &&
       (value.needsStateCheck ||
-        value.blue === null ||
+        (value.blue === null && value.blueEvidenceSupported !== false) ||
         value.relationship === "unknown");
     if (!atTarget || incompletePerson) {
       await this.#browser.act({
