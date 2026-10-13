@@ -316,10 +316,10 @@ export class DOMNavigation {
     // Native observation settles the real loading transition when the tab exposes it.
     if (typeof this.#tab.getAXState === "function")
       await this.#tab.getAXState({ emit: false });
-    await this.#tab.playwright
-      .getByRole("article")
-      .first()
-      .waitFor({ state: "visible", timeoutMs: 5000 });
+    await this.handleWaitPublicArticle(
+      this.#tab.playwright.getByRole("article").first(),
+      command.url,
+    );
     return;
   }
 }
