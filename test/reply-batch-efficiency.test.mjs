@@ -295,3 +295,17 @@ test("conditional reply end-check accounts only for its original action IDs with
   assert.deepEqual(r.pending, [{ kind: "reply", remaining: 1, unknown: 1 }]);
   assert.equal(readFileSync(f.ledger, "utf8"), before);
 });
+
+test("serialized shared metric aliases do not discard the visible button counts", () => {
+  const post = {
+    id: "1",
+    body: "hello",
+    primary: "/peer/status/1",
+    buttons: [{ label: "25 喜欢次数。喜欢" }],
+    metrics: ["[Circular]", { label: "1002 次查看。查看帖子分析" }],
+  };
+  assert.deepEqual(publicSource(source(post, "https://x.com/search")).metrics, [
+    "25 喜欢次数。喜欢",
+    "1002 次查看。查看帖子分析",
+  ]);
+});
