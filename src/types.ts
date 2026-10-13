@@ -224,6 +224,8 @@ export type PreparedAction = PreparedActionBase &
         kind: "original";
         draftPath: string;
         notBefore?: string;
+        /** Exclusive publication deadline; does not block unknown recovery. */
+        notAfter?: string;
         text: string;
         composeURL: string;
         composeEvidenceRef: EvidenceRef;

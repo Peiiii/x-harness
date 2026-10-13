@@ -59,3 +59,110 @@ test("draft and action dates use the later constraint; invalid or zoneless dates
   assert.equal(gate.resolve({ ...a, notBefore: "not-a-date" }).invalid, true);
   assert.deepEqual(gate.resolve({ ...a, kind: "reply" }), {});
 });
+
+test("exclusive notAfter boundary blocks new intent without a click", async (t) => {
+  const f = fixture(t, { planned: [0, 1, 0], actionKinds: ["original"] });
+  f.edit((s) => {
+    s.actions[0].notAfter = new Date(NOW).toISOString();
+  });
+  const r = await f.harness.publishPost({
+    taskId: "round-1",
+    draftPath: f.draft,
+    independentExecution: {
+      tabId: "end-window",
+      evidenceRef: f.proof,
+      scopeEvidenceRef: f.proof,
+    },
+  });
+  assert.equal(
+    r.reason ?? r.decision?.[0]?.reason,
+    "draft-window-expired",
+    JSON.stringify(r),
+  );
+  assert.equal(f.writes.length, 0);
+  assert.equal(f.read().actions[0].status, "prepared");
+  assert.equal(f.read().items[1].unknown, 0);
+});
+test("earliest deadline wins and invalid or inverted windows fail closed", (t) => {
+  const f = fixture(t, { actionKinds: ["original"] });
+  const gate = new DraftSchedule();
+  writeFileSync(
+    f.draft,
+    "最晚发布窗口：2026-10-11T10:02:00+08:00\n## 正文\nnotAfter: irrelevant",
+  );
+  const a = {
+    kind: "original",
+    draftPath: f.draft,
+    notAfter: "2026-10-11T10:03:00+08:00",
+  };
+  assert.equal(gate.resolve(a).until, "2026-10-11T02:02:00.000Z");
+  assert.equal(
+    gate.reason(a, Date.parse("2026-10-11T02:02:00Z")),
+    "draft-window-expired",
+  );
+  assert.equal(
+    gate.resolve({ ...a, notAfter: "2026-10-11T10:05:00" }).invalidAfter,
+    true,
+  );
+  assert.equal(
+    gate.resolve({ ...a, notBefore: "2026-10-11T10:02:00+08:00" }).invalidAfter,
+    true,
+  );
+});
+
+test("deadline is rechecked after composing and immediately before submission", async (t) => {
+  const f = fixture(t, { planned: [0, 1, 0], actionKinds: ["original"] });
+  f.edit((s) => (s.actions[0].notAfter = new Date(NOW + 1000).toISOString()));
+  const original = f.browser.act.bind(f.browser);
+  f.browser.act = async (command) => {
+    if (command.operation === "submitPost") f.setNow(NOW + 1000);
+    return original(command);
+  };
+  const r = await f.harness.publishPost({
+    taskId: "round-1",
+    draftPath: f.draft,
+    independentExecution: {
+      tabId: "cross-end",
+      evidenceRef: f.proof,
+      scopeEvidenceRef: f.proof,
+    },
+  });
+  assert.equal(
+    r.reason ?? r.decision?.[0]?.reason,
+    "draft-window-expired",
+    JSON.stringify(r),
+  );
+  assert.equal(f.writes.length, 0);
+  assert.equal(f.read().actions[0].status, "prepared");
+  assert.equal(f.read().items[1].unknown, 0);
+});
+test("expired original may still recover an already submitted unknown without a second write", async (t) => {
+  const f = fixture(t, { planned: [0, 1, 0], actionKinds: ["original"] });
+  f.edit((s) => (s.actions[0].notAfter = new Date(NOW + 1000).toISOString()));
+  const r = await f.harness.publishPost({
+    taskId: "round-1",
+    draftPath: f.draft,
+    independentExecution: {
+      tabId: "recovery-end",
+      evidenceRef: f.proof,
+      scopeEvidenceRef: f.proof,
+    },
+  });
+  assert.equal(r.status, "verified");
+  f.edit((s) => {
+    s.actions[0].status = "unknown";
+    s.items[1].verified = 0;
+    s.items[1].unknown = 1;
+  });
+  f.setNow(NOW + 1000);
+  const recovered = await f.harness.verifySubmission({
+    taskId: "round-1",
+    actionId: f.read().actions[0].id,
+  });
+  assert.ok(
+    ["verified", "complete"].includes(recovered.status),
+    JSON.stringify(recovered),
+  );
+  assert.equal(f.read().actions[0].status, "verified");
+  assert.equal(f.writes.length, 1);
+});
