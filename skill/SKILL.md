@@ -6,7 +6,7 @@ description: Use X through task APIs with compact receipts, complete target evid
 
 # X Harness
 
-Use the root business API and current task reference. Reuse unchanged instructions/bindings; normal use needs no source reading.
+Use root API/current task reference. Normal use needs no implementation source or type-file reading.
 
 ## Bind once
 
