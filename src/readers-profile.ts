@@ -223,6 +223,21 @@ export function readPeople({
         .filter(visible)
         .map((b: any) => b.getAttribute("aria-label") || b.innerText)
     : [];
+  const anchorButton = anchorCell
+    ? Array.from<any>(anchorCell.querySelectorAll("button")).find((b: any) =>
+        /^(?:正在关注|取消关注|回关|关注) @/.test(
+          b.getAttribute("aria-label") || b.innerText,
+        ),
+      )
+    : null;
+  const anchorHeight = anchorButton?.getBoundingClientRect?.().height;
+  const anchorPages =
+    anchorHeight > 0
+      ? Math.max(
+          1,
+          Math.min(20, Math.floor((window.innerHeight - 200) / anchorHeight)),
+        )
+      : 1;
   const anchorHandles = [
     ...new Set(
       anchorLabels
@@ -239,7 +254,9 @@ export function readPeople({
     page: location.href,
     people,
     scrollAnchor:
-      anchorHandles.length === 1 ? { handle: anchorHandles[0] } : null,
+      anchorHandles.length === 1
+        ? { handle: anchorHandles[0], pages: anchorPages }
+        : null,
     offset,
     renderedPeople: cells.length,
     moreInDOM: offset + limit < cells.length,

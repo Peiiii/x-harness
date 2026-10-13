@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import type { BoundaryRecord } from "./boundary.js";
 import type { FollowbackAuditOptions, FollowbackAuditResult } from "./types.js";
@@ -68,9 +69,37 @@ export class FollowbackAudit {
     this.validate(args);
     const targets = { following: args.following, followers: args.followers };
     if (args.scanId) {
-      const prior = this.#jobs.get(args.scanId);
+      let prior = this.#jobs.get(args.scanId);
+      if (
+        !prior &&
+        args.resumeEvidenceRef &&
+        this.#evidenceExists(args.resumeEvidenceRef)
+      ) {
+        const checkpoint = JSON.parse(
+          readFileSync(args.resumeEvidenceRef, "utf8"),
+        );
+        if (
+          checkpoint.schema !== "followback-audit/v1" ||
+          checkpoint.scanId !== args.scanId
+        )
+          throw new Error("followback-checkpoint-invalid");
+        for (const kind of ["following", "followers"]) {
+          if (
+            !checkpoint[kind]?.entries ||
+            Object.values(checkpoint[kind].entries).some(
+              (p: any) =>
+                !/^[A-Za-z0-9_]{1,15}$/.test(p.handle ?? "") ||
+                p.url?.toLowerCase() !==
+                  `https://x.com/${p.handle.toLowerCase()}`,
+            )
+          )
+            throw new Error("followback-checkpoint-invalid");
+        }
+        prior = checkpoint;
+      }
       if (!prior || JSON.stringify(prior.targets) !== JSON.stringify(targets))
         throw new Error("followback-resume-mismatch");
+      this.#jobs.set(args.scanId, prior);
       return prior;
     }
     const job: BoundaryRecord = {
@@ -115,6 +144,9 @@ export class FollowbackAudit {
     });
     if (value.status !== "observed" || !value.complete || value.alerts?.length)
       return value.reason ?? value.status;
+    const owner = new URL(target.url).pathname.split("/")[1];
+    if (value.accountHandle?.toLowerCase() !== owner.toLowerCase())
+      return "account-identity-unconfirmed";
     const before = Object.keys(state.entries).length;
     for (const person of value.people ?? []) {
       if (

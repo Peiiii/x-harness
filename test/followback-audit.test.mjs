@@ -1,3 +1,6 @@
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createBusinessHarness } from "../dist/api.js";
@@ -42,6 +45,7 @@ function fixture({
         pages[kind][Math.min(position[kind], pages[kind].length - 1)] ?? [];
       return {
         complete: true,
+        accountHandle: "fixture_self",
         offset: q.offset ?? 0,
         moreInDOM: (q.offset ?? 0) + q.limit < page.length,
         people: page
@@ -66,6 +70,8 @@ function fixture({
     x: createBusinessHarness({ platform, store, clock }),
     calls,
     proofs,
+    platform,
+    store,
   };
 }
 test("root bulk audit deduplicates virtual overlaps and stores the complete difference without profile calls", async () => {
@@ -204,4 +210,31 @@ test("bulk reads remaining DOM offsets before advancing rather than repeating th
   assert.equal(f.calls[1].offset, 1000);
   assert.equal(f.calls[1].advance, false);
   assert.equal(r.nonFollowerCount, 1099);
+});
+
+test("new runtime resumes the saved immutable checkpoint on the retained list binding", async (t) => {
+  const f = fixture({
+    pages: {
+      following: [["alpha", "beta", "gamma"]],
+      followers: [["beta"], ["delta"]],
+    },
+  });
+  const r = await f.x.readFollowbackAudit({ ...targets, maxWindows: 1 });
+  const dir = mkdtempSync(join(tmpdir(), "followback-checkpoint-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const path = join(dir, "proof.json");
+  writeFileSync(path, JSON.stringify(f.proofs.at(-1)));
+  const next = createBusinessHarness({
+    platform: f.platform,
+    store: f.store,
+    clock: () => Date.parse("2026-10-14T00:00:00Z"),
+  });
+  const resumed = await next.readFollowbackAudit({
+    ...targets,
+    scanId: r.scanId,
+    resumeEvidenceRef: path,
+    maxWindows: 2,
+  });
+  assert.equal(resumed.complete, true);
+  assert.equal(resumed.nonFollowerCount, 2);
 });

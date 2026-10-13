@@ -339,7 +339,7 @@ test("native list scroll prefers the observed viewport control over a covered ti
       evaluate: async () => ({
         page: target.url,
         people: [row],
-        scrollAnchor: { handle: "fixture_a" },
+        scrollAnchor: { handle: "fixture_a", pages: 10 },
         alerts: [],
         needsStateCheck: false,
       }),
@@ -354,5 +354,5 @@ test("native list scroll prefers the observed viewport control over a covered ti
   const browser = createDOMXBrowser(tab);
   await browser.observe({ view: "people", limit: 1 });
   await browser.act({ operation: "nextPeople" });
-  assert.deepEqual(scrolls, [[23, "down", 1]]);
+  assert.deepEqual(scrolls, [[23, "down", 10]]);
 });

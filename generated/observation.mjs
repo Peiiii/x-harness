@@ -299,6 +299,13 @@ export const readXObservation = (query) => {
             .filter(visible)
             .map((b) => b.getAttribute("aria-label") || b.innerText)
         : [];
+    const anchorButton = anchorCell
+        ? Array.from(anchorCell.querySelectorAll("button")).find((b) => /^(?:正在关注|取消关注|回关|关注) @/.test(b.getAttribute("aria-label") || b.innerText))
+        : null;
+    const anchorHeight = anchorButton?.getBoundingClientRect?.().height;
+    const anchorPages = anchorHeight > 0
+        ? Math.max(1, Math.min(20, Math.floor((window.innerHeight - 200) / anchorHeight)))
+        : 1;
     const anchorHandles = [
         ...new Set(anchorLabels
             .map((label) => label.match(/^(?:正在关注|取消关注|回关|关注) @([A-Za-z0-9_]{1,15})$/)?.[1])
@@ -307,7 +314,9 @@ export const readXObservation = (query) => {
     return {
         page: location.href,
         people,
-        scrollAnchor: anchorHandles.length === 1 ? { handle: anchorHandles[0] } : null,
+        scrollAnchor: anchorHandles.length === 1
+            ? { handle: anchorHandles[0], pages: anchorPages }
+            : null,
         offset,
         renderedPeople: cells.length,
         moreInDOM: offset + limit < cells.length,

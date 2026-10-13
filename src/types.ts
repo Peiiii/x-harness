@@ -132,6 +132,7 @@ export interface FollowbackAuditOptions {
   followers: { url: string; evidenceRef: EvidenceRef; expectedCount?: number };
   maxWindows?: number;
   scanId?: string;
+  resumeEvidenceRef?: EvidenceRef;
 }
 export interface FollowbackAuditResult {
   status: "observed" | "needsDecision" | "waiting";

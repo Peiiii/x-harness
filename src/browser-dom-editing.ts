@@ -318,7 +318,12 @@ export class DOMEditing {
             )
           : null;
       if (control) {
-        await this.#tab.scroll(Number(control[1]), "down", 1);
+        const pages = current.result.scrollAnchor?.pages;
+        await this.#tab.scroll(
+          Number(control[1]),
+          "down",
+          Number.isInteger(pages) && pages >= 1 && pages <= 20 ? pages : 1,
+        );
         await this.#tab.getAXState({ emit: false });
         return { completed: true };
       }
