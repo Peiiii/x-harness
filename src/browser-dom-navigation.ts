@@ -250,9 +250,10 @@ export class DOMNavigation {
     }
     if (command.view === "person") {
       // Profile readiness belongs to profile content; self profiles have no Follow button.
-      await this.#tab.playwright
-        .locator('[data-testid="UserName"]')
-        .waitFor({ state: "visible", timeoutMs: 5000 });
+      await this.handleWaitTargetContent(
+        this.#tab.playwright.locator('[data-testid="UserName"]'),
+        command.url,
+      );
     } else if (command.view === "people") {
       await this.#tab.playwright
         .locator('main [data-testid="primaryColumn"] [data-testid="UserCell"]')
@@ -273,15 +274,15 @@ export class DOMNavigation {
             ),
           })
         : articles;
-      await this.handleWaitPublicArticle(detail.first(), command.url);
+      await this.handleWaitTargetContent(detail.first(), command.url);
     }
     return;
   }
-  private async handleWaitPublicArticle(detail: any, url: string) {
+  private async handleWaitTargetContent(detail: any, url: string) {
     const deadline = Date.now() + 15000;
     for (let attempt = 0; attempt < 4; attempt++) {
       const remaining = deadline - Date.now();
-      if (remaining <= 0) throw Error("public-article-readiness-timeout");
+      if (remaining <= 0) throw Error("target-content-readiness-timeout");
       try {
         await detail.waitFor({
           state: "visible",
@@ -324,14 +325,15 @@ export class DOMNavigation {
       idleTimedOut = true;
     }
     await this.#tab.reload();
-    await this.#tab.playwright
-      .getByRole("button", {
+    await this.handleWaitTargetContent(
+      this.#tab.playwright.getByRole("button", {
         name: new RegExp(
           `^(?:正在关注|取消关注|关注|回关) @${command.handle}$`,
           "i",
         ),
-      })
-      .waitFor({ state: "visible", timeoutMs: 5000 });
+      }),
+      command.url,
+    );
     if (idleTimedOut)
       this.#session.refreshNotice =
         "networkidle超时，已沿真实reload与目标关系控件恢复核验";
@@ -349,7 +351,7 @@ export class DOMNavigation {
     // Native observation settles the real loading transition when the tab exposes it.
     if (typeof this.#tab.getAXState === "function")
       await this.#tab.getAXState({ emit: false });
-    await this.handleWaitPublicArticle(
+    await this.handleWaitTargetContent(
       this.#tab.playwright.getByRole("article").first(),
       command.url,
     );
