@@ -18,3 +18,5 @@ Same-executor design review: a parentless candidate cannot pass the final parent
 ## Implementation review and source evidence
 
 Diff-only review: candidate navigation remains bounded, non-URL failures propagate, and missing parent never verifies. The root API test simulates a detail timeout then a correct or wrong parent: one submission in both cases, success only for the exact parent, and the observed original-action URL retained. Existing negative author/text/time/alert/duplicate coverage remains passing. Full check passes 217 tests plus format, type, CLI/contracts, maintainability, Skill and generated consistency. Release artifact tests require the committed build and are run after it. Live recovery and overall multiplier remain unverified.
+
+Published 0.2.46 from committed c242fc8; registry visibility and consumer integration confirmed. Four artifact/release tests and 193 consumer tests pass. Original no-link unknown remains unknown under published read-only recovery, with no resubmission. Live URL-timeout branch and comparative throughput remain unproven.
