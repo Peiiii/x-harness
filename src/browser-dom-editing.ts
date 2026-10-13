@@ -322,7 +322,11 @@ export class DOMEditing {
         .filter({ has: this.#tab.playwright.locator("time") }),
     );
     this.#session.current = null;
-    await anchor.press("PageDown");
+    // A retained timestamp can be far below the viewport. Validate it, then
+    // scroll the page without waiting for that offscreen link to take focus.
+    await (
+      await this.#unique(this.#tab.playwright.locator("body"))
+    ).press("PageDown");
     return { completed: true };
     return { completed: false, loc, submittedEditor };
   }

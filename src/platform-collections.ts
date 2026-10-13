@@ -181,37 +181,51 @@ export class PlatformCollections {
   }
   private async advanceSourceWindow(previous: any, seen: Set<any>) {
     const renderedIds = previous.renderedIds ?? [...seen];
-    await this.#browser.act({ operation: "nextPosts" });
-    let advanced = await this.#ready({ view: "posts", limit: 5 });
-    if (advanced.needsStateCheck || advanced.alerts?.length) return advanced;
-    let timedOut = false;
-    try {
-      // Wait for a newly rendered card, even if that source was processed on an
-      // earlier run. Global processed IDs do not describe the current DOM window.
-      await this.#browser.act({
-        operation: "waitForPosts",
-        excludeIds: renderedIds,
-      });
-    } catch (error: any) {
-      if (!/timed out|timeout/i.test(error.message)) throw error;
-      timedOut = true;
+    let advanced: any;
+    for (let step = 0; step < 10; step++) {
+      await this.#browser.act({ operation: "nextPosts" });
+      advanced = await this.#ready({ view: "posts", limit: 5 });
+      if (advanced.needsStateCheck || advanced.alerts?.length) return advanced;
+      let timedOut = false;
+      try {
+        // Wait for a newly rendered card, even if that source was processed on an
+        // earlier run. Global processed IDs do not describe the current DOM window.
+        await this.#browser.act({
+          operation: "waitForPosts",
+          excludeIds: renderedIds,
+        });
+      } catch (error: any) {
+        if (!/timed out|timeout/i.test(error.message)) throw error;
+        timedOut = true;
+      }
+      advanced = await this.#ready({ view: "posts", limit: 5 });
+      if (
+        timedOut &&
+        advanced.atRenderedTail &&
+        !advanced.loading &&
+        advanced.firstRenderedId === previous.firstRenderedId &&
+        advanced.renderedArticles === previous.renderedArticles
+      )
+        advanced.paginationBoundary = {
+          kind: "stable-rendered-tail",
+          lastId: advanced.renderedIds?.at(-1),
+          renderedCount: advanced.renderedArticles,
+          waitMs: 5000,
+          scopeComplete: false,
+        };
+      if (
+        advanced.paginationBoundary ||
+        (advanced.renderedIds ?? advanced.posts?.map((p: any) => p.id))?.some(
+          (id: any) => !renderedIds.includes(id),
+        )
+      )
+        return advanced;
     }
-    advanced = await this.#ready({ view: "posts", limit: 5 });
-    if (
-      timedOut &&
-      advanced.atRenderedTail &&
-      !advanced.loading &&
-      advanced.firstRenderedId === previous.firstRenderedId &&
-      advanced.renderedArticles === previous.renderedArticles
-    )
-      advanced.paginationBoundary = {
-        kind: "stable-rendered-tail",
-        lastId: advanced.renderedIds?.at(-1),
-        renderedCount: advanced.renderedArticles,
-        waitMs: 5000,
-        scopeComplete: false,
-      };
-    return advanced;
+    return {
+      ...advanced,
+      needsStateCheck: true,
+      missing: ["bounded-scroll-window-exhausted"],
+    };
   }
   private async handleReadCreator(args: import("./types.js").CreatorOptions) {
     if (typeof this.#browser.collectCreator !== "function")

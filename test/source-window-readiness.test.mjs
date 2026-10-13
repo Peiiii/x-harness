@@ -25,6 +25,7 @@ async function collect(mode) {
         page: "https://x.com/search?q=example",
         accountHandle: "example_owner",
         renderedArticles: rows.length,
+        renderedIds: rows.map((p) => p.id),
         firstRenderedId: rows[0]?.id,
         posts,
         moreInDOM: offset + posts.length < rows.length,
@@ -94,8 +95,11 @@ test("an unrendered source window remains incomplete after bounded render waits"
   const { result, actions } = await collect("timeout");
   assert.equal(result.complete, false);
   assert.deepEqual(result.sources, []);
-  assert.ok(result.missing.includes("source-window-not-yet-rendered"));
-  assert.equal(actions.filter((a) => a.operation === "waitForPosts").length, 2);
+  assert.ok(result.missing.includes("source-page-unconfirmed"));
+  assert.equal(
+    actions.filter((a) => a.operation === "waitForPosts").length,
+    10,
+  );
 });
 
 test("a platform alert stops source pagination before an offset wait", async () => {
@@ -182,6 +186,7 @@ test("source pagination advances one viewport before waiting for asynchronous ca
       playwright: {
         locator: (selector) => {
           if (selector === "time") return {};
+          if (selector === "body") return anchor;
           assert.equal(selector, 'a[href="/example_user/status/5"]');
           return anchor;
         },
@@ -333,6 +338,65 @@ test("progressive virtual windows find an unprocessed middle source and wait on 
   );
   assert.equal(stage, 2);
   assert.equal(reads.length, 2);
+});
+
+test("retained DOM survives several viewport scrolls before asynchronous cards change", async () => {
+  let stage = 0;
+  let scrolls = 0;
+  const global = Array.from({ length: 31 }, (_, i) => String(i + 1)).filter(
+    (id) => id !== "15",
+  );
+  const reads = [];
+  const browser = {
+    observe: async ({ offset = 0, limit = 5 }) => {
+      const rows = Array.from({ length: 10 }, (_, i) =>
+        post(1 + stage * 3 + i),
+      );
+      return {
+        page: "https://x.com/i/bookmarks/folder/7",
+        posts: rows.slice(offset, offset + limit),
+        renderedIds: rows.map((p) => p.id),
+        firstRenderedId: rows[0].id,
+        renderedArticles: rows.length,
+        moreInDOM: offset + limit < rows.length,
+        needsStateCheck: false,
+        alerts: [],
+      };
+    },
+    act: async (command) => {
+      if (command.operation === "nextPosts") {
+        scrolls++;
+        stage = Math.floor(scrolls / 3);
+        return;
+      }
+      assert.equal(command.operation, "waitForPosts");
+      const oldDOM = Array.from({ length: 10 }, (_, i) =>
+        String(1 + Math.floor((scrolls - 1) / 3) * 3 + i),
+      );
+      assert.deepEqual(command.excludeIds, oldDOM);
+      reads.push(command.excludeIds);
+      if (scrolls % 3) throw Error("timed out");
+    },
+  };
+  const observation = new PlatformObservation({ browser, clock: () => 0 });
+  const adapter = new PlatformCollections({
+    browser,
+    ready: observation.ready,
+    observed: observation.observed,
+    choose: observation.choose,
+  });
+  const result = await adapter.collectSources({
+    processedIds: global,
+    limit: 1,
+    maxPages: 10,
+  });
+  assert.deepEqual(
+    result.sources.map((p) => p.id),
+    ["15"],
+  );
+  assert.equal(stage, 2);
+  assert.equal(scrolls, 6);
+  assert.equal(reads.length, 6);
 });
 
 test("stable rendered tail is exposed as a boundary, never full-folder completion", async () => {
