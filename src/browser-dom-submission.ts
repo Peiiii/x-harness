@@ -1,4 +1,4 @@
-import { xURL } from "./platform-rules.js";
+import { xURL, sameHandle, sameText } from "./platform-rules.js";
 
 import { valueOf } from "./browser-common.js";
 import type { DOMDependencies } from "./browser-dom-dependencies.js";
@@ -43,6 +43,7 @@ export class DOMSubmission {
     let nativeSubmitIndex: any;
     if (
       this.#submitAX &&
+      command.activation !== "keyboard" &&
       ["submitPost", "submitReply"].includes(command.operation)
     ) {
       const native = await this.#submitAX.observe({ mode: "composer" });
@@ -121,7 +122,7 @@ export class DOMSubmission {
     // Inline replies keep the editor mounted. Wait for this submitted text to clear before
     // receipt navigation/reload can interrupt the actual submission request.
     if (submittedEditor)
-      await submittedEditor.waitFor({ state: "hidden", timeoutMs: 10000 });
+      await this.waitSubmittedEditor(submittedEditor, result);
     if (["submitPost", "submitReply"].includes(command.operation)) {
       try {
         await this.#tab.playwright.waitForLoadState({
@@ -132,6 +133,41 @@ export class DOMSubmission {
         // X background traffic may never become idle after a successful click.
         // Continue to the caller's fresh receipt verification, never another click.
         if (!/Timed out waiting for networkidle/i.test(String(error)))
+          throw error;
+      }
+    }
+  }
+  private async waitSubmittedEditor(
+    editor: any,
+    submitted: any,
+  ): Promise<void> {
+    const deadline = Date.now() + 10000;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) throw Error("submitted-editor-clear-timeout");
+      try {
+        await editor.waitFor({ state: "hidden", timeoutMs: remaining });
+        return;
+      } catch (error: any) {
+        if (
+          !/timed out|timeout|deadline exceeded/i.test(error.message) ||
+          attempt === 3 ||
+          Date.now() >= deadline
+        )
+          throw error;
+        // Resume only the wait, never the submission or a navigation that could interrupt it.
+        const current = await this.#observe({ view: "composer" });
+        if (
+          current.alerts?.length ||
+          !current.accountHandle ||
+          !submitted.accountHandle ||
+          !sameHandle(current.accountHandle, submitted.accountHandle) ||
+          xURL(current.page).href !== xURL(submitted.page).href ||
+          (typeof current.editorText === "string" &&
+            current.editorText.trim() &&
+            (!sameText(current.editorText, submitted.editorText) ||
+              current.replyToId !== submitted.replyToId))
+        )
           throw error;
       }
     }
