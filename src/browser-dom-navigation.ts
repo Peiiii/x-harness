@@ -82,6 +82,22 @@ export class DOMNavigation {
     return;
   }
   private async handleWaitForFolder(command: any) {
+    if (command.folderDiscovery) {
+      // "All bookmarks" renders before the asynchronously loaded named cards.
+      // Wait for any named card inside that specific menu, never an unrelated
+      // dialog or arbitrary first clickable control.
+      const menu = this.#tab.playwright
+        .locator('[role="dialog"],[data-testid="Dropdown"]')
+        .filter({ hasText: command.folder });
+      await menu
+        .locator("span:not(:has(span))", {})
+        .filter({
+          hasText: /^(?!书签$|Bookmarks$|所有书签$|All bookmarks$).+$/i,
+        })
+        .first()
+        .waitFor({ state: "visible", timeoutMs: 2000 });
+      return;
+    }
     await this.#tab.playwright
       .getByText(command.folder, { exact: true })
       .waitFor({ state: "visible", timeoutMs: 2000 });

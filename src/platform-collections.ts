@@ -291,7 +291,7 @@ export class PlatformCollections {
     }
     if (discoverOnly) {
       if (!nav.bookmarkFolders?.length) {
-        await this.waitForBookmarkLabel(nav, "所有书签", "All bookmarks");
+        await this.waitForBookmarkLabel(nav, "所有书签", "All bookmarks", true);
         nav = await this.#ready({
           view: "navigation",
           bookmarkNavigation: true,
@@ -303,7 +303,10 @@ export class PlatformCollections {
       !(nav.controls ?? []).some((c: any) => c.label.split("\n")[0] === folder)
     ) {
       try {
-        await this.#browser.act({ operation: "waitForFolder", folder });
+        await this.#browser.act({
+          operation: "waitForFolder",
+          folder,
+        });
       } catch (error: any) {
         if (!/timed out|timeout/i.test(error.message)) throw error;
       }
@@ -361,6 +364,7 @@ export class PlatformCollections {
     nav: any,
     chinese: string,
     english: string,
+    folderDiscovery = false,
   ) {
     const folder = (nav.controls ?? []).some((c: any) =>
       /^(History|Bookmarks)$/i.test(c.label),
@@ -368,7 +372,11 @@ export class PlatformCollections {
       ? english
       : chinese;
     try {
-      await this.#browser.act({ operation: "waitForFolder", folder });
+      await this.#browser.act({
+        operation: "waitForFolder",
+        folder,
+        folderDiscovery,
+      });
     } catch (error: any) {
       if (!/timed out|timeout/i.test(error.message)) throw error;
     }

@@ -176,6 +176,18 @@ export class DOMCapabilities {
           "waitFor",
         ]),
       );
+    if (
+      operation === "readBookmarks" &&
+      typeof this.#tab?.playwright?.locator === "function"
+    )
+      base.push(
+        ...missingMethods(this.#tab.playwright.locator("div"), [
+          "locator",
+          "filter",
+          "first",
+          "waitFor",
+        ]),
+      );
     if (operation !== "readFeedback") {
       base.push(
         ...missingMethods(this.#tab?.playwright, [

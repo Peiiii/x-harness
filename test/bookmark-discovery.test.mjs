@@ -126,3 +126,42 @@ test("discovery waits for delayed menu render without toggling the selected tab 
   assert.equal(result.complete, true);
   assert.equal(clicks, 1);
 });
+
+test("DOM folder discovery waits for a named card rather than the static all-bookmarks option", async () => {
+  const { DOMNavigation } = await import("../dist/browser-dom-navigation.js");
+  const calls = [];
+  const first = { waitFor: async (options) => calls.push(["wait", options]) };
+  const cards = {
+    filter: (opts) => {
+      calls.push(["card-filter", String(opts.hasText)]);
+      return { first: () => first };
+    },
+  };
+  const menu = {
+    filter: (opts) => {
+      calls.push(["menu-filter", opts.hasText]);
+      return {
+        locator: (selector) => {
+          calls.push(["cards", selector]);
+          return cards;
+        },
+      };
+    },
+  };
+  const nav = new DOMNavigation({
+    session: {},
+    tab: {
+      playwright: {
+        locator: (selector) => {
+          calls.push(["menu", selector]);
+          return menu;
+        },
+      },
+    },
+    observe: async () => ({}),
+  });
+  await nav.waitForFolder({ folderDiscovery: true, folder: "所有书签" });
+  assert.equal(calls[1][1], "所有书签");
+  assert.equal(calls[2][1], "span:not(:has(span))");
+  assert.equal(calls.at(-1)[1].state, "visible");
+});
