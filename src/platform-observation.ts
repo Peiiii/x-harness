@@ -42,7 +42,14 @@ export class PlatformObservation {
     } catch {
       /* Blank/non-X pages require observed navigation. */
     }
-    if (!atTarget) {
+    const incompletePerson =
+      atTarget &&
+      query.view === "person" &&
+      !value.alerts?.length &&
+      (value.needsStateCheck ||
+        value.blue === null ||
+        value.relationship === "unknown");
+    if (!atTarget || incompletePerson) {
       await this.#browser.act({
         operation: "openObserved",
         url: url.href,

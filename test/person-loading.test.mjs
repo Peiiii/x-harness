@@ -99,3 +99,39 @@ for (const operation of ["openObserved", "refreshPerson"]) {
     });
   }
 }
+
+for (const mode of ["incomplete", "loaded", "alert"]) {
+  test(`current profile fast path preserves readiness: ${mode}`, async () => {
+    const { PlatformObservation } =
+      await import("../dist/platform-observation.js");
+    let acts = 0,
+      ready = mode === "loaded";
+    const observation = new PlatformObservation({
+      clock: () => 0,
+      browser: {
+        async observe() {
+          return {
+            page: "https://x.com/reader",
+            handle: "reader",
+            blue: ready ? true : null,
+            relationship: ready ? "not-following" : "unknown",
+            needsStateCheck: false,
+            alerts: mode === "alert" ? ["challenge"] : [],
+          };
+        },
+        async act(command) {
+          assert.equal(command.operation, "openObserved");
+          assert.equal(command.url, "https://x.com/reader");
+          acts++;
+          ready = true;
+        },
+      },
+    });
+    const result = await observation.open(
+      { url: "https://x.com/reader", evidenceRef: "synthetic-proof" },
+      { view: "person", handle: "reader" },
+    );
+    assert.equal(acts, mode === "incomplete" ? 1 : 0);
+    assert.equal(result.blue, mode === "alert" ? null : true);
+  });
+}
