@@ -403,7 +403,12 @@ export interface ReplyOptions {
   text: string;
   preparedAction?: Extract<PreparedAction, { kind: "reply" }>;
 }
+export interface FollowPacing {
+  minGapMs: number;
+  maxGapMs: number;
+}
 export interface FollowOptions {
+  pacing?: FollowPacing;
   taskId: string;
   handles: string[];
   preparedActions?: Extract<PreparedAction, { kind: "follow" }>[];

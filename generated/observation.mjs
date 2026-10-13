@@ -205,12 +205,12 @@ export const readXObservation = (query) => {
         observedAt: new Date().toISOString(),
     };
 };
-  const readPeople = function readPeople({ offset = 0, limit = 5 } = {}) {
+  const readPeople = function readPeople({ offset = 0, limit = 5, bulk = false, } = {}) {
     if (!Number.isInteger(offset) ||
         offset < 0 ||
         !Number.isInteger(limit) ||
         limit < 1 ||
-        limit > 5)
+        limit > (bulk === true ? 100 : 5))
         throw new Error("人物窗口须为非负offset及1–5 limit");
     const visible = (el) => el.getClientRects().length > 0;
     const cells = Array.from(document.querySelectorAll('main [data-testid="primaryColumn"] [data-testid="UserCell"]')).filter(visible);
@@ -229,7 +229,17 @@ export const readXObservation = (query) => {
                 .map((a) => a.href?.match(/^\/([A-Za-z0-9_]{1,15})$/)?.[1])
                 .filter(Boolean)),
         ];
-        const handle = handles.length === 1 ? String(handles[0]) : null;
+        const controlHandles = [
+            ...new Set(buttons
+                .map((b) => b.label.match(/^(?:正在关注|取消关注|回关|关注) @([A-Za-z0-9_]{1,15})$/)?.[1])
+                .filter(Boolean)),
+        ];
+        const bound = controlHandles.length === 1 && handles.includes(controlHandles[0]);
+        const handle = bound
+            ? String(controlHandles[0])
+            : handles.length === 1 && !controlHandles.length
+                ? String(handles[0])
+                : null;
         const badges = Array.from(cell.querySelectorAll('svg[data-testid="icon-verified"]')).filter(visible);
         const blue = badges.length === 1
             ? [

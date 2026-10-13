@@ -12,3 +12,13 @@ R5 Required: synthetic DOM + assembled root tests cover virtualized overlap, exp
 Golden path: obtain actual profile counter/list URL proof in allowed hours → call readFollowbackAudit with both targets and exact expected counts → receive counts and proof path → consume full proof nonFollowers/provisional lists → resume same instance if bounded → complete only if both observed counts match. No unfollow action is added.
 
 Design review: passed for these requirements. Direct per-profile reading scales with account count and is discarded; badge absence alone does not establish non-followback. Two list scans reuse current DOM path; the larger internal window removes model-driven five-person pagination. Live speed and full real-account coverage remain unverified until allowed hours. Plan: not-required for this implementation batch; this record owns cross-turn evidence.
+
+## User revisions and live boundary
+
+User clarified to follow back existing followers, save local lists, and live-test exactly five; user explicitly permits connecting to X now. Subsequent direct five-follow instruction is the scoped night write authorization for this test only, not a daily/global exception. Preserve actual prior backoff and account rolling history across dates.
+
+R6 Required: followBatch supports optional `{pacing:{minGapMs,maxGapMs}}`, 5–30 second bounded ranges; choose each original handle's random gap once, persist in its original batch and reuse on resume. Wait only the remainder since the latest actual shared follow attempt. Current round rechecks all guards after waiting. Optional keeps old callers compatible; consumer selects 12–24 seconds for the five-test. This shapes burstiness, not a guarantee against automation detection.
+
+Live list found a bio mention of a backup handle causing ambiguous identity. Prefer a unique exact relationship-control handle with a matching cell link; multiple/mismatched controls remain unconfirmed. Synthetic same-shape regression passes. Full check currently 296 passing; real list and paced writes still pending.
+
+Design review update: passed, reuse original serial batch owner and explicit window permit. No alternate writer or unfollow API; source privacy and midnight default remain. Bulk full-list audit is separate from the five-target relation test.

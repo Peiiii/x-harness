@@ -254,3 +254,37 @@ test("sidebar recommendations never masquerade as a loaded follower list", () =>
       saved;
   }
 });
+
+test("list identity binds the relationship control instead of a second handle in the biography", () => {
+  const saved = [
+    globalThis.document,
+    globalThis.location,
+    globalThis.getComputedStyle,
+  ];
+  try {
+    const entry = cell("fixture_a", "rgb(29, 155, 240)", ["回关 @fixture_a"]);
+    const original = entry.querySelectorAll;
+    entry.querySelectorAll = (s) =>
+      s === "a[href]"
+        ? [
+            ...original(s),
+            {
+              ...visible,
+              innerText: "@fixture_other",
+              getAttribute: () => "/fixture_other",
+            },
+          ]
+        : original(s);
+    globalThis.document = {
+      querySelectorAll: (s) => (s.includes("UserCell") ? [entry] : []),
+    };
+    globalThis.location = { href: "https://x.com/fixture_self/followers" };
+    globalThis.getComputedStyle = (e) => ({ color: e.color, fill: e.color });
+    const r = readPeople({ bulk: true, limit: 100 });
+    assert.equal(r.people[0].handle, "fixture_a");
+    assert.equal(r.people[0].relationship, "follows-you");
+  } finally {
+    [globalThis.document, globalThis.location, globalThis.getComputedStyle] =
+      saved;
+  }
+});

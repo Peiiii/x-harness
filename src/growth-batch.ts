@@ -1,9 +1,11 @@
+import { FollowBatchPacing } from "./follow-batch-pacing.js";
 import type { BoundaryRecord } from "./boundary.js";
 import type { GrowthDependencies } from "./growth-dependencies.js";
 
 import { followWindows, same } from "./growth-constants.js";
 import { followObservationAuthorized } from "./follow-observation-policy.js";
 export class FollowBatch {
+  #pacing: FollowBatchPacing;
   #prepareActionsForCall!: GrowthDependencies["prepareActionsForCall"];
   #store!: GrowthDependencies["store"];
   #scope!: GrowthDependencies["scope"];
@@ -27,6 +29,10 @@ export class FollowBatch {
       | "round"
     >,
   ) {
+    this.#pacing = new FollowBatchPacing(
+      dependencies.store,
+      dependencies.clock,
+    );
     this.followBatch = this.followBatch.bind(this);
     const {
       prepareActionsForCall,
@@ -49,8 +55,14 @@ export class FollowBatch {
     this.#parallelRound = parallelRound;
     this.#round = round;
   }
-  public async followBatch({ taskId, handles, preparedActions }: any = {}) {
+  public async followBatch({
+    taskId,
+    handles,
+    preparedActions,
+    pacing,
+  }: any = {}) {
     const executor = this.#executor;
+    FollowBatchPacing.validate(pacing);
     if (
       !Array.isArray(handles) ||
       handles.length < 5 ||
@@ -210,6 +222,7 @@ export class FollowBatch {
         )
       )
         continue;
+      await this.#pacing.before(batchId, handle, pacing);
       result = await (executor ? this.#parallelRound : this.#round)({
         taskId,
         requestedKind: "follow",

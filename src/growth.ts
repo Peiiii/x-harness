@@ -57,6 +57,7 @@ export class GrowthHarness {
     taskId,
     handles,
     preparedActions,
+    pacing,
   }?: any) => Promise<import("./boundary.js").BoundaryRecord>;
   preflight!: ({ operation, input }: any) => any;
   readCreator!: (args: any) => Promise<any>;

@@ -138,7 +138,25 @@ export function readPeople({
           .filter(Boolean),
       ),
     ];
-    const handle = handles.length === 1 ? String(handles[0]) : null;
+    const controlHandles = [
+      ...new Set(
+        buttons
+          .map(
+            (b: any) =>
+              b.label.match(
+                /^(?:正在关注|取消关注|回关|关注) @([A-Za-z0-9_]{1,15})$/,
+              )?.[1],
+          )
+          .filter(Boolean),
+      ),
+    ];
+    const bound =
+      controlHandles.length === 1 && handles.includes(controlHandles[0]);
+    const handle = bound
+      ? String(controlHandles[0])
+      : handles.length === 1 && !controlHandles.length
+        ? String(handles[0])
+        : null;
     const badges = Array.from(
       cell.querySelectorAll('svg[data-testid="icon-verified"]'),
     ).filter(visible) as Element[];
