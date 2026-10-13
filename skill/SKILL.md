@@ -6,7 +6,7 @@ description: Use X through task APIs with compact receipts, complete target evid
 
 # X Harness
 
-Use the root business API. Load only the current task reference; reuse unchanged instructions and a valid binding. Normal use needs no implementation source or type-file reading.
+Use the root business API and current task reference. Reuse unchanged instructions/bindings; normal use needs no source reading.
 
 ## Bind once
 
@@ -25,6 +25,7 @@ var x = createXGrowthHarness({ tab, ledgerPath, proofDirectory });
 | Current need | Read only |
 | --- | --- |
 | Creator/bookmarks/search/post/person/feedback/account | [reads](references/reads.md) |
+| Followback list audit | [audit](references/followback-audit.md) |
 | Publish/reply/follow or a round | [writes](references/writes.md), preamble + common review + matching operation heading |
 | Unknown submission, missing capability or connection failure | [recovery](references/recovery.md) |
 

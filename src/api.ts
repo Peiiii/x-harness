@@ -1,4 +1,5 @@
 import { sameHandle, samePublishedText } from "./platform-rules.js";
+import { FollowbackAudit } from "./followback-audit.js";
 import { IncomingReactions } from "./incoming-reactions.js";
 import { createGrowthHarness } from "./growth.js";
 import { readResult, decisions, diagnostic, stableReason } from "./results.js";
@@ -25,12 +26,14 @@ export interface BusinessDependencies {
 
 export class BusinessHarness implements XGrowthHarness {
   #reactions!: IncomingReactions;
+  #followbackAudit: FollowbackAudit;
   #platform!: BusinessDependencies["platform"];
   #store!: BusinessDependencies["store"];
   #core!: ReturnType<typeof createGrowthHarness>;
   #readCache!: Map<string, string>;
   #clock!: () => number;
   constructor(dependencies: BusinessDependencies) {
+    this.readFollowbackAudit = this.readFollowbackAudit.bind(this);
     this.replyBatch = this.replyBatch.bind(this);
     this.likeIncomingBatch = this.likeIncomingBatch.bind(this);
     this.#reactions = new IncomingReactions(dependencies);
@@ -58,6 +61,12 @@ export class BusinessHarness implements XGrowthHarness {
     this.#platform = platform;
     this.#store = store;
     this.#core = createGrowthHarness(dependencies);
+    this.#followbackAudit = new FollowbackAudit(
+      (args) => this.#core.readPeople(args),
+      (value) => store.recordProof(value),
+      this.#clock,
+      (ref) => store.evidenceExists(ref),
+    );
     this.#readCache = new Map<string, string>();
   }
   private async invoke(
@@ -697,6 +706,11 @@ export class BusinessHarness implements XGrowthHarness {
       { ...target, includeContext, includeThread, resolveQuote },
       mode,
     );
+  }
+  public readFollowbackAudit(
+    args: import("./types.js").FollowbackAuditOptions,
+  ) {
+    return this.#followbackAudit.run(args);
   }
   public readPeople(args: import("./types.js").PeopleOptions) {
     return this.read("readPeople", args, args.mode);

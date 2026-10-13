@@ -112,6 +112,7 @@ export class PlatformTargets {
     offset = 0,
     limit = 5,
     advance = false,
+    bulk = false,
   }: any): Promise<any> {
     const url = xURL(target?.url);
     if (
@@ -127,11 +128,16 @@ export class PlatformTargets {
       offset < 0 ||
       !Number.isInteger(limit) ||
       limit < 1 ||
-      limit > 5 ||
+      limit > (bulk === true ? 100 : 5) ||
       typeof advance !== "boolean"
     )
       throw new Error("people-window-invalid");
-    let value = await this.#open(target, { view: "people", offset, limit });
+    let value = await this.#open(target, {
+      view: "people",
+      offset,
+      limit,
+      bulk,
+    });
     if (advance) {
       if (
         value.needsStateCheck ||
@@ -140,7 +146,7 @@ export class PlatformTargets {
       )
         return { ...value, complete: false };
       await this.#browser.act({ operation: "nextPeople" });
-      value = await this.#ready({ view: "people", offset: 0, limit });
+      value = await this.#ready({ view: "people", offset: 0, limit, bulk });
     }
     if (!value.page || xURL(value.page).href !== url.href)
       return {

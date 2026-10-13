@@ -102,13 +102,17 @@ export function readProfile({ handle }: any = {}): any {
 }
 
 // Bounded visible person cells for a currently loaded follower/following list.
-export function readPeople({ offset = 0, limit = 5 }: any = {}): any {
+export function readPeople({
+  offset = 0,
+  limit = 5,
+  bulk = false,
+}: any = {}): any {
   if (
     !Number.isInteger(offset) ||
     offset < 0 ||
     !Number.isInteger(limit) ||
     limit < 1 ||
-    limit > 5
+    limit > (bulk === true ? 100 : 5)
   )
     throw new Error("人物窗口须为非负offset及1–5 limit");
   const visible = (el: any) => el.getClientRects().length > 0;

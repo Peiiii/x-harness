@@ -121,6 +121,35 @@ export interface ReadResult {
   unchangedIds?: string[];
   creator?: CreatorEvidence;
 }
+export interface FollowbackAuditOptions {
+  /** Explicit user permission for this read task during 00–07; never authorizes writes. */
+  nightReadAuthorization?: {
+    userAuthorized: boolean;
+    evidenceRef: EvidenceRef;
+    expiresAt: string;
+  };
+  following: { url: string; evidenceRef: EvidenceRef; expectedCount?: number };
+  followers: { url: string; evidenceRef: EvidenceRef; expectedCount?: number };
+  maxWindows?: number;
+  scanId?: string;
+}
+export interface FollowbackAuditResult {
+  status: "observed" | "needsDecision" | "waiting";
+  scanId: string;
+  complete: boolean;
+  followingComplete: boolean;
+  followersComplete: boolean;
+  followingCount: number;
+  followersCount: number;
+  mutualCount: number;
+  notFollowedBackCount: number;
+  nonFollowerCount: number;
+  provisionalCount: number;
+  evidenceRef: EvidenceRef;
+  startedAt: string;
+  observedAt: string;
+  reason?: string;
+}
 export interface PeopleOptions {
   target: { url: string; evidenceRef: EvidenceRef };
   offset?: number;
@@ -483,6 +512,9 @@ export interface XGrowthHarness {
   likeIncomingBatch(args: IncomingLikeOptions): Promise<IncomingLikeResult>;
   readCreator(args: CreatorOptions): Promise<ReadResult>;
   readPeople(args: PeopleOptions): Promise<ReadResult>;
+  readFollowbackAudit(
+    args: FollowbackAuditOptions,
+  ): Promise<FollowbackAuditResult>;
   readBookmarks(args: BookmarkOptions): Promise<ReadResult>;
   searchSources(args: SearchOptions): Promise<ReadResult>;
   readIncomingReplies(args?: IncomingReplyOptions): Promise<ReadResult>;

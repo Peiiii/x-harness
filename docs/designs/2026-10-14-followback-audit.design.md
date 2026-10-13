@@ -1,0 +1,14 @@
+# Batch followback list audit
+
+flow: standard; task-type: feature; risk: L3; retrospective_state: pending.
+User request: obtain all previously followed accounts without followback efficiently through the root harness. Platform reads are forbidden during Shanghai 00–07; development is offline then.
+
+R1 Required: one root `readFollowbackAudit` call scans the two observed own-account list URLs, with one bounded bulk observation per rendered window, never opening individual profiles or writing to X. Reuse the people reader, navigation, proof store and root read claims.
+R2 Required: case-insensitive dedup and intersection/difference. Only a count-matched complete unfiltered followers list permits non-followback classification; otherwise absent handles are provisional, not confirmed negative. Following rows must have exact following controls; unknown row relationships retain a gap. Exact expected counts are reviewed caller evidence from the same account profile, not guessed or rounded counts. Completeness means coverage matched that observed count, not a permanently consistent server snapshot.
+R3 Required: bounded windows, alert/wrong-page/capability/stall stops; save full results and observations to the original proof directory, return compact counts/pointer by default. Same-instance resume retains accumulated evidence and returns an immutable checkpoint after each call; a new instance restarts conservatively. Lists may change during scanning; publish observation interval and counts.
+R4 Required: check Shanghai access window before every window; stop at midnight with checkpoint. No credentials, private API scraping or hidden browser state. Existing window reads retain their 1–5 limit; bulk is internal to this business task.
+R5 Required: synthetic DOM + assembled root tests cover virtualized overlap, explicit following controls, partial/complete followers, zero counts, changed account URL, alerts, resume, night entry/crossing, and demonstrate no profile navigation or submission. Full checks and matching Skill before adoption.
+
+Golden path: obtain actual profile counter/list URL proof in allowed hours → call readFollowbackAudit with both targets and exact expected counts → receive counts and proof path → consume full proof nonFollowers/provisional lists → resume same instance if bounded → complete only if both observed counts match. No unfollow action is added.
+
+Design review: passed for these requirements. Direct per-profile reading scales with account count and is discarded; badge absence alone does not establish non-followback. Two list scans reuse current DOM path; the larger internal window removes model-driven five-person pagination. Live speed and full real-account coverage remain unverified until allowed hours. Plan: not-required for this implementation batch; this record owns cross-turn evidence.
