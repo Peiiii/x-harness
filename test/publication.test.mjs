@@ -83,3 +83,48 @@ test("MP4 publication requires a video on the exact fresh post", async () => {
       false,
     );
 });
+
+test("baseline freshly observes an already loaded exact profile without reload; receipt verification still refreshes", async () => {
+  let reads = 0;
+  const acts = [];
+  const browser = {
+    capabilities: () => [],
+    observe: async () => {
+      reads++;
+      return {
+        page: action.accountURL,
+        accountHandle: action.accountHandle,
+        needsStateCheck: false,
+        alerts: [],
+        posts: [post],
+      };
+    },
+    act: async (q) => {
+      acts.push(q.operation);
+    },
+  };
+  const platform = createXPlatform(browser, { clock: () => time });
+  const baseline = await platform.findSubmission(action, { phase: "baseline" });
+  assert.ok(reads > 0);
+  assert.deepEqual(acts, []);
+  assert.equal(baseline.posts[0].id, "10");
+  await platform.findSubmission(action);
+  assert.deepEqual(acts, ["refreshPosts"]);
+  const bad = createXPlatform(
+    {
+      ...browser,
+      observe: async () => ({
+        page: action.accountURL,
+        accountHandle: "other",
+        needsStateCheck: true,
+        alerts: ["Loading error"],
+        posts: [],
+      }),
+    },
+    { clock: () => time },
+  );
+  assert.equal(
+    (await bad.findSubmission(action, { phase: "baseline" })).needsStateCheck,
+    true,
+  );
+});

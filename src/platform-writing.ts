@@ -15,7 +15,10 @@ export class PlatformWriting {
   #clock!: PlatformDependencies["clock"];
   #readPost!: PlatformDependencies["readPost"];
   compose!: (action: any) => Promise<any>;
-  findSubmission!: (action: any) => Promise<any>;
+  findSubmission!: (
+    action: any,
+    context?: { phase?: "baseline" },
+  ) => Promise<any>;
   submitFollow!: (action: any) => Promise<any>;
   submitPost!: (action: any) => Promise<any>;
   submitReply!: (action: any) => Promise<any>;
@@ -90,7 +93,10 @@ export class PlatformWriting {
       ...(action.activation ? { activation: action.activation } : {}),
     });
   }
-  private async handleFindSubmission(action: any): Promise<any> {
+  private async handleFindSubmission(
+    action: any,
+    context: { phase?: "baseline" } = {},
+  ): Promise<any> {
     if (action.kind === "follow") {
       let value = await this.#followStage(action, "verify-read", () =>
         this.#readPerson(action),
@@ -160,6 +166,7 @@ export class PlatformWriting {
         : { url: action.accountURL, evidenceRef: action.accountEvidenceRef };
     let value = await this.#open(receiptTarget, { view: "posts", limit: 5 });
     if (
+      context.phase !== "baseline" &&
       !(action.kind === "original" && observedReceipt) &&
       !value.needsStateCheck &&
       !(this.#browser.capabilities?.("refreshPosts") ?? ["refreshPosts"]).length

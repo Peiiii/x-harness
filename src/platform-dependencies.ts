@@ -43,7 +43,10 @@ export interface PlatformDependencies {
   readFeedback: ({ targets, replyLimit }?: any) => Promise<any>;
   readPerson: (target: any) => Promise<any>;
   readPost: (target: any) => Promise<any>;
-  findSubmission: (action: any) => Promise<any>;
+  findSubmission: (
+    action: any,
+    context?: { phase?: "baseline" },
+  ) => Promise<any>;
   submitFollow: (action: any) => Promise<any>;
   submitPost: (action: any) => Promise<any>;
   submitReply: (action: any) => Promise<any>;

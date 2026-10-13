@@ -132,10 +132,13 @@ export class IndependentPublishing {
         !same(own.accountHandle, action.accountHandle)
       )
         throw new Error("fresh-account-unconfirmed");
-      const baseline = await this.#platform.findSubmission({
-        ...action,
-        intentAt: this.#stamp(),
-      });
+      const baseline = await this.#platform.findSubmission(
+        {
+          ...action,
+          intentAt: this.#stamp(),
+        },
+        { phase: "baseline" },
+      );
       if (baseline.needsStateCheck || baseline.alerts?.length)
         throw new Error("publication-baseline-unconfirmed");
       token = `${action.id}:${this.#stamp()}:${Math.random()}`;

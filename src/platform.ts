@@ -159,35 +159,50 @@ export class XPlatform {
   #createPlatformWritingResult!: ReturnType<typeof createPlatformWriting>;
   #compose!: {
     compose: (action: any) => Promise<any>;
-    findSubmission: (action: any) => Promise<any>;
+    findSubmission: (
+      action: any,
+      context?: { phase?: "baseline" },
+    ) => Promise<any>;
     submitFollow: (action: any) => Promise<any>;
     submitPost: (action: any) => Promise<any>;
     submitReply: (action: any) => Promise<any>;
   }["compose"];
   #findSubmission!: {
     compose: (action: any) => Promise<any>;
-    findSubmission: (action: any) => Promise<any>;
+    findSubmission: (
+      action: any,
+      context?: { phase?: "baseline" },
+    ) => Promise<any>;
     submitFollow: (action: any) => Promise<any>;
     submitPost: (action: any) => Promise<any>;
     submitReply: (action: any) => Promise<any>;
   }["findSubmission"];
   #submitFollow!: {
     compose: (action: any) => Promise<any>;
-    findSubmission: (action: any) => Promise<any>;
+    findSubmission: (
+      action: any,
+      context?: { phase?: "baseline" },
+    ) => Promise<any>;
     submitFollow: (action: any) => Promise<any>;
     submitPost: (action: any) => Promise<any>;
     submitReply: (action: any) => Promise<any>;
   }["submitFollow"];
   #submitPost!: {
     compose: (action: any) => Promise<any>;
-    findSubmission: (action: any) => Promise<any>;
+    findSubmission: (
+      action: any,
+      context?: { phase?: "baseline" },
+    ) => Promise<any>;
     submitFollow: (action: any) => Promise<any>;
     submitPost: (action: any) => Promise<any>;
     submitReply: (action: any) => Promise<any>;
   }["submitPost"];
   #submitReply!: {
     compose: (action: any) => Promise<any>;
-    findSubmission: (action: any) => Promise<any>;
+    findSubmission: (
+      action: any,
+      context?: { phase?: "baseline" },
+    ) => Promise<any>;
     submitFollow: (action: any) => Promise<any>;
     submitPost: (action: any) => Promise<any>;
     submitReply: (action: any) => Promise<any>;
@@ -211,7 +226,10 @@ export class XPlatform {
   readFeedback!: ({ targets, replyLimit }?: any) => Promise<any>;
   readPerson!: (target: any) => Promise<any>;
   readPost!: (target: any) => Promise<any>;
-  findSubmission!: (action: any) => Promise<any>;
+  findSubmission!: (
+    action: any,
+    context?: { phase?: "baseline" },
+  ) => Promise<any>;
   submitFollow!: (action: any) => Promise<any>;
   submitPost!: (action: any) => Promise<any>;
   submitReply!: (action: any) => Promise<any>;
