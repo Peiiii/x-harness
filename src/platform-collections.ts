@@ -140,6 +140,24 @@ export class PlatformCollections {
         if (last.moreInDOM) offset += 5;
         else {
           await this.#browser.act({ operation: "nextPosts" });
+          const scrolled = await this.#ready({ view: "posts", limit: 5 });
+          if (scrolled.needsStateCheck || scrolled.alerts?.length)
+            return {
+              ...scrolled,
+              sources,
+              complete: false,
+              missing: ["source-page-unconfirmed"],
+            };
+          // Scroll and lazy loading settle asynchronously. Existing cards are
+          // already visible, so waiting for the first article proves nothing.
+          try {
+            await this.#browser.act({
+              operation: "waitForPosts",
+              excludeIds: [...seen],
+            });
+          } catch (error: any) {
+            if (!/timed out|timeout/i.test(error.message)) throw error;
+          }
           const advanced = await this.#ready({ view: "posts", limit: 5 });
           // Retained DOM prefixes include a partial final window too; skip
           // exactly the consumed cards, while virtualized replacements restart.

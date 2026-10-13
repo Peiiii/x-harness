@@ -124,6 +124,24 @@ export class DOMNavigation {
         .waitFor({ state: "visible", timeoutMs: 5000 });
       return;
     }
+    if (command.excludeIds) {
+      if (
+        !Array.isArray(command.excludeIds) ||
+        command.excludeIds.some((id: any) => !/^\d+$/.test(id))
+      )
+        throw Error("source-pagination-wait-ids-invalid");
+      let articles = this.#tab.playwright.getByRole("article");
+      if (command.excludeIds.length)
+        articles = articles.filter({
+          hasNot: this.#tab.playwright.locator(
+            command.excludeIds
+              .map((id: string) => `a[href$="/status/${id}"]`)
+              .join(","),
+          ),
+        });
+      await articles.first().waitFor({ state: "visible", timeoutMs: 5000 });
+      return;
+    }
     const offset = command.offset ?? 0;
     if (!Number.isInteger(offset) || offset < 0)
       throw Error("帖子等待窗口须为非负整数offset");

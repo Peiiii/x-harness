@@ -202,6 +202,7 @@ export class DOMCapabilities {
       base.push(
         ...missingMethods(this.#tab.playwright.getByRole("article"), [
           "first",
+          "filter",
           "waitFor",
         ]),
       );

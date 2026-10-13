@@ -4,8 +4,8 @@
 | --- | --- | --- |
 | readIncomingReplies | none | processedIds, limit (5), maxPages (3), mode |
 | readCreator | handle | target (10;1–50), maxScrolls, navigate, expand, mode |
-| readBookmarks | folder (observed name), or discoverOnly:true | processedIds, limit, maxPages, mode |
-| searchSources | query | processedIds, limit, maxPages, mode |
+| readBookmarks | folder (observed name), or discoverOnly:true | processedIds, limit (1–5), maxPages (1–10), mode |
+| searchSources | query | processedIds, limit (1–5), maxPages (1–10), mode |
 | readPost | target: {postId,url,evidenceRef} | includeContext, resolveQuote, mode |
 | readPerson | target: {handle,url,evidenceRef} | mode |
 | readPeople | target: {url,evidenceRef} | offset, limit (1–5), advance, mode |
