@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { GrowthRecovery } from "../dist/growth-recovery.js";
 
-async function recover(change = {}, sourceChange = {}) {
+async function recover(change = {}, sourceChange = {}, actionChange = {}) {
   const action = {
     id: "source-card",
     kind: "original",
@@ -12,6 +12,7 @@ async function recover(change = {}, sourceChange = {}) {
     text: "Specific reviewed content.\n\ngithub.com/example/tool",
     intentAt: "2026-10-12T02:00:00Z",
     beforeIds: ["9"],
+    ...actionChange,
   };
   const post = {
     id: "10",
@@ -64,4 +65,32 @@ test("bare source allowance preserves destination, body, identity, baseline and 
     [{ datetime: "2026-10-12T01:59:59Z" }, {}],
   ])
     assert.equal((await recover(post, source)).result.status, "unknown");
+});
+
+test("a labeled trailing URL card preserves the exact label and requires its observed destination", async () => {
+  const action = {
+    text: "Specific reviewed content.\n\n仓库：https://github.com/example/tool",
+  };
+  const post = { body: "Specific reviewed content.\n\n仓库：" };
+  assert.equal((await recover(post, {}, action)).result.status, "verified");
+  assert.equal(
+    (
+      await recover(
+        { body: "Specific reviewed content.\n\n链接：" },
+        {},
+        action,
+      )
+    ).result.status,
+    "unknown",
+  );
+  assert.equal(
+    (
+      await recover(
+        post,
+        { resolvedURL: "https://github.com/example/other" },
+        action,
+      )
+    ).result.status,
+    "unknown",
+  );
 });

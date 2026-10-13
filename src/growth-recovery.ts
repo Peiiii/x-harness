@@ -107,7 +107,7 @@ export class GrowthRecovery {
       ),
     });
     const trailing = action.text.match(
-      /\n+((?:https:\/\/|(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\/)\S+)$/,
+      /(?:\n+)?((?:https:\/\/|(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\/)\S+)$/,
     );
     let sourceURL: string | null = null;
     if (trailing) {
