@@ -602,6 +602,10 @@ export class DOMEditing {
     });
     await menu.waitFor({ state: "visible", timeoutMs: 2000 });
     await (await this.#unique(menu)).press("Enter");
+    await this.#tab.playwright
+      .getByTestId("attachments")
+      .getByTestId("tweetText")
+      .waitFor({ state: "visible", timeoutMs: 2000 });
     this.#session.quoteBinding = {
       postId: post.id,
       author: post.author,

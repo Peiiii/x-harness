@@ -126,25 +126,7 @@ export class DOMCapabilities {
           ]),
         );
     }
-    if (operation === "openQuoteComposer") {
-      base.push(
-        ...missingMethods(this.#tab?.playwright, ["locator", "getByRole"]),
-      );
-      if (typeof this.#tab?.playwright?.getByRole === "function") {
-        base.push(
-          ...missingMethods(this.#tab.playwright.getByRole("article"), [
-            "filter",
-            "getByRole",
-          ]),
-        );
-        base.push(
-          ...missingMethods(this.#tab.playwright.getByRole("button"), [
-            "press",
-            "waitFor",
-          ]),
-        );
-      }
-    }
+    if (operation === "openQuoteComposer") return this.quoteCapabilities(base);
     if (operation === "attachAssets")
       base.push(
         ...missingMethods(this.#tab?.playwright, [
@@ -155,6 +137,34 @@ export class DOMCapabilities {
       );
     if (this.#nativeSubmit && ["submitPost", "submitReply"].includes(operation))
       base.push(...missingMethods(this.#tab, ["getAXState", "click"]));
+    return base;
+  }
+  private quoteCapabilities(base: string[]) {
+    base.push(...missingMethods(this.#tab?.playwright, ["getByTestId"]));
+    if (typeof this.#tab?.playwright?.getByTestId === "function")
+      base.push(
+        ...missingMethods(this.#tab.playwright.getByTestId("attachments"), [
+          "getByTestId",
+          "waitFor",
+        ]),
+      );
+    base.push(
+      ...missingMethods(this.#tab?.playwright, ["locator", "getByRole"]),
+    );
+    if (typeof this.#tab?.playwright?.getByRole === "function") {
+      base.push(
+        ...missingMethods(this.#tab.playwright.getByRole("article"), [
+          "filter",
+          "getByRole",
+        ]),
+      );
+      base.push(
+        ...missingMethods(this.#tab.playwright.getByRole("button"), [
+          "press",
+          "waitFor",
+        ]),
+      );
+    }
     return base;
   }
   private creatorCapabilities(base: string[], operation: string): string[] {
