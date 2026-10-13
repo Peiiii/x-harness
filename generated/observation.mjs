@@ -287,9 +287,27 @@ export const readXObservation = (query) => {
             biography,
         };
     });
+    const inViewport = cells.filter((cell) => {
+        if (typeof cell.getBoundingClientRect !== "function")
+            return false;
+        const rect = cell.getBoundingClientRect();
+        return rect.top > 100 && rect.bottom < window.innerHeight - 60;
+    });
+    const anchorCell = inViewport.at(-1);
+    const anchorLabels = anchorCell
+        ? Array.from(anchorCell.querySelectorAll("button"))
+            .filter(visible)
+            .map((b) => b.getAttribute("aria-label") || b.innerText)
+        : [];
+    const anchorHandles = [
+        ...new Set(anchorLabels
+            .map((label) => label.match(/^(?:正在关注|取消关注|回关|关注) @([A-Za-z0-9_]{1,15})$/)?.[1])
+            .filter(Boolean)),
+    ];
     return {
         page: location.href,
         people,
+        scrollAnchor: anchorHandles.length === 1 ? { handle: anchorHandles[0] } : null,
         offset,
         renderedPeople: cells.length,
         moreInDOM: offset + limit < cells.length,

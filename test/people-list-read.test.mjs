@@ -327,3 +327,32 @@ test("list advance scrolls the fresh named AX timeline when native PageDown cann
   assert.equal(keys, 0);
   await assert.rejects(() => browser.act({ operation: "nextPeople" }));
 });
+
+test("native list scroll prefers the observed viewport control over a covered timeline box", async () => {
+  const { createDOMXBrowser } = await import(root + "browser-dom.js");
+  const scrolls = [];
+  const tab = {
+    getAXState: async () =>
+      "17 container 时间线：正在关注\n23 button 正在关注 @fixture_a",
+    scroll: async (...args) => scrolls.push(args),
+    playwright: {
+      evaluate: async () => ({
+        page: target.url,
+        people: [row],
+        scrollAnchor: { handle: "fixture_a" },
+        alerts: [],
+        needsStateCheck: false,
+      }),
+      locator: () => ({
+        filter() {
+          return this;
+        },
+        count: async () => 2,
+      }),
+    },
+  };
+  const browser = createDOMXBrowser(tab);
+  await browser.observe({ view: "people", limit: 1 });
+  await browser.act({ operation: "nextPeople" });
+  assert.deepEqual(scrolls, [[23, "down", 1]]);
+});

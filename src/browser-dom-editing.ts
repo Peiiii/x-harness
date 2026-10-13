@@ -306,6 +306,22 @@ export class DOMEditing {
         emit: false,
         disableDiffing: true,
       });
+      const anchorHandle = current.result.scrollAnchor?.handle;
+      const control =
+        typeof ax === "string" &&
+        /^[A-Za-z0-9_]{1,15}$/.test(anchorHandle ?? "")
+          ? ax.match(
+              new RegExp(
+                `^.*?([0-9]+) button (?:正在关注|取消关注|回关|关注) @${anchorHandle}\\s*$`,
+                "m",
+              ),
+            )
+          : null;
+      if (control) {
+        await this.#tab.scroll(Number(control[1]), "down", 1);
+        await this.#tab.getAXState({ emit: false });
+        return { completed: true };
+      }
       const timeline =
         typeof ax === "string"
           ? ax.match(
@@ -314,6 +330,7 @@ export class DOMEditing {
           : null;
       if (timeline) {
         await this.#tab.scroll(Number(timeline[1]), "down", 1);
+        await this.#tab.getAXState({ emit: false });
         return { completed: true };
       }
     }
