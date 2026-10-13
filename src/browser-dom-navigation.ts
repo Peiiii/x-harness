@@ -46,7 +46,7 @@ export class DOMNavigation {
     });
     const card = article
       .locator('[role="link"][tabindex="0"]')
-      .filter({ visible: true });
+      .filter({ visible: true, hasText: command.cardText });
     if (
       (await card.count()) !== 1 ||
       (await card.innerText()) !== command.cardText

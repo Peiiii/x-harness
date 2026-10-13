@@ -31,6 +31,7 @@ async function resolve(change = {}) {
     {
       browser: {
         act: async (c) => {
+          if (c.operation === "expandPost") return;
           assert.equal(c.operation, "openQuote");
           return { url: "https://x.com/source/status/20" };
         },
@@ -113,4 +114,48 @@ test("recovery never accepts same author different source ID or wrong parent, bo
     { needsExpansion: true },
   ])
     assert.equal((await recover(change)).status, "unknown");
+});
+
+test("truncated quote binds only a substantial visible prefix plus author/time and reads expansion", async () => {
+  const body =
+    "A specific source explanation with a concrete comparison and method. Further complete steps.";
+  const clipped = {
+    text: "Name\n@source\nDate\n" + body.slice(0, 62) + "…",
+    body: body.slice(0, 62) + "…",
+    datetime: card.datetime,
+  };
+  for (const wrong of [false, true]) {
+    let expanded = false;
+    const p = { ...parent, quoteCards: [clipped] };
+    const result = await resolveQuotedSource(
+      { postId: "10", url: "https://x.com/owner/status/10" },
+      { posts: [p] },
+      {
+        browser: {
+          act: async (q) => {
+            if (q.operation === "expandPost") {
+              expanded = true;
+              return;
+            }
+            return { url: "https://x.com/source/status/20" };
+          },
+        },
+        ready: async () => ({
+          posts: [
+            {
+              ...quote,
+              body: wrong ? "Unrelated body." : body,
+              needsExpansion: !expanded,
+            },
+          ],
+        }),
+        open: async () => ({ posts: [structuredClone(p)] }),
+      },
+    );
+    assert.equal(expanded, true);
+    if (wrong) {
+      assert.equal(result.complete, false);
+      assert.ok(result.missing.includes("quoted-source-unconfirmed"));
+    } else assert.equal(result.posts[0].quoteSource.body, body);
+  }
 });

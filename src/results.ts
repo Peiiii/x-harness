@@ -64,7 +64,7 @@ export function source(value: unknown, page?: string): PostEvidence {
   }
   if (raw.quoteCards)
     out.quoteCards = list(raw.quoteCards).map((v) =>
-      pick(v, ["text", "datetime"]),
+      pick(v, ["text", "datetime", "body"]),
     ) as typeof out.quoteCards;
   if (raw.quoteSource)
     out.quoteSource = pick(raw.quoteSource, [

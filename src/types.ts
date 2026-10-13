@@ -41,7 +41,7 @@ export interface PostEvidence {
   metrics?: string[];
   replyToId?: string | null;
   quoted?: boolean;
-  quoteCards?: Array<{ text: string; datetime: string }>;
+  quoteCards?: Array<{ text: string; datetime: string; body?: string }>;
   quoteSource?: {
     id: string;
     url: string;

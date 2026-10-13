@@ -191,10 +191,13 @@ export function readXSurface({
                   .filter(visible)
                   .map((card: any) => ({
                     text: card.innerText,
+                    body: card.querySelector?.('[data-testid="tweetText"]')
+                      ?.innerText,
                     datetime: card
                       .querySelector?.("time")
                       ?.getAttribute("datetime"),
                   }))
+                  .filter((card: any) => card.text?.trim() && card.datetime)
               : [],
         };
       }),

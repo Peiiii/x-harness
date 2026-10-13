@@ -634,10 +634,13 @@ export const readXObservation = (query) => {
                             .filter(visible)
                             .map((card) => ({
                             text: card.innerText,
+                            body: card.querySelector?.('[data-testid="tweetText"]')
+                                ?.innerText,
                             datetime: card
                                 .querySelector?.("time")
                                 ?.getAttribute("datetime"),
                         }))
+                            .filter((card) => card.text?.trim() && card.datetime)
                         : [],
                 };
             }),

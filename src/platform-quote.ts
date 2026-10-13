@@ -4,6 +4,13 @@ export async function resolveQuotedSource(
   initial: any,
   { browser, ready, open }: any,
 ) {
+  const incomplete = (value: any) => ({
+    ...value,
+    complete: false,
+    missing: [
+      ...new Set([...(value.missing ?? []), "quoted-source-unconfirmed"]),
+    ],
+  });
   const parent = initial.posts?.find((p: any) => p.id === target.postId);
   if (
     initial.needsStateCheck ||
@@ -11,7 +18,7 @@ export async function resolveQuotedSource(
     !parent ||
     parent.quoteCards?.length !== 1
   )
-    return initial;
+    return parent?.quoteCards?.length ? incomplete(initial) : initial;
   const card = parent.quoteCards[0];
   const destination = await browser.act({
     operation: "openQuote",
@@ -19,8 +26,26 @@ export async function resolveQuotedSource(
     cardText: card.text,
   });
   const id = xURL(destination.url).pathname.match(/\/status\/(\d+)$/)?.[1];
-  const source = await ready({ view: "posts", targetId: id });
-  const quoted = source.posts?.find((p: any) => p.id === id);
+  let source = await ready({ view: "posts", targetId: id });
+  let quoted = source.posts?.find((p: any) => p.id === id);
+  if (
+    !source.needsStateCheck &&
+    !source.alerts?.length &&
+    quoted?.needsExpansion
+  ) {
+    await browser.act({ operation: "expandPost", postId: id });
+    source = await ready({ view: "posts", targetId: id });
+    quoted = source.posts?.find((p: any) => p.id === id);
+  }
+  const normalize = (text: string) => text.replace(/\s/g, "");
+  const excerpt =
+    typeof card.body === "string" && /(?:…|\.\.\.)\s*$/.test(card.body)
+      ? normalize(card.body.replace(/(?:…|\.\.\.)\s*$/, ""))
+      : "";
+  const bodyBound =
+    quoted?.body &&
+    (card.text.endsWith(quoted.body) ||
+      (excerpt.length >= 32 && normalize(quoted.body).startsWith(excerpt)));
   const confirmed =
     !source.needsStateCheck &&
     !source.alerts?.length &&
@@ -28,7 +53,7 @@ export async function resolveQuotedSource(
     !quoted.needsExpansion &&
     quoted.datetime === card.datetime &&
     card.text.includes(`@${quoted.author}`) &&
-    card.text.endsWith(quoted.body);
+    bodyBound;
   const back = await open(
     {
       url: target.url,
@@ -55,5 +80,5 @@ export async function resolveQuotedSource(
       parentId: target.postId,
       cardText: card.text,
     };
-  return back;
+  return fresh?.quoteSource ? back : incomplete(back);
 }
