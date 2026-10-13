@@ -297,12 +297,6 @@ export class DOMEditing {
       !/^[A-Za-z0-9_]{1,15}$/.test(handle ?? "")
     )
       throw new Error("people-page-unconfirmed");
-    const anchor = this.#tab.playwright
-      .locator(
-        `main [data-testid="primaryColumn"] a[href=${JSON.stringify("/" + handle)}]`,
-      )
-      .filter({ visible: true, hasText: new RegExp(`^@${handle}$`, "i") });
-    const unique = await this.#unique(anchor);
     this.#session.current = null;
     if (
       typeof this.#tab.getAXState === "function" &&
@@ -323,6 +317,12 @@ export class DOMEditing {
         return { completed: true };
       }
     }
+    const anchor = this.#tab.playwright
+      .locator(
+        `main [data-testid="primaryColumn"] a[href=${JSON.stringify("/" + handle)}]`,
+      )
+      .filter({ visible: true, hasText: new RegExp(`^@${handle}$`, "i") });
+    const unique = await this.#unique(anchor);
     if (typeof this.#tab.pressKey === "function")
       await this.#tab.pressKey(null, "PageDown");
     else await unique.press("PageDown");
