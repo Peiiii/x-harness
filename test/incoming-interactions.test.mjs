@@ -306,3 +306,64 @@ test("one reviewed replyBatch call submits once and settles the original action"
   );
   assert.equal(settled.items.find((a) => a.kind === "reply").verified, 1);
 });
+
+test("replyBatch recovers an observed detail URL timeout with one submission", async (t) => {
+  for (const parent of ["123", "999"]) {
+    const f = fixture(t, { planned: [0, 0, 1], actionKinds: ["reply"] });
+    const observe = f.browser.observe.bind(f.browser);
+    const act = f.browser.act.bind(f.browser);
+    let timedOut = false;
+    f.browser.observe = async (q) => {
+      const v = await observe(q);
+      if (
+        q.view === "posts" &&
+        f.posts.some((p) => p.body === "有具体贡献的回复")
+      )
+        v.posts = f.posts.map((p) => ({
+          ...p,
+          primary: `/Pei/status/${p.id}`,
+          replyToId:
+            p.body === "有具体贡献的回复"
+              ? timedOut
+                ? parent
+                : null
+              : p.replyToId,
+        }));
+      return v;
+    };
+    f.browser.act = async (c) => {
+      await act(c);
+      if (
+        !timedOut &&
+        c.operation === "openObserved" &&
+        /\/Pei\/status\//.test(c.url ?? "")
+      ) {
+        timedOut = true;
+        throw Error(`Timed out waiting for URL ${c.url}`);
+      }
+    };
+    const api = createBusinessHarness({
+      store: f.store,
+      platform: createXPlatform(f.browser, { clock: () => NOW }),
+      clock: () => NOW,
+    });
+    const action = f.read().actions[0];
+    f.edit((s) => {
+      s.actions = [];
+    });
+    const out = await api.replyBatch({ taskId: "round-1", actions: [action] });
+    assert.equal(timedOut, true);
+    assert.equal(
+      out.results[0].status,
+      parent === "123" ? "verified" : "unknown",
+    );
+    assert.equal(f.writes.length, 1);
+    const saved = (await f.store.load()).state.actions.find(
+      (a) => a.id === action.id,
+    );
+    assert.match(
+      saved.observedPublicURL,
+      /^https:\/\/x.com\/Pei\/status\/\d+$/,
+    );
+  }
+});

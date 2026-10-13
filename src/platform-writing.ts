@@ -200,25 +200,11 @@ export class PlatformWriting {
         url.pathname.toLowerCase() ===
         `/${action.accountHandle}/status/${candidate.id}`.toLowerCase()
       ) {
-        value = await this.#open(
-          {
-            url: url.href,
-            evidenceRef: {
-              page: value.page,
-              observedAt: value.observedAt,
-              publicId: candidate.id,
-              primary: candidate.primary,
-            },
-          },
-          {
-            view: "posts",
-            targetId: candidate.id,
-            replyTargetId: action.postId,
-          },
-        );
-        value = await this.readLoadedReplyReceipt(
+        value = await this.readCandidateDetail(
           value,
-          candidate.id,
+          url.href,
+          candidate,
+          action.postId,
           matchesContent,
         );
         matches = (value.posts ?? []).filter(matchesContent);
@@ -241,6 +227,47 @@ export class PlatformWriting {
       missing:
         matches.length === 1 ? [] : ["unique-public-submission-unconfirmed"],
     };
+  }
+  private async readCandidateDetail(
+    value: any,
+    url: string,
+    candidate: any,
+    parentId: string,
+    matchesContent: (post: any) => boolean,
+  ): Promise<any> {
+    try {
+      const opened = await this.#open(
+        {
+          url,
+          evidenceRef: {
+            page: value.page,
+            observedAt: value.observedAt,
+            publicId: candidate.id,
+            primary: candidate.primary,
+          },
+        },
+        {
+          view: "posts",
+          targetId: candidate.id,
+          replyTargetId: parentId,
+        },
+      );
+      return await this.readLoadedReplyReceipt(
+        opened,
+        candidate.id,
+        matchesContent,
+      );
+    } catch (error: unknown) {
+      // Preserve the fresh observed link for the root API’s existing read-only recovery.
+      // Missing parent evidence still fails the exact-parent gate below.
+      if (
+        !/Timed out waiting for URL/.test(
+          error instanceof Error ? error.message : "",
+        )
+      )
+        throw error;
+    }
+    return value;
   }
   private matchesQuote(post: any, action: any) {
     return (

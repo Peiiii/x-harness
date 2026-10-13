@@ -96,3 +96,50 @@ test("late body change, duplicate match or platform alert cannot verify", async 
   ])
     assert.equal((await replay(last)).verified, false);
 });
+
+test("detail URL timeout retains observed candidate without confirming a parent", async () => {
+  let opens = 0;
+  const writing = createPlatformWriting({
+    open: async () => {
+      if (++opens === 2)
+        throw Error("Timed out waiting for URL https://x.com/owner/status/11");
+      return {
+        page: action.url,
+        posts: [candidate],
+        alerts: [],
+        needsStateCheck: false,
+      };
+    },
+    observed: async () => {
+      throw Error("No extra observation");
+    },
+    browser: {
+      capabilities: () => ["refreshPosts"],
+      act: () => {
+        throw Error("No writes");
+      },
+    },
+    clock: () => Date.parse("2026-10-12T08:01:00Z"),
+    followStage: () => {
+      throw Error("No follow");
+    },
+    readPerson: () => {
+      throw Error("No person");
+    },
+    readPost: () => {
+      throw Error("No thread read after failed navigation");
+    },
+  });
+  const r = await writing.findSubmission({
+    ...action,
+    observedPublicURL: undefined,
+    observedPublicEvidenceRef: undefined,
+  });
+  assert.equal(r.verified, false);
+  assert.equal(r.publicId, null);
+  assert.deepEqual(r.receiptCandidate, {
+    url: action.observedPublicURL,
+    id: "11",
+  });
+  assert.equal(opens, 2);
+});
