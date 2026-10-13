@@ -1,6 +1,6 @@
 # Reply batch efficiency
 
-Contract: REPLY-BATCH-EFFICIENCY-20261013; flow: bugfix; retrospective: pending.
+Contract: REPLY-BATCH-EFFICIENCY-20261013; flow: bugfix; retrospective: completed.
 
 User requested batch or parallel mechanisms instead of model-driven per-item execution. Two reviewed replies previously returned one unknown plus one pacing wait; source counts required separate detail visits despite being present in the source observation.
 
@@ -21,7 +21,7 @@ Design review: passed for the bounded existing-chain changes; no new public para
 | R1 | yes | passed | One root replyBatch completes a due two-action batch, owns one pacing wait and one readonly recovery; no resend |
 | R2 | yes | passed | Batched source decisions preserve visible metrics and exclude raw UI; missing stays missing |
 | R3 | yes | passed | Baseline avoids reload while verification, exact parent and refusal/window guards remain |
-| R4 | yes | not-run | Published consumer used on original two reviewed actions; actual public results or remaining external failure reported |
+| R4 | yes | passed | Integrated published 0.2.63 consumer replayed the same four original IDs: two public verified results, two unknown preserved; no resubmission |
 
 The code fixes alone do not satisfy R4. Synthetic fixtures contain no live account/proof data. Follow/reply operations and application contracts remain in the consumer repository.
 
@@ -39,3 +39,11 @@ R7 (Required): the existing root-age gate accepts original batch-source publicat
 R6/R7 source regressions passed, including distinct roots, unknown occupancy, identical-ID dedup, received-category exclusion, batch root expiry and known-child rejection. Actual consumer candidate publication proofs passed admission offline. Final source check: 258 tests passed. Required R4 still awaits final released-consumer batch execution.
 
 Real release-build batch validation took about 91 seconds for two new authors, one verified and one unknown. It exposed a redundant same-parent verification before shared unknown-link lookup. Restore the per-action readonly retry only when an observed permalink exists; no-link unknowns go directly into the one shared lookup. This removes a duplicate navigation without weakening proof or resubmitting. Report model-call savings separately from platform latency; no overall speed multiplier is proven.
+
+## Final delivery and retrospective
+
+All required R1–R7 have passed their stated scope. Integrated 0.2.63 contains the batch changes and concurrent bounded profile recovery. Full integrated source validation passed 269 tests, type/format/maintainability and Skill checks. An explicit third active reply across separate roots is rejected before navigation, intent and click. Release-build live acceptance processed two new authors in one root call in about 91 seconds, yielding one verified and one unknown. Final published consumer replay retained the four original IDs with two verified and two unknown, including bounded tab recovery; conditional end-check was valid and allowed pending-results settlement without altering primary account duties.
+
+Remaining external uncertainty is reported as unknown; neither full follower impact nor a wall-clock speed multiplier is proven. Batch-call reduction, source metric reuse and fewer duplicate reads are implementation outcomes. Models still review meaning; writes stay serial and never replay an unknown. Author policy uses original IDs and known history, and missing older evidence remains unknown rather than fabricated zero.
+
+Reusable lessons: validate actual transport aliases and batch-source admission, not only happy-path fixtures; test the author's third action before any intent; distinguish deterministic call savings from measured platform latency. No new public API, parallel writer, duplicated state owner or source-private account artifact was introduced. Later operational growth belongs to the consumer's original contracts and ledgers.
