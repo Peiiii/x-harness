@@ -1,6 +1,6 @@
 {
   "name": "@nextclaw/x-harness",
-  "version": "0.2.42",
+  "version": "0.2.43",
   "private": false,
   "type": "module",
   "description": "Typed X task harness with compact business results and explicit diagnostics.",
