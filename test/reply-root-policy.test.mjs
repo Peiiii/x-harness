@@ -119,3 +119,33 @@ test("age is rechecked at the actual submit boundary when a reply crosses the cu
   assert.equal(f.writes.length, 0);
   assert.ok(f.commands.includes("fillComposer"));
 });
+
+test("batched source proof admits original root time while known children and expiry still fail", (t) => {
+  const f = fixture(t, { actionKinds: ["reply"] });
+  const action = f.read().actions[0];
+  action.conversation = { recipientHandle: "author", rootId: "123", round: 1 };
+  for (const [node, expected] of [
+    [
+      {
+        id: "123",
+        datetime: new Date(NOW - 1000).toISOString(),
+        replyToId: null,
+      },
+      null,
+    ],
+    [
+      { id: "123", datetime: new Date(NOW - 13 * 3600000).toISOString() },
+      "reply-root-expired",
+    ],
+    [
+      { id: "123", datetime: new Date(NOW).toISOString(), replyToId: "99" },
+      "reply-root-is-known-child",
+    ],
+  ]) {
+    writeFileSync(
+      f.proof,
+      JSON.stringify({ observation: { sources: [node] } }),
+    );
+    assert.equal(replyRootAgeReason(action, 12, NOW), expected);
+  }
+});

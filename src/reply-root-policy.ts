@@ -20,8 +20,8 @@ export function replyRootAgeReason(
     const observation = JSON.parse(
       readFileSync(action.evidenceRef, "utf8"),
     ).observation;
-    const nodes = ["posts", "context", "threadPosts"].flatMap((key) =>
-      Array.isArray(observation?.[key]) ? observation[key] : [],
+    const nodes = ["posts", "context", "threadPosts", "sources"].flatMap(
+      (key) => (Array.isArray(observation?.[key]) ? observation[key] : []),
     );
     const root = nodes.find((node) => node?.id === rootId);
     if (!nodes.some((node) => node?.id === action.postId) || !root)

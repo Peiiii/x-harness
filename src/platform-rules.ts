@@ -37,6 +37,7 @@ export const source = (post: any, page: any) => ({
   datetime: post.datetime,
   url: post.primary ? new URL(post.primary, page).href : null,
   body: post.body,
+  replyToId: post.replyToId,
   images: post.images ?? [],
   media: post.media ?? [],
   links: post.links ?? [],

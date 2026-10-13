@@ -2,6 +2,7 @@ import { DraftSchedule } from "./draft-schedule.js";
 import type { GrowthDependencies } from "./growth-dependencies.js";
 
 import { xURL } from "./platform-rules.js";
+import { replyAuthorReason } from "./reply-author-policy.js";
 import { replyRootAgeReason } from "./reply-root-policy.js";
 import { kinds, followWindows, operations, same } from "./growth-constants.js";
 import { followObservationAuthorized } from "./follow-observation-policy.js";
@@ -172,6 +173,12 @@ export class GrowthPolicy {
     if (!independentExecution && !this.handleScope(state).includes(action.kind))
       return "kind-outside-round-scope";
     if (action.kind === "reply") {
+      const authorReason = replyAuthorReason(
+        state,
+        action,
+        this.#evidenceExists,
+      );
+      if (authorReason) return authorReason;
       const reason = replyRootAgeReason(
         action,
         executor?.replyMaxRootAgeHours,
