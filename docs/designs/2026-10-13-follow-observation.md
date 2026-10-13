@@ -1,0 +1,9 @@
+# Same-day follow observation permit
+
+Flow standard; risk L3/L4; parent business task remains active. Explicit user authorization suspends internal follow rolling budgets and group waits for one Shanghai day to measure actual platform limits. Existing scoped time authorization cannot do this; changing clocks or erasing attempts would corrupt evidence.
+
+Reuse the original executor record and store CAS. A shared pure helper validates executor, follow scope, batch, account, proof, user authorization and real same-day 07:00–midnight expiry. Both batch capacity planning and per-submission policy consume it. Only internal rolling/group gates are waived. Default policy, complete valid history, account/quality, batch size, unknown dedup, actual platform refusal and fresh verification remain. Preserve actual attempts for empirical measurement; no new scheduler or automatic retries.
+
+Design review passed: both existing gates must share validation; expiry must reject midnight and next-day permits. Acceptance covers exhausted budgets and cooldown through an assembled 10-person batch, invalid permit matrix, history gaps, midnight, another executor, verified dedup and actual platform refusal. Delivery requires published package adoption and resumption of the caller's original batch, not just synthetic success.
+
+Validation: typecheck, full 200-test regression, maintainability and documentation examples. Initial documentation example was not an executable statement; corrected to the actual store transaction and revalidated. Implementation review: no open findings; helper centralizes the two gates without duplicating state or weakening actual platform checks. Remaining boundary: empirical platform threshold is not yet known and must come from real caller evidence. Retrospective increment is the published conditional Skill reference, so future authorized observation runs require no source inspection.

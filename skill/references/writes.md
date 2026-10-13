@@ -46,6 +46,8 @@ Additional fields: kind:'follow', handle, url, evidenceRef (observed person), pl
 
 Explicit later follow window: read [authorized window](authorized-window.md) only when the user/project changes the time gate. Existing scoped permits support it; do not inspect source or change the clock.
 
+Explicit same-day suspension of internal follow pacing: use [follow observation authorization](follow-observation.md). It does not waive platform refusals or night boundaries.
+
 ## Round
 
 `await x.inspectRound({taskId})` inspects original state; `await x.runGrowthRound({taskId,maxActions})` runs/resumes it. maxActions bounds this call, not original planned total. Preparation uses decision:{type:'prepareActions',accountHandle,ownershipEvidenceRef,actions}; actions are the reviewed structures above.

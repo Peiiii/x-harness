@@ -4,6 +4,7 @@ import type { GrowthDependencies } from "./growth-dependencies.js";
 import { xURL } from "./platform-rules.js";
 import { replyRootAgeReason } from "./reply-root-policy.js";
 import { kinds, followWindows, operations, same } from "./growth-constants.js";
+import { followObservationAuthorized } from "./follow-observation-policy.js";
 export class GrowthPolicy {
   #executor!: GrowthDependencies["executor"];
   #clock!: GrowthDependencies["clock"];
@@ -130,6 +131,15 @@ export class GrowthPolicy {
       )
     )
       return { status: "needsDecision", reason: "attempt-history-invalid" };
+    if (
+      followObservationAuthorized(
+        state,
+        this.#executor,
+        now,
+        this.#evidenceExists,
+      )
+    )
+      return null;
     const follows = attempts.filter((a: any) => a.kind === "follow");
     for (const [duration, limit] of followWindows) {
       const recent = follows

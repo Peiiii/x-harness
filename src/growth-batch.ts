@@ -2,6 +2,7 @@ import type { BoundaryRecord } from "./boundary.js";
 import type { GrowthDependencies } from "./growth-dependencies.js";
 
 import { followWindows, same } from "./growth-constants.js";
+import { followObservationAuthorized } from "./follow-observation-policy.js";
 export class FollowBatch {
   #prepareActionsForCall!: GrowthDependencies["prepareActionsForCall"];
   #store!: GrowthDependencies["store"];
@@ -115,6 +116,12 @@ export class FollowBatch {
         handles.some((h: any) => same(h, a.handle)),
     ).length;
     let eligibleAt = this.#clock();
+    const observationAuthorized = followObservationAuthorized(
+      original.state,
+      executor,
+      this.#clock(),
+      this.#evidenceExists,
+    );
     const previousGroup = original.state.execution?.followGroup;
     const lastAttempt = (original.state.attempts ?? [])
       .filter((a: any) => a.kind === "follow")
@@ -128,12 +135,19 @@ export class FollowBatch {
       lastAction?.status === "verified" &&
       this.#evidenceExists(lastAction.resultEvidence) &&
       handles.some((h: any) => same(h, lastAction.handle));
-    if (preparedCount && previousGroup?.attempts && !sameBatchRecovery)
+    if (
+      preparedCount &&
+      previousGroup?.attempts &&
+      !sameBatchRecovery &&
+      !observationAuthorized
+    )
       eligibleAt = Math.max(
         eligibleAt,
         Date.parse(previousGroup.lastAt) + 180000,
       );
-    for (const [duration, limit] of followWindows) {
+    for (const [duration, limit] of observationAuthorized
+      ? []
+      : followWindows) {
       const recent = (original.state.attempts ?? [])
         .filter(
           (a: any) =>
