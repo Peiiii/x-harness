@@ -97,6 +97,7 @@ export class DOMEditing {
     command: any,
   ) => Promise<{ completed: boolean; loc: any; submittedEditor: any }>;
   likePost!: (command: any) => Promise<any>;
+  openQuoteComposer!: (command: any) => Promise<any>;
   openReply!: (
     command: any,
   ) => Promise<{ completed: boolean; loc: any; submittedEditor: any }>;
@@ -138,6 +139,7 @@ export class DOMEditing {
     this.attachAssets = this.handleAttachAssets.bind(this);
     this.follow = this.handleFollow.bind(this);
     this.likePost = this.handleLikePost.bind(this);
+    this.openQuoteComposer = this.handleOpenQuoteComposer.bind(this);
     this.openReply = this.handleOpenReply.bind(this);
     this.fillComposer = this.handleFillComposer.bind(this);
     this.submitPost = this.handleSubmitPost.bind(this);
@@ -559,6 +561,54 @@ export class DOMEditing {
           likes.length === 1,
       },
     };
+  }
+  private async handleOpenQuoteComposer(command: any) {
+    const { query, result } = this.#session.current;
+    this.#session.quoteBinding = null;
+    if (
+      query.targetId !== command.postId ||
+      result.needsStateCheck ||
+      result.alerts?.length ||
+      result.posts?.length !== 1 ||
+      result.posts[0].id !== command.postId
+    )
+      throw Error("unique-quote-source-required");
+    const post = result.posts[0];
+    const buttons = post.buttons.filter((b: any) =>
+      /转帖|Repost|Retweet/i.test(b.label),
+    );
+    if (
+      buttons.length !== 1 ||
+      !post.body?.trim() ||
+      !post.author ||
+      post.primary?.match(/\/status\/(\d+)$/)?.[1] !== command.postId
+    )
+      throw Error("quote-source-controls-unconfirmed");
+    const article = await this.#unique(
+      this.#locator("article").filter({
+        has: this.#tab.playwright.locator(
+          `a[href=${JSON.stringify(post.primary)}]`,
+        ),
+        visible: true,
+      }),
+    );
+    await (
+      await this.#unique(
+        article.getByRole("button", { name: buttons[0].label, exact: true }),
+      )
+    ).press("Enter");
+    const menu = this.#tab.playwright.getByRole("menuitem", {
+      name: /^(引用|Quote)$/,
+    });
+    await menu.waitFor({ state: "visible", timeoutMs: 2000 });
+    await (await this.#unique(menu)).press("Enter");
+    this.#session.quoteBinding = {
+      postId: post.id,
+      author: post.author,
+      body: post.body,
+    };
+    this.#session.current = null;
+    return { completed: true };
   }
   private async handleOpenReply(command: any) {
     const { query, result } = this.#session.current;

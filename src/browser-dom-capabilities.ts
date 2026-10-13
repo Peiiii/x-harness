@@ -126,6 +126,25 @@ export class DOMCapabilities {
           ]),
         );
     }
+    if (operation === "submitPost" || operation === "openQuoteComposer") {
+      base.push(
+        ...missingMethods(this.#tab?.playwright, ["locator", "getByRole"]),
+      );
+      if (typeof this.#tab?.playwright?.getByRole === "function") {
+        base.push(
+          ...missingMethods(this.#tab.playwright.getByRole("article"), [
+            "filter",
+            "getByRole",
+          ]),
+        );
+        base.push(
+          ...missingMethods(this.#tab.playwright.getByRole("button"), [
+            "press",
+            "waitFor",
+          ]),
+        );
+      }
+    }
     if (operation === "attachAssets")
       base.push(
         ...missingMethods(this.#tab?.playwright, [

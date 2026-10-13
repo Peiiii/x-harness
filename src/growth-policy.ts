@@ -229,6 +229,15 @@ export class GrowthPolicy {
             this.#store.fingerprint(action.draftPath))
       )
         return "draft-changed-since-quality-review";
+      if (
+        action.quoteTarget &&
+        (!/^\d+$/.test(action.quoteTarget.postId ?? "") ||
+          !this.#evidenceExists(action.quoteTarget.evidenceRef) ||
+          xURL(action.quoteTarget.url).pathname.match(
+            /\/status\/(\d+)$/,
+          )?.[1] !== action.quoteTarget.postId)
+      )
+        return "quote-target-proof-missing";
       const scheduleReason = new DraftSchedule().reason(action, this.#clock());
       if (scheduleReason) return scheduleReason;
       if (

@@ -106,6 +106,15 @@ export class DOMXBrowser {
       (text: any) => text.trim() !== "检测到 AI 生成内容",
     );
     if (query.view === "composer") {
+      if (this.#session.quoteBinding && raw.quoteContexts?.length === 1) {
+        const q = raw.quoteContexts[0],
+          b = this.#session.quoteBinding;
+        if (
+          q.author?.toLowerCase() === b.author?.toLowerCase() &&
+          q.body?.startsWith(b.body)
+        )
+          result.quoteSourceId = b.postId;
+      }
       result.editorText =
         raw.editors?.length === 1 ? raw.editors[0].text : null;
       if (

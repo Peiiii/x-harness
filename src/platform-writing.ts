@@ -60,7 +60,8 @@ export class PlatformWriting {
       value.alerts?.length ||
       typeof value.editorText !== "string" ||
       value.editorText.trim() !== "" ||
-      (action.kind === "reply" && value.replyToId !== action.postId)
+      (action.kind === "reply" && value.replyToId !== action.postId) ||
+      (action.quoteTarget && value.quoteSourceId !== action.quoteTarget.postId)
     )
       throw new Error("编辑器不为空或回复上下文未绑定");
     if (action.assets?.length)
@@ -75,6 +76,8 @@ export class PlatformWriting {
       value.needsStateCheck ||
       value.alerts?.length ||
       (action.kind === "reply" && value.replyToId !== action.postId) ||
+      (action.quoteTarget &&
+        value.quoteSourceId !== action.quoteTarget.postId) ||
       (action.accountHandle &&
         !sameHandle(value.accountHandle, action.accountHandle))
     )
@@ -168,16 +171,7 @@ export class PlatformWriting {
       });
       value = await this.#observed({ view: "posts", limit: 5 });
     }
-    const matchesContent = (post: any) =>
-      sameHandle(post.author, action.accountHandle) &&
-      samePublishedText(post.body, action.text) &&
-      /^\d+$/.test(post.id ?? "") &&
-      matchesReviewedAssets(post, action.assets) &&
-      !(action.beforeIds ?? []).includes(post.id) &&
-      Number.isFinite(Date.parse(post.datetime)) &&
-      Date.parse(post.datetime) >= Date.parse(action.intentAt) &&
-      Date.parse(post.datetime) <= this.#clock() + 5000 &&
-      !post.needsExpansion;
+    const matchesContent = (post: any) => this.matchesContent(post, action);
     let matches = (value.posts ?? []).filter(matchesContent);
     const receiptCandidate =
       action.kind === "reply" &&
@@ -230,6 +224,12 @@ export class PlatformWriting {
         matches = (value.posts ?? []).filter(matchesContent);
       }
     }
+    if (action.quoteTarget && matches.length === 1) {
+      value = await this.readQuotedReceipt(value, action, matches[0]);
+      matches = (value.posts ?? [])
+        .filter(matchesContent)
+        .filter((p: any) => this.matchesQuote(p, action));
+    }
     if (action.kind === "reply")
       matches = matches.filter((post: any) => post.replyToId === action.postId);
     return {
@@ -241,6 +241,33 @@ export class PlatformWriting {
       missing:
         matches.length === 1 ? [] : ["unique-public-submission-unconfirmed"],
     };
+  }
+  private matchesQuote(post: any, action: any) {
+    return (
+      post.quoteSource?.parentId === post.id &&
+      post.quoteSource?.id === action.quoteTarget.postId
+    );
+  }
+  private matchesContent(post: any, action: any) {
+    return (
+      sameHandle(post.author, action.accountHandle) &&
+      samePublishedText(post.body, action.text) &&
+      /^\d+$/.test(post.id ?? "") &&
+      matchesReviewedAssets(post, action.assets) &&
+      !(action.beforeIds ?? []).includes(post.id) &&
+      Number.isFinite(Date.parse(post.datetime)) &&
+      Date.parse(post.datetime) >= Date.parse(action.intentAt) &&
+      Date.parse(post.datetime) <= this.#clock() + 5000 &&
+      !post.needsExpansion
+    );
+  }
+  private async readQuotedReceipt(value: any, action: any, candidate: any) {
+    return this.#readPost({
+      postId: candidate.id,
+      url: new URL(candidate.primary, value.page).href,
+      evidenceRef: { page: value.page, observedAt: value.observedAt },
+      resolveQuote: true,
+    });
   }
   private async readLoadedReplyReceipt(
     value: any,
@@ -299,10 +326,25 @@ export class PlatformWriting {
     return clicked;
   }
   private async handleSubmitPost(action: any): Promise<any> {
-    await this.#open(
-      { url: action.composeURL, evidenceRef: action.composeEvidenceRef },
-      { view: "composer" },
-    );
+    if (action.quoteTarget) {
+      const source = await this.#readPost(action.quoteTarget);
+      if (
+        source.needsStateCheck ||
+        source.alerts?.length ||
+        source.posts?.length !== 1 ||
+        source.posts[0].id !== action.quoteTarget.postId
+      )
+        throw Error("quote-source-unconfirmed");
+      await this.#browser.act({
+        operation: "openQuoteComposer",
+        postId: action.quoteTarget.postId,
+      });
+    } else {
+      await this.#open(
+        { url: action.composeURL, evidenceRef: action.composeEvidenceRef },
+        { view: "composer" },
+      );
+    }
     return this.handleCompose(action);
   }
   private async handleSubmitReply(action: any): Promise<any> {

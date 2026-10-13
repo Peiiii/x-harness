@@ -1,6 +1,7 @@
 export interface DOMSession {
   current?: any;
   replyBinding?: any;
+  quoteBinding?: any;
   refreshNotice?: any;
   editBinding?: any;
 }

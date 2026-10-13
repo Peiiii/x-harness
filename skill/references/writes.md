@@ -16,15 +16,33 @@ Original action optional notBefore is an ISO timestamp with timezone. Explicit d
 
 Original actions may pass `notAfter` as the calendar window’s exclusive ISO end. It is rechecked at intent and immediately before activation; expiration submits nothing. Unknown verification remains allowed after expiry.
 
+Real quotes: pass `quoteTarget:{postId,url,evidenceRef}`; composer and public card must bind that ID. See [quotes](quotes.md).
+
 Additional fields: kind:'original', draftPath (existing .post.md), text (complete approved text), composeURL, composeEvidenceRef; optional assets:[{path,alt}], activation:'click'|'keyboard'. Every media path must exist and be reviewed. The DOM uploader supports one absolute PNG/JPEG/WebP image with required ALT, or one absolute MP4 video. Video uploads wait for a visible preview and public settlement requires a video on the exact fresh post; image ALT controls are not applied to videos.
 
 ```js
-var result = await x.publishPost({ taskId, draftPath, preparedAction: {
-  id: actionId, status: 'prepared', kind: 'original',
-  accountHandle, accountURL, accountEvidenceRef,
-  quality: { approved: true, approvedText: text, evidenceRef: reviewProof, draftFingerprint },
-  draftPath, text, composeURL, composeEvidenceRef,
-} });
+var result = await x.publishPost({
+  taskId,
+  draftPath,
+  preparedAction: {
+    id: actionId,
+    status: "prepared",
+    kind: "original",
+    accountHandle,
+    accountURL,
+    accountEvidenceRef,
+    quality: {
+      approved: true,
+      approvedText: text,
+      evidenceRef: reviewProof,
+      draftFingerprint,
+    },
+    draftPath,
+    text,
+    composeURL,
+    composeEvidenceRef,
+  },
+});
 ```
 
 Optional independentExecution:{tabId,evidenceRef,scopeEvidenceRef} requires real independent task-tab/scope proof; binding executor scope is covered in setup only if needed. Existing original action can omit preparedAction; draftPath still required.
@@ -34,12 +52,24 @@ Optional independentExecution:{tabId,evidenceRef,scopeEvidenceRef} requires real
 Additional fields: kind:'reply', postId, url, evidenceRef (observed parent), text; optional assets/activation as above. Common account/quality fields still required. The exact parent is verified by the API. `replyBatch({taskId,actions})` accepts 1–5 reviewed replies, submits serially and recovers an observed receipt once without resending; waiting returns unfinished work. Incoming clicks have a ≥30s minimum gap, not a safety guarantee. Incoming conversations require reviewed conversation:{recipientHandle,rootId,round,automatedLoop?}; at most 3 own rounds per recipient/root, with intent/unknown counted. Mark observed automatic loops to stop earlier.
 
 ```js
-var result = await x.replyToPost({ taskId, postId, text, preparedAction: {
-  id: actionId, status: 'prepared', kind: 'reply',
-  accountHandle, accountURL, accountEvidenceRef,
-  quality: { approved: true, approvedText: text, evidenceRef: reviewProof },
-  postId, url: parentURL, evidenceRef: parentProof, text,
-} });
+var result = await x.replyToPost({
+  taskId,
+  postId,
+  text,
+  preparedAction: {
+    id: actionId,
+    status: "prepared",
+    kind: "reply",
+    accountHandle,
+    accountURL,
+    accountEvidenceRef,
+    quality: { approved: true, approvedText: text, evidenceRef: reviewProof },
+    postId,
+    url: parentURL,
+    evidenceRef: parentProof,
+    text,
+  },
+});
 ```
 
 ## Follow

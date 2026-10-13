@@ -229,6 +229,7 @@ export type PreparedAction = PreparedActionBase &
         text: string;
         composeURL: string;
         composeEvidenceRef: EvidenceRef;
+        quoteTarget?: PostTarget;
         assets?: { path: string; alt: string }[];
         activation?: "click" | "keyboard";
       }

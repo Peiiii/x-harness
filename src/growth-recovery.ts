@@ -92,9 +92,9 @@ export class GrowthRecovery {
         `/${action.accountHandle}/status/${postId}`.toLowerCase()
     )
       throw new Error("public-account-mismatch");
-    const resolveQuote = /\nhttps:\/\/x\.com\/\w{1,15}\/status\/\d+$/.test(
-      action.text,
-    );
+    const resolveQuote =
+      Boolean(action.quoteTarget) ||
+      /\nhttps:\/\/x\.com\/\w{1,15}\/status\/\d+$/.test(action.text);
     const quoteCaps = this.#capability("read", { resolveQuote });
     if (!quoteCaps.covered)
       return { status: "needsCapability", missing: quoteCaps.missing };
@@ -102,9 +102,7 @@ export class GrowthRecovery {
       postId,
       url: publicURL,
       evidenceRef,
-      resolveQuote: /\nhttps:\/\/x\.com\/\w{1,15}\/status\/\d+$/.test(
-        action.text,
-      ),
+      resolveQuote,
     });
     const trailing = action.text.match(
       /(?:\n+)?((?:https:\/\/|(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\/)\S+)$/,
@@ -170,6 +168,9 @@ export class GrowthRecovery {
       }
       return (
         p.id === postId &&
+        (!action.quoteTarget ||
+          (p.quoteSource?.parentId === p.id &&
+            p.quoteSource?.id === action.quoteTarget.postId)) &&
         same(p.author, action.accountHandle) &&
         (exact ||
           quote ||

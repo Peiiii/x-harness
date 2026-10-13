@@ -135,6 +135,20 @@ export function readComposer(): any {
         kind: "video",
         label: el.getAttribute("aria-label"),
       })),
+    quoteContexts: Array.from<any>(
+      scope.querySelectorAll('[data-testid="attachments"]'),
+    )
+      .filter(visible)
+      .filter(
+        (el) =>
+          el.innerText.startsWith("引用") || el.innerText.startsWith("Quote"),
+      )
+      .map((el) => ({
+        author: el
+          .querySelector('[data-testid="User-Name"]')
+          ?.innerText.match(/@([A-Za-z0-9_]{1,15})/)?.[1],
+        body: el.querySelector('[data-testid="tweetText"]')?.innerText,
+      })),
     needsStateCheck: false,
   };
 }

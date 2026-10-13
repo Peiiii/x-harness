@@ -94,3 +94,30 @@ test("a labeled trailing URL card preserves the exact label and requires its obs
     "unknown",
   );
 });
+
+test("reviewed quote cannot verify as a plain post or a different quote", async () => {
+  const action = {
+    text: "Specific reviewed content.",
+    quoteTarget: {
+      postId: "123",
+      url: "https://x.com/source/status/123",
+      evidenceRef: "source-proof",
+    },
+  };
+  assert.equal((await recover({}, {}, action)).result.status, "unknown");
+  assert.equal(
+    (await recover({ quoteSource: { parentId: "10", id: "456" } }, {}, action))
+      .result.status,
+    "unknown",
+  );
+  assert.equal(
+    (await recover({ quoteSource: { parentId: "9", id: "123" } }, {}, action))
+      .result.status,
+    "unknown",
+  );
+  assert.equal(
+    (await recover({ quoteSource: { parentId: "10", id: "123" } }, {}, action))
+      .result.status,
+    "verified",
+  );
+});
