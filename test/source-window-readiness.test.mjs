@@ -195,6 +195,42 @@ test("source pagination advances one viewport before waiting for asynchronous ca
   assert.equal(session.current, null);
 });
 
+test("native source pagination preserves focus without activating an offscreen anchor", async () => {
+  const keys = [];
+  const anchor = {
+    filter: () => anchor,
+    press: async () => {
+      throw Error("offscreen focus must not be used");
+    },
+  };
+  const session = {
+    current: { query: { view: "posts" }, result: { posts: [post(5)] } },
+  };
+  const editing = new DOMEditing({
+    session,
+    unique: async (x) => x,
+    locator: () => anchor,
+    observe: async () => ({}),
+    tab: {
+      pressKey: async (index, key) => {
+        assert.equal(index, null);
+        keys.push(key);
+      },
+      playwright: {
+        locator: (selector) => {
+          if (selector === "time") return {};
+          if (selector === "body") return anchor;
+          assert.equal(selector, 'a[href="/example_user/status/5"]');
+          return anchor;
+        },
+      },
+    },
+  });
+  await editing.nextPosts({});
+  assert.deepEqual(keys, ["PageDown"]);
+  assert.equal(session.current, null);
+});
+
 test("empty first bookmark screen waits even when DOM marks navigation ready", async () => {
   let loaded = false;
   const actions = [];

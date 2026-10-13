@@ -324,9 +324,9 @@ export class DOMEditing {
     this.#session.current = null;
     // A retained timestamp can be far below the viewport. Validate it, then
     // scroll the page without waiting for that offscreen link to take focus.
-    await (
-      await this.#unique(this.#tab.playwright.locator("body"))
-    ).press("PageDown");
+    if (typeof this.#tab.pressKey === "function")
+      await this.#tab.pressKey(null, "PageDown");
+    else await anchor.press("PageDown");
     return { completed: true };
     return { completed: false, loc, submittedEditor };
   }
