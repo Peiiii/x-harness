@@ -23,6 +23,12 @@ export class VerifiedTargetPlanning {
       !Number.isInteger(args.target) ||
       args.target < 1 ||
       args.target > 10000 ||
+      (args.excludedActionIds &&
+        (!Array.isArray(args.excludedActionIds) ||
+          args.excludedActionIds.length > 10000 ||
+          args.excludedActionIds.some(
+            (id) => typeof id !== "string" || !id.trim(),
+          ))) ||
       (args.sourceCategories &&
         (!Array.isArray(args.sourceCategories) ||
           !args.sourceCategories.length ||
@@ -46,6 +52,7 @@ export class VerifiedTargetPlanning {
         (a: any) =>
           a.kind === args.kind &&
           a.status === "verified" &&
+          !args.excludedActionIds?.includes(a.id) &&
           (!args.sourceCategories ||
             args.sourceCategories.includes(a.sourceCategory)),
       ).length;
@@ -66,6 +73,7 @@ export class VerifiedTargetPlanning {
           executorId: this.executor!.id,
           target: args.target,
           sourceCategories: args.sourceCategories,
+          excludedActionIds: args.excludedActionIds,
           matchedVerified: matched,
           totalVerified: item.verified,
           preservedUnknown: item.unknown,

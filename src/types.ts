@@ -468,6 +468,7 @@ export interface VerifiedTargetPlanOptions {
   kind: OperationKind;
   target: number;
   sourceCategories?: string[];
+  excludedActionIds?: string[];
   userAuthorized: boolean;
   evidenceRef: EvidenceRef;
 }

@@ -48,6 +48,8 @@ test("missing permission, proof, scope and task do not mutate original plan", as
     { userAuthorized: false },
     { userAuthorized: "yes" },
     { sourceCategories: "mutual" },
+    { excludedActionIds: "old" },
+    { excludedActionIds: [""] },
     { evidenceRef: "/missing" },
     { kind: "follow" },
     { taskId: "other" },
@@ -57,6 +59,34 @@ test("missing permission, proof, scope and task do not mutate original plan", as
       "needsDecision",
     );
   assert.equal((await f.store.load()).revision, before);
+});
+test("audited exclusions preserve real successes and unknowns while keeping the qualified target", async (t) => {
+  const f = fixture(t, { actionKinds: [] });
+  await f.store.transaction(({ state }) => {
+    Object.assign(state.items[2], { planned: 3, verified: 2, unknown: 1 });
+    state.actions = ["qualified", "audited-duplicate"].map((id) => ({
+      id,
+      kind: "reply",
+      status: "verified",
+      sourceCategory: "mutual",
+    }));
+    return state;
+  });
+  const r = await planner(f).run({
+    ...options(f),
+    target: 2,
+    excludedActionIds: ["audited-duplicate"],
+  });
+  assert.equal(r.matchedVerified, 1);
+  assert.equal(r.remaining, 1);
+  assert.equal(r.capacity, 4);
+  const s = (await f.store.load()).state;
+  assert.equal(s.items[2].verified, 2);
+  assert.equal(s.items[2].unknown, 1);
+  assert.equal(s.actions[1].status, "verified");
+  assert.deepEqual(s.planAdjustments.at(-1).excludedActionIds, [
+    "audited-duplicate",
+  ]);
 });
 test("an existing larger plan never shrinks and zero remaining never claims completion", async (t) => {
   const f = fixture(t, { actionKinds: [] });
