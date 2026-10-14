@@ -237,10 +237,7 @@ export class GrowthExecution {
     if (action.kind !== "follow") {
       let baseline: any;
       try {
-        baseline = await this.#platform.findSubmission(
-          { ...action, intentAt: this.#stamp() },
-          { phase: "baseline" },
-        );
+        baseline = await this.readPublicationBaseline(action);
       } catch (error: any) {
         return {
           snapshot,
@@ -264,6 +261,21 @@ export class GrowthExecution {
       beforeIds = (baseline.posts ?? []).map((p: any) => p.id).filter(Boolean);
     }
     return { beforeIds };
+  }
+  private async readPublicationBaseline(action: any): Promise<any> {
+    const probe = { ...action, intentAt: this.#stamp() };
+    try {
+      return await this.#platform.findSubmission(probe, { phase: "baseline" });
+    } catch (error: any) {
+      if (
+        action.kind !== "reply" ||
+        !/Timed out waiting for URL/.test(String(error?.message ?? ""))
+      )
+        throw error;
+      // The original reply is still prepared: one read-only continuation,
+      // followed by the unchanged baseline/identity/window/intent gates.
+      return this.#platform.findSubmission(probe, { phase: "baseline" });
+    }
   }
   private async handleExecute(
     snapshot: any,
