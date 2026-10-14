@@ -463,6 +463,26 @@ export interface SourceLinkEvidence {
   evidenceRef: EvidenceRef;
   renderedText?: string;
 }
+export interface VerifiedTargetPlanOptions {
+  taskId: string;
+  kind: OperationKind;
+  target: number;
+  sourceCategories?: string[];
+  userAuthorized: boolean;
+  evidenceRef: EvidenceRef;
+}
+export interface VerifiedTargetPlanResult {
+  status: "planned" | "needsDecision";
+  reason?: string;
+  kind?: OperationKind;
+  target?: number;
+  matchedVerified?: number;
+  remaining?: number;
+  capacity?: number;
+  preservedUnknown?: number;
+  goalEvidenceRef?: EvidenceRef;
+  evidenceRef?: EvidenceRef;
+}
 export interface Executor {
   id: string;
   scopeKinds: OperationKind[];
@@ -553,7 +573,14 @@ export type HostConnectionResult =
     };
 
 export interface XGrowthHarness {
-  replyBatch(args: { taskId: string; actions: PreparedAction[] }): Promise<{
+  planVerifiedTarget(
+    args: VerifiedTargetPlanOptions,
+  ): Promise<VerifiedTargetPlanResult>;
+  replyBatch(args: {
+    taskId: string;
+    actions: PreparedAction[];
+    verifiedTarget?: Omit<VerifiedTargetPlanOptions, "taskId" | "kind">;
+  }): Promise<{
     status: "verified" | "needsDecision";
     reason?: string;
     results: ActionResult[];

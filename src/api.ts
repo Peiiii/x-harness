@@ -1,3 +1,4 @@
+import { VerifiedTargetPlanning } from "./verified-target-planning.js";
 import { ReplyDiscovery } from "./reply-discovery.js";
 import { sameHandle, samePublishedText } from "./platform-rules.js";
 import { publicationTime } from "./publication-time.js";
@@ -34,7 +35,11 @@ export class BusinessHarness implements XGrowthHarness {
   #core!: ReturnType<typeof createGrowthHarness>;
   #readCache!: Map<string, string>;
   #clock!: () => number;
+  #executor?: import("./types.js").Executor;
   constructor(dependencies: BusinessDependencies) {
+    this.planVerifiedTarget = this.planVerifiedTarget.bind(this);
+    this.#executor = dependencies.executor as
+      import("./types.js").Executor | undefined;
     this.readFollowbackAudit = this.readFollowbackAudit.bind(this);
     this.replyBatch = this.replyBatch.bind(this);
     this.likeIncomingBatch = this.likeIncomingBatch.bind(this);
@@ -328,9 +333,22 @@ export class BusinessHarness implements XGrowthHarness {
     if (d) out.diagnostic = d;
     return out;
   }
+  public planVerifiedTarget(
+    args: import("./types.js").VerifiedTargetPlanOptions,
+  ) {
+    return new VerifiedTargetPlanning(
+      this.#store,
+      this.#executor,
+      this.#clock,
+    ).run(args);
+  }
   public async replyBatch(args: {
     taskId: string;
     actions: import("./types.js").PreparedAction[];
+    verifiedTarget?: Omit<
+      import("./types.js").VerifiedTargetPlanOptions,
+      "taskId" | "kind"
+    >;
   }) {
     if (
       !Array.isArray(args.actions) ||
@@ -346,6 +364,30 @@ export class BusinessHarness implements XGrowthHarness {
     const results: ActionResult[] = [];
     for (const action of args.actions) {
       if (action.kind !== "reply") continue;
+      if (args.verifiedTarget) {
+        const plan = await this.planVerifiedTarget({
+          ...args.verifiedTarget,
+          taskId: args.taskId,
+          kind: "reply",
+        });
+        const existing = (await this.#store.load()).state.actions.find(
+          (a: BoundaryRecord) => a.id === action.id,
+        );
+        if (
+          plan.status !== "planned" ||
+          (plan.remaining === 0 &&
+            (!existing || existing.status === "prepared"))
+        ) {
+          results.push({
+            status: "needsDecision",
+            taskId: args.taskId,
+            actionId: action.id,
+            reason: plan.reason ?? "verified-target-reached",
+            evidenceRef: plan.evidenceRef,
+          });
+          break;
+        }
+      }
       let result = await this.replyToPost({
         taskId: args.taskId,
         postId: action.postId,

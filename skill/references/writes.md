@@ -82,6 +82,8 @@ Explicit same-day suspension of internal follow pacing: use [follow observation 
 
 ## Round
 
+Explicit success goal blocked by total reservations: [verified-target planning](planning.md).
+
 `await x.inspectRound({taskId})` inspects original state; `await x.runGrowthRound({taskId,maxActions})` runs/resumes it. maxActions bounds this call, not original planned total. Preparation uses decision:{type:'prepareActions',accountHandle,ownershipEvidenceRef,actions}; actions are the reviewed structures above.
 
 Optional decision fields: attemptsCoverage:{complete,since,evidenceRef}, sharedAttempts:[{kind,at}], nextScheduledCheckAt. For follow budgets, coverage must actually cover the required window; unknown history cannot be recorded as zero. Missing data remains a decision gap.
