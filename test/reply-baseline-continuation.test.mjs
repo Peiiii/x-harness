@@ -68,3 +68,48 @@ test("original-post URL timeout does not inherit reply continuation", async (t) 
   assert.equal(f.writes.length, 0);
   assert.equal(f.read().actions[0].status, "prepared");
 });
+
+for (const mode of ["hinted", "repeated", "unhinted", "missing-proof"]) {
+  test(`original unknown reply ${mode} URL recovery stays read-only and bounded`, async (t) => {
+    const f = fixture(t, { planned: [0, 0, 1], actionKinds: ["reply"] });
+    const platform = createXPlatform(f.browser, { clock: () => NOW });
+    const api = createBusinessHarness({
+      platform,
+      store: f.store,
+      clock: () => NOW,
+    });
+    const action = f.read().actions[0];
+    const first = await api.replyToPost({
+      taskId: "round-1",
+      postId: action.postId,
+      text: action.text,
+    });
+    assert.equal(first.status, "verified");
+    f.edit((s) => {
+      s.actions[0].status = "unknown";
+      s.items[2].verified = 0;
+      s.items[2].unknown = 1;
+      if (mode !== "unhinted") {
+        s.actions[0].observedPublicURL = first.publicURL;
+        s.actions[0].observedPublicEvidenceRef =
+          mode === "missing-proof" ? "/missing-proof.json" : first.evidenceRef;
+      }
+    });
+    let reads = 0;
+    const original = platform.findSubmission;
+    platform.findSubmission = async (a, context) => {
+      reads++;
+      assert.equal(f.writes.length, 1);
+      if (reads === 1 || mode === "repeated")
+        throw Error("Timed out waiting for URL https://x.com/Pei/status/101");
+      return original(a, context);
+    };
+    const out = await api.verifySubmission({
+      taskId: "round-1",
+      actionId: action.id,
+    });
+    assert.equal(reads, ["hinted", "repeated"].includes(mode) ? 2 : 1);
+    assert.equal(out.status, mode === "hinted" ? "verified" : "unknown");
+    assert.equal(f.writes.length, 1);
+  });
+}

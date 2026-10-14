@@ -237,7 +237,10 @@ export class GrowthExecution {
     if (action.kind !== "follow") {
       let baseline: any;
       try {
-        baseline = await this.readPublicationBaseline(action);
+        baseline = await this.readSubmissionWithURLContinuation(
+          { ...action, intentAt: this.#stamp() },
+          { phase: "baseline" },
+        );
       } catch (error: any) {
         return {
           snapshot,
@@ -262,19 +265,26 @@ export class GrowthExecution {
     }
     return { beforeIds };
   }
-  private async readPublicationBaseline(action: any): Promise<any> {
-    const probe = { ...action, intentAt: this.#stamp() };
+  private async readSubmissionWithURLContinuation(
+    action: any,
+    context?: any,
+  ): Promise<any> {
     try {
-      return await this.#platform.findSubmission(probe, { phase: "baseline" });
+      return await this.#platform.findSubmission(action, context);
     } catch (error: any) {
+      const preparedBaseline = context?.phase === "baseline";
+      const observedReceipt =
+        !context &&
+        action.observedPublicURL &&
+        this.#evidenceExists(action.observedPublicEvidenceRef);
       if (
         action.kind !== "reply" ||
+        !(preparedBaseline || observedReceipt) ||
         !/Timed out waiting for URL/.test(String(error?.message ?? ""))
       )
         throw error;
-      // The original reply is still prepared: one read-only continuation,
-      // followed by the unchanged baseline/identity/window/intent gates.
-      return this.#platform.findSubmission(probe, { phase: "baseline" });
+      // Continue only this read; the existing admission and receipt gates stay intact.
+      return this.#platform.findSubmission(action, context);
     }
   }
   private async handleExecute(
@@ -296,7 +306,7 @@ export class GrowthExecution {
     if (recovering) {
       let observation: any;
       try {
-        observation = await this.#platform.findSubmission(action);
+        observation = await this.readSubmissionWithURLContinuation(action);
       } catch (error: any) {
         observation = {
           verified: false,
