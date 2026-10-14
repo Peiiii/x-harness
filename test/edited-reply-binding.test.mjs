@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DOMEditing } from "../dist/browser-dom-editing.js";
+import { DOMNavigation } from "../dist/browser-dom-navigation.js";
 
 function fixture(primary) {
   const button = {};
@@ -53,4 +54,43 @@ test("history links for another post and unrelated suffixes stay rejected", asyn
       /永久链接未绑定/,
     );
   }
+});
+
+test("exact post readiness admits its edited timestamp link without admitting another ID", async () => {
+  let selector;
+  const detail = {
+    first() {
+      return this;
+    },
+    async waitFor() {
+      assert.equal(
+        selector,
+        'a[href="/peer/status/123"],a[href="/peer/status/123/history"]',
+      );
+    },
+  };
+  const nav = new DOMNavigation({
+    session: {},
+    tab: {
+      url: async () => "https://x.com/home",
+      goto: async () => {},
+      playwright: {
+        waitForURL: async () => {},
+        locator: (value) => value,
+        getByRole: () => ({
+          filter: ({ has }) => {
+            selector = has;
+            return detail;
+          },
+        }),
+      },
+    },
+    observe: async () => ({}),
+  });
+  await nav.openObserved({
+    url: "https://x.com/peer/status/123",
+    view: "posts",
+    evidenceRef: "synthetic-proof",
+    forceNavigation: true,
+  });
 });

@@ -273,7 +273,7 @@ export class DOMNavigation {
       const detail = /^\/\w{1,15}\/status\/\d+$/.test(path)
         ? articles.filter({
             has: this.#tab.playwright.locator(
-              `a[href=${JSON.stringify(path)}]`,
+              `a[href=${JSON.stringify(path)}],a[href=${JSON.stringify(path + "/history")}]`,
             ),
           })
         : articles;
