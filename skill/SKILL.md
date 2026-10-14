@@ -28,7 +28,7 @@ Work at scale starts with verified [batch discovery](references/batch-discovery.
 | --- | --- |
 | Creator/bookmarks/search/post/person/feedback/account | [reads](references/reads.md) |
 | Followback list audit | [audit](references/followback-audit.md) |
-| Publish/reply/follow or a round | [writes](references/writes.md), preamble + common review + matching operation heading |
+| Publish/reply/follow/thread likes or a round | [writes](references/writes.md), preamble + common review + matching operation heading |
 | Unknown submission, missing capability or connection failure | [recovery](references/recovery.md) |
 
 Use `receipt` for status, `decision` for first content, `delta` for changes with valid prior context. Keep observations locally; return complete target evidence and warnings. Never truncate target text or dump DOM/AX. Root calls own capability checks, intent, submission, verification and settlement; verified results need no rechecks.

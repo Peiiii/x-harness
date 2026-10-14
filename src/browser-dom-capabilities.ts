@@ -11,6 +11,8 @@ export class DOMCapabilities {
   }
   public capabilities(operation: any): any {
     const base = missingMethods(this.#tab?.playwright, ["evaluate"]);
+    if (operation === "likePostAndComments")
+      return this.threadLikeCapabilities(base);
     if (operation === "resetPeople")
       return [
         ...base,
@@ -148,6 +150,33 @@ export class DOMCapabilities {
       );
     if (this.#nativeSubmit && ["submitPost", "submitReply"].includes(operation))
       base.push(...missingMethods(this.#tab, ["getAXState", "click"]));
+    return base;
+  }
+  private threadLikeCapabilities(base: string[]) {
+    base.push(...missingMethods(this.#tab, ["goto", "url"]));
+    base.push(
+      ...missingMethods(this.#tab?.playwright, [
+        "locator",
+        "getByRole",
+        "waitForURL",
+      ]),
+    );
+    if (typeof this.#tab?.playwright?.locator === "function") {
+      const article = this.#tab.playwright.locator("article");
+      base.push(
+        ...missingMethods(article, [
+          "filter",
+          "count",
+          "getByRole",
+          "first",
+          "waitFor",
+        ]),
+      );
+      if (typeof article.getByRole === "function")
+        base.push(
+          ...missingMethods(article.getByRole("button"), ["count", "click"]),
+        );
+    }
     return base;
   }
   private quoteCapabilities(base: string[]) {

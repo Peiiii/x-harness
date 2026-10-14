@@ -7,6 +7,7 @@ export class DOMEditing {
   #locator!: DOMDependencies["locator"];
   #tab!: DOMDependencies["tab"];
   #observe!: DOMDependencies["observe"];
+  expandThreadReplies!: (command: any) => Promise<any>;
   dismissMenu!: (
     command: any,
   ) => Promise<
@@ -126,6 +127,7 @@ export class DOMEditing {
     this.#tab = tab;
     this.#observe = observe;
     this.dismissMenu = this.handleDismissMenu.bind(this);
+    this.expandThreadReplies = this.handleExpandThreadReplies.bind(this);
     this.openControl = this.handleOpenControl.bind(this);
     this.openOwnPostMenu = this.handleOpenOwnPostMenu.bind(this);
     this.submitEditedPost = this.handleSubmitEditedPost.bind(this);
@@ -356,6 +358,24 @@ export class DOMEditing {
     if (typeof this.#tab.pressKey === "function")
       await this.#tab.pressKey(null, "PageDown");
     else await unique.press("PageDown");
+    return { completed: true };
+  }
+  private async handleExpandThreadReplies(command: any) {
+    const { query, result } = this.#session.current;
+    if (
+      query.threadRootId !== command.rootId ||
+      !result.threadConfirmed ||
+      result.needsStateCheck ||
+      result.alerts?.length ||
+      result.threadExpandControls?.filter((c: any) => c.label === command.label)
+        .length !== 1
+    )
+      throw Error("thread-expand-unconfirmed");
+    const control = this.#tab.playwright
+      .locator('main [data-testid="primaryColumn"]')
+      .getByRole("button", { name: command.label, exact: true });
+    await (await this.#unique(control)).click();
+    this.#session.current = null;
     return { completed: true };
   }
   private async handleNextPosts(command: any) {
@@ -596,6 +616,7 @@ export class DOMEditing {
     this.#session.current = null;
     await button.click();
     const after = await this.#observe({
+      ...query,
       view: "posts",
       targetId: command.postId,
     });

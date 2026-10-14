@@ -36,7 +36,7 @@ const result = await x.readCreator({
 Read APIs: `readCreator`, `readBookmarks`, `searchSources`, `readPost`, `readPerson`, `readFeedback`, `inspectAccount`, `inspectRound`.
 Bulk list audit: `readFollowbackAudit` saves deduplicated relationship lists and resumable coverage evidence. Followback direction reads unfiltered followers; unmatched profile counts remain incomplete. See [the API reference](skill/references/followback-audit.md). `followBatch` optionally persists bounded random intent gaps, while retaining all original budget, refusal and unknown guards.
 
-Write APIs: `publishPost`, `replyToPost`, `followOne`, `followBatch`, `runGrowthRound`.
+Write APIs: `publishPost`, `replyToPost`, `followOne`, `followBatch`, `runGrowthRound`, `likePostAndComments`.
 Recovery: `verifySubmission`, `verifyPublishedPost`, `verifyFollow`.
 
 First connection can use the asynchronous `createXGrowthHarness({connection, ledgerPath, proofDirectory})` overload. Supply two documented host callbacks: `connection.check()` is read-only browser discovery (for CUA, `cua.listTabs({browser: selectedBrowserId, emit:false})`); `connection.openTab()` opens your independent HTTPS X tab using `cua.createBrowserTab`. Name the browser session as required by its current documentation. The factory retries only the exact request-header initialization error once during the read-only check, then opens at most one tab. It never retries tab creation, business reads or submissions. A `ready` result contains `harness`, `tab` and a compact `connection` receipt; reuse them. A failure returns its phase, stable reason and local proof reference. Recovered failures retain their original error and timing locally; an HTTP cause hidden by the host remains unknown. This does not patch or bypass the desktop host's policy.
@@ -62,3 +62,7 @@ The private parent content repository consumes the published npm package. These 
 ### Prepare without submitting
 
 `runGrowthRound({taskId, maxActions:0, decision:{type:'prepareActions', accountHandle, ownershipEvidenceRef, actions}})` saves reviewed candidates in the original ledger without browser navigation, unknown verification or submission. This works during write backoff; qualification reads remain separate normal task APIs. It returns `checkpoint`, `mayEnd:false`: preparing a queue does not complete the original goal. Existing IDs, target capacity, scope and evidence gates remain in force; zero without a preparation decision is rejected.
+
+### Selected thread likes
+
+`likePostAndComments({url, sampleRate:0.6})` discovers the selected post and its loaded replies internally, likes the root and a stable sample of comments, skips existing likes and persists intent/recovery in the original ledger. No caller comment list is needed. Serial submissions use a 1–2 second load interval including verification; no detection-evasion techniques are used. Default per-call bounds are 20 new likes, 40 advances and 120 seconds; checkpoint/waiting resumes the same batch, and scopeComplete is always false. See Skill [Thread likes](skill/references/writes.md#thread-likes) for exact limits and statuses. X rules prohibit automated likes; sampling and pacing do not guarantee permission or avoidance of restrictions.

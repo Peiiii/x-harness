@@ -173,6 +173,33 @@ export interface WindowOptions {
   processedIds?: string[];
 }
 export interface IncomingReplyOptions extends WindowOptions {}
+export interface ThreadLikeOptions {
+  url: string;
+  batchId?: string;
+  sampleRate?: number;
+  maxLikes?: number;
+  maxPages?: number;
+  timeBudgetMs?: number;
+}
+export interface ThreadLikeResult {
+  status: "verified" | "checkpoint" | "waiting" | "unknown" | "needsDecision";
+  batchId: string;
+  url: string;
+  scopeComplete: false;
+  reason?: string;
+  resumeAt?: string;
+  evidenceRef?: string;
+  counts: {
+    observed: number;
+    selected: number;
+    verified: number;
+    preexisting: number;
+    skipped: number;
+    unknown: number;
+    pending: number;
+    newLikesThisCall: number;
+  };
+}
 export interface IncomingLikeOptions {
   batchId: string;
   targets: (PostTarget & { author: string; incomingEvidenceRef: string })[];
@@ -606,6 +633,7 @@ export interface XGrowthHarness {
   runFollowPriorityBatch(
     args: FollowPriorityOptions,
   ): Promise<FollowPriorityResult>;
+  likePostAndComments(args: ThreadLikeOptions): Promise<ThreadLikeResult>;
   planVerifiedTarget(
     args: VerifiedTargetPlanOptions,
   ): Promise<VerifiedTargetPlanResult>;

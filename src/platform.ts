@@ -1,3 +1,4 @@
+import { PlatformThreadLikes } from "./platform-thread-likes.js";
 import { createPlatformObservation } from "./platform-observation.js";
 import { createPlatformTargets } from "./platform-targets.js";
 import { createPlatformCollections } from "./platform-collections.js";
@@ -214,6 +215,9 @@ export class XPlatform {
     typeof createPlatformCapabilities
   >;
   #preflight!: { preflight: ({ operation, input }: any) => any }["preflight"];
+  readThreadLikeWindow!: (args: any) => Promise<any>;
+  advanceThreadLikes!: (args: any) => Promise<any>;
+  likeThreadPost!: (args: any) => Promise<any>;
   likePost!: (target: any) => Promise<any>;
   preflight!: ({ operation, input }: any) => any;
   readCreator!: (args: import("./types.js").CreatorOptions) => Promise<any>;
@@ -257,6 +261,16 @@ export class XPlatform {
     this.#open = open;
     this.#ready = ready;
     this.#choose = choose;
+    const threadLikes = new PlatformThreadLikes({
+      browser,
+      open,
+      ready,
+      observed,
+    });
+    this.readThreadLikeWindow =
+      threadLikes.readThreadLikeWindow.bind(threadLikes);
+    this.advanceThreadLikes = threadLikes.advanceThreadLikes.bind(threadLikes);
+    this.likeThreadPost = threadLikes.likeThreadPost.bind(threadLikes);
     this.#createPlatformTargetsResult = createPlatformTargets({
       observed: this.#observed,
       open: this.#open,

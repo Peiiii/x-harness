@@ -1,6 +1,7 @@
 import { FollowPriority } from "./follow-priority.js";
 import { VerifiedTargetPlanning } from "./verified-target-planning.js";
 import { ReplyDiscovery } from "./reply-discovery.js";
+import { ThreadReactions } from "./thread-reactions.js";
 import { sameHandle, samePublishedText } from "./platform-rules.js";
 import { publicationTime } from "./publication-time.js";
 import { FollowbackAudit } from "./followback-audit.js";
@@ -28,6 +29,7 @@ export interface BusinessDependencies {
   platform: BoundaryRecord;
   store: import("./store.js").RoundStore;
   clock?: () => number;
+  sleep?: (ms: number) => Promise<void>;
   executor?: BoundaryRecord;
 }
 
@@ -35,6 +37,7 @@ export class BusinessHarness implements XGrowthHarness {
   captureAccountScreenshot: (
     options: AccountScreenshotOptions,
   ) => Promise<AccountScreenshotResult>;
+  #threadReactions: ThreadReactions;
   #reactions!: IncomingReactions;
   #followbackAudit: FollowbackAudit;
   #platform!: BusinessDependencies["platform"];
@@ -53,6 +56,8 @@ export class BusinessHarness implements XGrowthHarness {
     this.planVerifiedTarget = this.planVerifiedTarget.bind(this);
     this.#executor = dependencies.executor as
       import("./types.js").Executor | undefined;
+    this.#threadReactions = new ThreadReactions(dependencies);
+    this.likePostAndComments = this.likePostAndComments.bind(this);
     this.readFollowbackAudit = this.readFollowbackAudit.bind(this);
     this.replyBatch = this.replyBatch.bind(this);
     this.runFollowPriorityBatch = this.runFollowPriorityBatch.bind(this);
@@ -622,6 +627,9 @@ export class BusinessHarness implements XGrowthHarness {
         if (index >= 0) results[index] = recovered;
       }
     }
+  }
+  public likePostAndComments(args: import("./types.js").ThreadLikeOptions) {
+    return this.#threadReactions.run(args);
   }
   public likeIncomingBatch(args: import("./types.js").IncomingLikeOptions) {
     return this.#reactions.run(args);
