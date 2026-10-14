@@ -508,8 +508,24 @@ export class PlatformCollections {
     limit = 3,
     maxPages = 1,
     processedIds = [],
+    resume = false,
   }: any = {}): Promise<any> {
-    await this.#browser.act({ operation: "searchSources", query });
+    if (resume) {
+      const nav = await this.#observed({ view: "navigation" });
+      if (
+        !nav.page ||
+        xURL(nav.page).pathname !== "/search" ||
+        xURL(nav.page).searchParams.get("q") !== query ||
+        nav.alerts?.length ||
+        nav.needsStateCheck
+      )
+        return {
+          page: nav.page,
+          sources: [],
+          complete: false,
+          missing: ["search-resume-query-unconfirmed"],
+        };
+    } else await this.#browser.act({ operation: "searchSources", query });
     const value = await this.handleCollectSources({
       limit,
       maxPages,

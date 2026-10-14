@@ -225,6 +225,8 @@ export interface BookmarkOptions extends WindowOptions {
 }
 export interface SearchOptions extends WindowOptions {
   query: string;
+  /** Continue only the currently confirmed exact query without reopening its top. */
+  resume?: boolean;
 }
 export interface ReplyDiscoveryOptions {
   queries: string[];

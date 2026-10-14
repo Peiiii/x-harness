@@ -106,6 +106,7 @@ export class ReplyDiscovery {
       rejections: Record<string, number> = {};
     const exhausted = new Set<string>();
     let reason: string | undefined;
+    let lastQuery: string | undefined;
     for (let i = 0; i < maxWindows && candidates.length < target; i++) {
       const now = this.clock(),
         hour = new Date(now + 8 * 3600000).getUTCHours();
@@ -119,21 +120,23 @@ export class ReplyDiscovery {
       );
       const available = args.queries.filter((q) => !exhausted.has(q));
       if (!available.length) break;
-      const query = available[i % available.length];
+      const query = available[0];
       const request = {
         query,
+        resume: lastQuery === query,
         processedIds: [...examined, ...excluded.ids],
         limit: 5,
         maxPages: 10,
         mode: "decision" as const,
       };
       let read = await this.search(request);
+      lastQuery = query;
       if (
         (read.reason === "source-page-unconfirmed" ||
           read.missing?.includes("source-page-unconfirmed")) &&
         new Date(this.clock() + 8 * 3600000).getUTCHours() >= 7
       )
-        read = await this.search(request);
+        read = await this.search({ ...request, resume: true });
       windows.push({
         query,
         evidenceRef: read.evidenceRef,

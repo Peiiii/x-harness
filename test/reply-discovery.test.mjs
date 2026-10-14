@@ -159,3 +159,24 @@ test("deep source windows and exhausted queries are owned by one batch call", as
   assert.equal(calls, 2);
   assert.equal(r.targetReached, false);
 });
+test("batch owns consecutive exact-query continuation, not repeated top searches", async (t) => {
+  const f = fixture(t);
+  let calls = 0;
+  const d = new ReplyDiscovery(
+    async (q) => {
+      assert.equal(q.query, "first");
+      assert.equal(q.resume, calls > 0);
+      calls++;
+      return {
+        status: "observed",
+        evidenceRef: f.proof,
+        sources: Array.from({ length: 5 }, (_, i) => post(calls * 10 + i)),
+      };
+    },
+    f.store,
+    () => NOW,
+  );
+  const r = await d.run({ queries: ["first", "second"], target: 10 });
+  assert.equal(r.targetReached, true);
+  assert.equal(calls, 2);
+});
