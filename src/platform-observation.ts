@@ -81,15 +81,32 @@ export class PlatformObservation {
       !value.alerts?.length &&
       query.view === "posts"
     ) {
-      try {
-        await this.#browser.act({
-          operation: "waitForPosts",
-          ...(waitingForOffset ? { offset: query.offset } : {}),
-        });
-      } catch (error: any) {
-        if (!/timed out|timeout/i.test(error.message)) throw error;
+      const page = value.page;
+      const deadline = Date.now() + 15000;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+          await this.#browser.act({
+            operation: "waitForPosts",
+            ...(waitingForOffset ? { offset: query.offset } : {}),
+          });
+        } catch (error: any) {
+          if (!/timed out|timeout|deadline exceeded/i.test(error.message))
+            throw error;
+        }
+        value = await this.handleObserved(query);
+        if (value.page !== page) {
+          value = { ...value, needsStateCheck: true };
+          break;
+        }
+        if (
+          !waitingForList ||
+          value.posts?.length ||
+          value.loading !== true ||
+          value.alerts?.length ||
+          Date.now() >= deadline
+        )
+          break;
       }
-      value = await this.handleObserved(query);
       if (waitingForList && !query.offset && !value.posts?.length)
         value = { ...value, needsStateCheck: true };
     }

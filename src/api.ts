@@ -17,11 +17,14 @@ import type {
   PostEvidence,
   PersonEvidence,
   FeedbackEvidence,
+  AccountScreenshotOptions,
+  AccountScreenshotResult,
 } from "./types.js";
 import type { BoundaryRecord } from "./boundary.js";
 
 /** Internal dependencies; only the normal X factory is exported from the root. */
 export interface BusinessDependencies {
+  screenshots?: import("./account-screenshots.js").AccountScreenshots;
   platform: BoundaryRecord;
   store: import("./store.js").RoundStore;
   clock?: () => number;
@@ -29,6 +32,9 @@ export interface BusinessDependencies {
 }
 
 export class BusinessHarness implements XGrowthHarness {
+  captureAccountScreenshot: (
+    options: AccountScreenshotOptions,
+  ) => Promise<AccountScreenshotResult>;
   #reactions!: IncomingReactions;
   #followbackAudit: FollowbackAudit;
   #platform!: BusinessDependencies["platform"];
@@ -38,6 +44,12 @@ export class BusinessHarness implements XGrowthHarness {
   #clock!: () => number;
   #executor?: import("./types.js").Executor;
   constructor(dependencies: BusinessDependencies) {
+    this.captureAccountScreenshot =
+      dependencies.screenshots?.capture ||
+      (async () => ({
+        status: "needsCapability",
+        missing: ["DOM-tab-screenshot"],
+      }));
     this.planVerifiedTarget = this.planVerifiedTarget.bind(this);
     this.#executor = dependencies.executor as
       import("./types.js").Executor | undefined;

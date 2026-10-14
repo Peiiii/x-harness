@@ -1,4 +1,5 @@
 import { createBusinessHarness } from "./api.js";
+import { AccountScreenshots } from "./account-screenshots.js";
 import { createFileRoundStore } from "./store.js";
 import { createXPlatform } from "./platform.js";
 import { createDOMXBrowser, createNativeXBrowser } from "./browser.js";
@@ -17,6 +18,9 @@ export function bindXGrowthHarness(options: HarnessOptions): XGrowthHarness {
   return createBusinessHarness({
     platform: createXPlatform(browser, { clock }),
     store,
+    screenshots: tab
+      ? new AccountScreenshots({ tab, store, proofDirectory, clock })
+      : undefined,
     clock,
     executor: executor ? { ...executor, tabId: tab!.id } : undefined,
   });
