@@ -678,7 +678,10 @@ export class DOMEditing {
     );
     if (names.length !== 1) throw new Error("回复按钮未唯一观察");
     const primary = result.posts[0].primary;
-    if (!primary || primary.match(/\/status\/(\d+)$/)?.[1] !== command.postId)
+    if (
+      !primary ||
+      primary.match(/\/status\/(\d+)(?:\/history)?$/)?.[1] !== command.postId
+    )
       throw new Error("回复主帖永久链接未绑定");
     const article = this.#locator("article").filter({
       has: this.#tab.playwright.locator(`a[href=${JSON.stringify(primary)}]`),
