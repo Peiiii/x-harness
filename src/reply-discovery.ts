@@ -104,6 +104,7 @@ export class ReplyDiscovery {
     const candidates: ReplyDiscoveryResult["candidates"] = [],
       windows: ReplyDiscoveryResult["windows"] = [],
       rejections: Record<string, number> = {};
+    const exhausted = new Set<string>();
     let reason: string | undefined;
     for (let i = 0; i < maxWindows && candidates.length < target; i++) {
       const now = this.clock(),
@@ -116,12 +117,14 @@ export class ReplyDiscovery {
         (await this.store.load()).state,
         args.excludedHandles ?? [],
       );
-      const query = args.queries[i % args.queries.length];
+      const available = args.queries.filter((q) => !exhausted.has(q));
+      if (!available.length) break;
+      const query = available[i % available.length];
       const request = {
         query,
         processedIds: [...examined, ...excluded.ids],
         limit: 5,
-        maxPages: 3,
+        maxPages: 10,
         mode: "decision" as const,
       };
       let read = await this.search(request);
@@ -146,6 +149,11 @@ export class ReplyDiscovery {
         reason = read.reason ?? "platform-alert";
         break;
       }
+      if (
+        !read.sources?.length &&
+        read.missing?.includes("bounded-source-window-exhausted")
+      )
+        exhausted.add(query);
       for (const post of read.sources ?? []) {
         if (post.id && examined.has(post.id)) continue;
         if (post.id) examined.add(post.id);

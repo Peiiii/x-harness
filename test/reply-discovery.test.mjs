@@ -138,3 +138,24 @@ test("missing readiness warning gets exactly one read-only retry", async (t) => 
   assert.equal(calls, 2);
   assert.equal(r.targetReached, true);
 });
+
+test("deep source windows and exhausted queries are owned by one batch call", async (t) => {
+  const f = fixture(t);
+  let calls = 0;
+  const d = new ReplyDiscovery(
+    async (q) => {
+      calls++;
+      assert.equal(q.maxPages, 10);
+      return {
+        status: "needsDecision",
+        missing: ["bounded-source-window-exhausted"],
+        sources: [],
+      };
+    },
+    f.store,
+    () => NOW,
+  );
+  const r = await d.run({ queries: ["互关", "串门"], maxWindows: 9 });
+  assert.equal(calls, 2);
+  assert.equal(r.targetReached, false);
+});
