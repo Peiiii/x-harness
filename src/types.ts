@@ -226,6 +226,38 @@ export interface BookmarkOptions extends WindowOptions {
 export interface SearchOptions extends WindowOptions {
   query: string;
 }
+export interface ReplyDiscoveryOptions {
+  queries: string[];
+  target?: number;
+  maxWindows?: number;
+  processedIds?: string[];
+  excludedHandles?: string[];
+  minLikes?: number;
+  maxAgeHours?: number;
+  chineseOnly?: boolean;
+}
+export interface ReplyDiscoveryResult {
+  status: "observed" | "needsDecision";
+  reason?: string;
+  candidates: {
+    post: PostEvidence;
+    evidenceRef: EvidenceRef;
+    query: string;
+    requiresReview: true;
+  }[];
+  examinedIds: string[];
+  windows: {
+    query: string;
+    evidenceRef?: EvidenceRef;
+    status: ReadResult["status"];
+    missing: string[];
+    observed: number;
+  }[];
+  rejections: Record<string, number>;
+  targetReached: boolean;
+  pageComplete: false;
+  evidenceRef?: EvidenceRef;
+}
 export interface ExploreRecommendationOptions extends WindowOptions {}
 export interface CreatorOptions {
   handle: string;
@@ -531,6 +563,9 @@ export interface XGrowthHarness {
     args: FollowbackAuditOptions,
   ): Promise<FollowbackAuditResult>;
   readBookmarks(args: BookmarkOptions): Promise<ReadResult>;
+  discoverReplyCandidates(
+    args: ReplyDiscoveryOptions,
+  ): Promise<ReplyDiscoveryResult>;
   searchSources(args: SearchOptions): Promise<ReadResult>;
   readExploreRecommendations(
     args?: ExploreRecommendationOptions,

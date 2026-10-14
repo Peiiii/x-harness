@@ -1,3 +1,4 @@
+import { ReplyDiscovery } from "./reply-discovery.js";
 import { sameHandle, samePublishedText } from "./platform-rules.js";
 import { publicationTime } from "./publication-time.js";
 import { FollowbackAudit } from "./followback-audit.js";
@@ -54,6 +55,7 @@ export class BusinessHarness implements XGrowthHarness {
     this.readPost = this.readPost.bind(this);
     this.readIncomingConversations = this.readIncomingConversations.bind(this);
     this.readIncomingReplies = this.readIncomingReplies.bind(this);
+    this.discoverReplyCandidates = this.discoverReplyCandidates.bind(this);
     this.searchSources = this.searchSources.bind(this);
     this.readExploreRecommendations =
       this.readExploreRecommendations.bind(this);
@@ -687,6 +689,15 @@ export class BusinessHarness implements XGrowthHarness {
         : {}),
       pageComplete: false as const,
     };
+  }
+  public discoverReplyCandidates(
+    args: import("./types.js").ReplyDiscoveryOptions,
+  ) {
+    return new ReplyDiscovery(
+      (request) => this.searchSources(request),
+      this.#store,
+      this.#clock,
+    ).run(args);
   }
   public searchSources(args: import("./types.js").SearchOptions) {
     return this.read("searchSources", args, args.mode);
