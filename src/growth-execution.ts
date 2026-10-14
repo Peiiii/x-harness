@@ -277,10 +277,24 @@ export class GrowthExecution {
         !context &&
         action.observedPublicURL &&
         this.#evidenceExists(action.observedPublicEvidenceRef);
+      const message = String(error?.message ?? "");
+      const parentPath = action.url?.match(
+        /^https:\/\/(?:x\.com|twitter\.com)(\/[^?#]+)(?:[?#].*)?$/i,
+      )?.[1];
+      const hrefs = [
+        ...message.replaceAll("\\", "").matchAll(/a\[href="([^"]+)"\]/g),
+      ].map((m) => m[1]);
+      const preparedArticleTimeout =
+        preparedBaseline &&
+        action.status === "prepared" &&
+        /locator\.waitFor\(visible\) timed out/.test(message) &&
+        /internal:role=article/.test(message) &&
+        parentPath &&
+        hrefs.some((h) => h === parentPath || h === parentPath + "/history");
       if (
         action.kind !== "reply" ||
         !(preparedBaseline || observedReceipt) ||
-        !/Timed out waiting for URL/.test(String(error?.message ?? ""))
+        !(/Timed out waiting for URL/.test(message) || preparedArticleTimeout)
       )
         throw error;
       // Continue only this read; the existing admission and receipt gates stay intact.

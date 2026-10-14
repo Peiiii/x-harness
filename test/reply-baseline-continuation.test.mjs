@@ -16,16 +16,25 @@ async function run(t, mode, kind = "reply") {
     reads++;
     assert.equal(f.read().actions[0].status, "prepared");
     assert.equal(f.writes.length, 0);
+    if (
+      mode.startsWith("article") &&
+      (reads === 1 || mode === "article-repeated" || mode === "article-foreign")
+    )
+      throw Error(
+        'locator.waitFor(visible) timed out for selector internal:role=article >> internal:has="a[href=\\"/author/status/' +
+          (mode === "article-foreign" ? "1234" : "123") +
+          '\\"]"',
+      );
     if (mode === "unrelated") throw Error("policy denied");
     if (reads === 1 || mode === "repeated")
       throw Error("Timed out waiting for URL https://x.com/author/status/123");
-    if (mode === "alert")
+    if (["alert", "article-alert"].includes(mode))
       return {
         needsStateCheck: false,
         alerts: ["verification required"],
         posts: [],
       };
-    if (mode === "unconfirmed")
+    if (["unconfirmed", "article-unconfirmed"].includes(mode))
       return { needsStateCheck: true, alerts: [], posts: [] };
     return original(action, context);
   };
@@ -113,3 +122,54 @@ for (const mode of ["hinted", "repeated", "unhinted", "missing-proof"]) {
     assert.equal(f.writes.length, 1);
   });
 }
+
+for (const mode of [
+  "article",
+  "article-repeated",
+  "article-alert",
+  "article-unconfirmed",
+  "article-foreign",
+])
+  test(`prepared exact-parent ${mode} continuation stays bounded before intent`, async (t) => {
+    const { f, result, reads } = await run(t, mode);
+    assert.equal(reads, mode === "article-foreign" ? 1 : 2);
+    assert.equal(f.writes.length, mode === "article" ? 1 : 0);
+    assert.equal(
+      result.status,
+      mode === "article" ? "verified" : "needsDecision",
+    );
+    if (mode !== "article")
+      assert.equal(f.read().actions[0].intentAt, undefined);
+  });
+test("unknown article readiness failure never inherits prepared continuation", async (t) => {
+  const f = fixture(t, { planned: [0, 0, 1], actionKinds: ["reply"] });
+  const platform = createXPlatform(f.browser, { clock: () => NOW });
+  const api = createBusinessHarness({
+    platform,
+    store: f.store,
+    clock: () => NOW,
+  });
+  const a = f.read().actions[0];
+  const first = await api.replyToPost({
+    taskId: "round-1",
+    postId: a.postId,
+    text: a.text,
+  });
+  f.edit((s) => {
+    s.actions[0].status = "unknown";
+    s.actions[0].observedPublicURL = first.publicURL;
+    s.actions[0].observedPublicEvidenceRef = first.evidenceRef;
+    s.items[2].verified = 0;
+    s.items[2].unknown = 1;
+  });
+  let reads = 0;
+  platform.findSubmission = async () => {
+    reads++;
+    throw Error(
+      'locator.waitFor(visible) timed out for selector internal:role=article a[href="/author/status/123"]',
+    );
+  };
+  await api.verifySubmission({ taskId: "round-1", actionId: a.id });
+  assert.equal(reads, 1);
+  assert.equal(f.writes.length, 1);
+});
