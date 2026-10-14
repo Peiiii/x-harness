@@ -423,7 +423,7 @@ export class BusinessHarness implements XGrowthHarness {
     const phrases = pending
       .map((a) => '"' + a.text.slice(0, 80).replace(/["\\]/g, " ") + '"')
       .join(" OR ");
-    const query = `from:${pending[0].accountHandle} (${phrases}) since:${new Date(Math.min(...pending.map((a) => Date.parse(a.intentAt)))).toISOString().slice(0, 10)}`;
+    const query = `from:${pending[0].accountHandle} (${phrases}) filter:replies`;
     let found = await this.searchSources({
       query,
       limit: 5,

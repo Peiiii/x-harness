@@ -163,6 +163,8 @@ test("one lookup recovers unique own-account permalinks for the whole unknown ba
     lookups++;
     assert.match(q.query, /from:Pei/);
     assert.match(q.query, /first.*OR.*second/);
+    assert.match(q.query, /filter:replies/);
+    assert.doesNotMatch(q.query, /since:/);
     return {
       fresh: true,
       evidenceRef: f.proof,
