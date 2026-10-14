@@ -484,6 +484,11 @@ export class BusinessHarness implements XGrowthHarness {
       }
       results.push(result);
       if (
+        result.status === "needsDecision" &&
+        result.reason === "publication-baseline-unconfirmed"
+      )
+        continue;
+      if (
         ["waiting", "needsCapability", "needsDecision"].includes(result.status)
       )
         break;

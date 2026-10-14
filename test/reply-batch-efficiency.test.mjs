@@ -363,3 +363,34 @@ test("known recipients use one grouped lookup rather than common-text search", a
   });
   assert.equal(searches, 1);
 });
+
+test("one unconfirmed parent baseline does not block other reviewed new authors", async (t) => {
+  const f = fixture(t);
+  const api = createBusinessHarness({
+    store: f.store,
+    platform: {},
+    clock: () => NOW,
+  });
+  const seen = [];
+  api.replyToPost = async (q) => {
+    seen.push(q.postId);
+    return q.postId === "first"
+      ? {
+          status: "needsDecision",
+          reason: "publication-baseline-unconfirmed",
+          actionId: "a",
+        }
+      : { status: "verified", actionId: "b" };
+  };
+  const r = await api.replyBatch({
+    taskId: "round-1",
+    actions: [
+      { id: "a", kind: "reply", postId: "first" },
+      { id: "b", kind: "reply", postId: "second" },
+    ],
+  });
+  assert.deepEqual(seen, ["first", "second"]);
+  assert.equal(r.results[0].reason, "publication-baseline-unconfirmed");
+  assert.equal(r.results[1].status, "verified");
+  assert.equal(r.status, "needsDecision");
+});
