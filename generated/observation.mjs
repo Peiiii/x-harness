@@ -8,27 +8,29 @@ export const readXObservation = (query) => {
     const atRoot = new URL(location.href).pathname.endsWith(`/status/${threadRootId}`);
     if (!column || !atRoot)
         return { threadConfirmed: false, threadIds: [] };
-    const articles = [...column.querySelectorAll("article")].filter(visible);
+    // CUA's read-only DOM does not implement compareDocumentPosition. One ordered
+    // query preserves the actual article/disclosure/recommendation boundaries.
+    const rows = Array.from(column.querySelectorAll('article,h2,[role="heading"],button,[role="button"]')).filter(visible);
+    const isArticle = (el) => el.tagName === "ARTICLE";
+    const isHeading = (el) => el.tagName === "H2" || el.getAttribute("role") === "heading";
     const id = (article) => [...article.querySelectorAll("time")]
         .filter(visible)
         .map((el) => el.closest("a")?.getAttribute("href"))
         .find((href) => /^\/\w+\/status\/\d+$/.test(href ?? ""))
         ?.match(/\/status\/(\d+)/)?.[1];
-    const rootIndex = articles.findIndex((article) => id(article) === threadRootId);
-    const headings = [...column.querySelectorAll('h2,[role="heading"]')].filter(visible);
-    const boundary = headings.find((el) => /^(?:发现更多|探索更多|更多帖子|为你推荐|Discover more|More posts|You might like)$/i.test(el.innerText.trim()));
-    const beforeBoundary = (el) => !boundary || Boolean(el.compareDocumentPosition(boundary) & 4);
+    const rootIndex = rows.findIndex((el) => isArticle(el) && id(el) === threadRootId);
+    const boundaryIndex = rows.findIndex((el) => isHeading(el) &&
+        /^(?:发现更多|探索更多|更多帖子|为你推荐|Discover more|More posts|You might like)$/i.test(el.innerText.trim()));
     const confirmed = rootIndex >= 0 || threadRootSeen;
-    const inThread = (el) => confirmed &&
-        beforeBoundary(el) &&
-        (rootIndex < 0 ||
-            el === articles[rootIndex] ||
-            Boolean(articles[rootIndex].compareDocumentPosition(el) & 4));
+    const inThread = (index) => confirmed &&
+        (rootIndex < 0 || index >= rootIndex) &&
+        (boundaryIndex < 0 || index < boundaryIndex);
     const ads = (article) => article.querySelector('[data-testid="placementTracking"]') ||
         [...article.querySelectorAll("span")].some((el) => visible(el) && /^(Ad|Promoted|广告|推广)$/.test(el.innerText.trim()));
-    const controls = [...column.querySelectorAll('button,[role="button"]')]
-        .filter(visible)
-        .filter((el) => inThread(el) && !el.closest('[data-testid="tweetText"]'))
+    const controls = rows
+        .filter((el, index) => inThread(index) &&
+        (el.tagName === "BUTTON" || el.getAttribute("role") === "button") &&
+        !el.closest('[data-testid="tweetText"]'))
         .map((el) => ({
         label: el.getAttribute("aria-label") || el.innerText.trim(),
         disabled: el.hasAttribute("disabled"),
@@ -38,21 +40,23 @@ export const readXObservation = (query) => {
     return {
         threadConfirmed: confirmed,
         threadRootPresent: rootIndex >= 0,
-        threadIds: articles
-            .filter((el) => inThread(el) && !ads(el))
+        threadIds: rows
+            .filter((el, index) => isArticle(el) && inThread(index) && !ads(el))
             .map(id)
             .filter(Boolean),
-        threadBoundary: Boolean(boundary),
+        threadBoundary: boundaryIndex >= 0,
         threadExpandControls: controls.slice(0, 20),
     };
 };
-  const readPosts = function readPosts({ offset = 0, limit = 5, targetId = "", } = {}) {
+  const readPosts = function readPosts({ offset = 0, limit = 5, targetId = "", threadRootId = "", } = {}) {
     if (!Number.isInteger(offset) ||
         offset < 0 ||
         !Number.isInteger(limit) ||
         limit < 1 ||
-        limit > 5)
+        limit > (threadRootId ? 1000 : 5))
         throw new Error("offset>=0；limit为1～5");
+    if (threadRootId && !/^\d+$/.test(threadRootId))
+        throw new Error("threadRootId必须是数字公开ID");
     if (targetId && !/^\d+$/.test(targetId))
         throw new Error("targetId必须是数字公开ID");
     const visible = (el) => el.getClientRects().length > 0;
@@ -160,7 +164,10 @@ export const readXObservation = (query) => {
             document.scrollingElement.scrollTop +
                 document.scrollingElement.clientHeight >=
                 document.scrollingElement.scrollHeight - 2,
-        loading: Array.from(document.querySelectorAll('[role="progressbar"]')).some(visible),
+        loading: Array.from(document.querySelectorAll('[role="progressbar"]')).some((el) => visible(el) &&
+            getComputedStyle(el).visibility !== "hidden" &&
+            getComputedStyle(el).opacity !== "0" &&
+            !el.closest('[aria-hidden="true"]')),
         matched: candidates.length,
         offset,
         moreInDOM: candidates.length > offset + posts.length,

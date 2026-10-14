@@ -1,7 +1,9 @@
+import { ThreadLikeActivation } from "./thread-like-activation.js";
 import { attachImage } from "./readers-actions.js";
 
 import type { DOMDependencies } from "./browser-dom-dependencies.js";
 export class DOMEditing {
+  #threadLikeActivation?: ThreadLikeActivation;
   #session!: DOMDependencies["session"];
   #unique!: DOMDependencies["unique"];
   #locator!: DOMDependencies["locator"];
@@ -612,9 +614,29 @@ export class DOMEditing {
     const button = await this.#unique(
       article.getByRole("button", { name: buttons[0].label, exact: true }),
     );
-    await command.beforeSubmit?.();
+    if (query.threadRootId) {
+      this.#threadLikeActivation ??= new ThreadLikeActivation(this.#tab);
+      const activation = await this.#threadLikeActivation.submit({
+        post,
+        page: result.page,
+        beforeSubmit: command.beforeSubmit,
+      });
+      if (activation.preexisting)
+        return { completed: true, value: { ...result, preexisting: true } };
+    } else {
+      await command.beforeSubmit?.();
+      await button.click();
+    }
     this.#session.current = null;
-    await button.click();
+    // Observe the actual rendered acknowledgement; a click receipt is not a like.
+    try {
+      await article
+        .getByRole("button", { name: /喜欢了|取消喜欢|Unlike|Liked/i })
+        .waitFor({ state: "visible", timeoutMs: 2000 });
+    } catch (error: any) {
+      if (!/timed out|timeout|deadline exceeded/i.test(String(error)))
+        throw error;
+    }
     const after = await this.#observe({
       ...query,
       view: "posts",

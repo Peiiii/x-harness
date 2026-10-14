@@ -22,10 +22,22 @@ export class PlatformThreadLikes {
       threadRootId: args.rootId,
       threadRootSeen: this.#rootSeen,
     };
-    let value = await this.#deps.open(
-      { url: args.url, evidenceRef: args.evidenceRef },
-      query,
-    );
+    let value: any;
+    try {
+      value = await this.#deps.open(
+        { url: args.url, evidenceRef: args.evidenceRef },
+        query,
+      );
+    } catch (error: any) {
+      if (!/timed out|timeout|deadline exceeded/i.test(String(error)))
+        throw error;
+      // A committed route can finish rendering after its locator wait expired.
+      // Reobserve this exact page once; never navigate another URL or submit.
+      value = await this.#deps.observed(query);
+      if (value.page !== args.url || value.alerts?.length) throw error;
+    }
+    if (!this.#rootSeen && !value.threadRootPresent && !value.alerts?.length)
+      value = await this.#deps.ready(query);
     if (!this.#rootSeen && !value.threadRootPresent && !value.alerts?.length) {
       await this.#deps.browser.act({
         operation: "openObserved",

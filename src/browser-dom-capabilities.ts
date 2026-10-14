@@ -153,7 +153,9 @@ export class DOMCapabilities {
     return base;
   }
   private threadLikeCapabilities(base: string[]) {
-    base.push(...missingMethods(this.#tab, ["goto", "url"]));
+    base.push(
+      ...missingMethods(this.#tab, ["goto", "url", "getAXState", "click"]),
+    );
     base.push(
       ...missingMethods(this.#tab?.playwright, [
         "locator",
@@ -174,7 +176,11 @@ export class DOMCapabilities {
       );
       if (typeof article.getByRole === "function")
         base.push(
-          ...missingMethods(article.getByRole("button"), ["count", "click"]),
+          ...missingMethods(article.getByRole("button"), [
+            "count",
+            "click",
+            "press",
+          ]),
         );
     }
     return base;

@@ -101,8 +101,9 @@ export class ThreadReactions {
           const result = await this.one(batchId, post, request, deadline);
           if (result.newLike) newLikes++;
           if (
-            result.status &&
-            !["verified", "preexisting"].includes(result.status)
+            result.halt ||
+            (result.status &&
+              !["verified", "preexisting", "unknown"].includes(result.status))
           )
             return this.receipt(
               batchId,
@@ -332,6 +333,12 @@ export class ThreadReactions {
             ? "thread-like-public-state-unconfirmed"
             : undefined,
         newLike: intent && state === "verified",
+        halt: Boolean(
+          observation.alerts?.length ||
+          observation.page !== request.url ||
+          observation.needsStateCheck ||
+          !sameHandle(observation.accountHandle, batch.accountHandle),
+        ),
       };
     } catch (error) {
       const evidenceRef = await store.recordProof({
@@ -342,6 +349,7 @@ export class ThreadReactions {
       if (intent) await this.settle(id, post.id, "unknown", evidenceRef);
       return {
         status: intent ? "unknown" : "needsDecision",
+        halt: true,
         reason: String(error),
       };
     }

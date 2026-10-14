@@ -60,11 +60,13 @@ function scenario(t, options = {}) {
       await args.beforeSubmit();
       clicks.push({ id: args.postId, at: now });
       if (options.throwAfterIntent) throw Error("connection interrupted");
-      if (!options.unknown) liked.add(args.postId);
+      const unconfirmed =
+        options.unknown || options.unknownIds?.includes(args.postId);
+      if (!unconfirmed) liked.add(args.postId);
       return {
         ...view(),
         posts: [view().posts.find((p) => p.id === args.postId)],
-        liked: !options.unknown,
+        liked: !unconfirmed,
         ...(options.afterClick ?? {}),
       };
     },
@@ -250,4 +252,16 @@ test("concurrent same-object intent and other reply pacing are checked again imm
   });
   await paced.api.likePostAndComments({ url, sampleRate: 0 });
   assert.ok(paced.clicks[0].at >= NOW + 1000);
+});
+
+test("one unknown like freezes only that post; other selected comments continue and totals stay unknown", async (t) => {
+  const s = scenario(t, { unknownIds: ["100"] });
+  const out = await s.api.likePostAndComments({ url, sampleRate: 1 });
+  assert.equal(out.status, "unknown");
+  assert.equal(out.counts.unknown, 1);
+  assert.equal(out.counts.verified, 4);
+  assert.equal(out.counts.newLikesThisCall, 4);
+  assert.equal(s.clicks.length, 5);
+  await s.api.likePostAndComments({ url, sampleRate: 1 });
+  assert.equal(s.clicks.length, 5);
 });

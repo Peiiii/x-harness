@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import vm from "node:vm";
+import { readPosts } from "../dist/readers-posts.js";
 import { readThreadLikeSurface } from "../dist/readers-thread-likes.js";
 import { PlatformThreadLikes } from "../dist/platform-thread-likes.js";
 import { DOMEditing } from "../dist/browser-dom-editing.js";
@@ -8,6 +9,7 @@ import { DOMEditing } from "../dist/browser-dom-editing.js";
 function surface({ root = true, seen = false, wrongRoute = false } = {}) {
   const node = (order, text = "") => ({
     order,
+    tagName: "BUTTON",
     innerText: text,
     getClientRects: () => [1],
     getAttribute: () => null,
@@ -17,6 +19,7 @@ function surface({ root = true, seen = false, wrongRoute = false } = {}) {
   });
   const article = (id, order, ad = false) => ({
     ...node(order),
+    tagName: "ARTICLE",
     querySelector: () => (ad ? {} : null),
     querySelectorAll: (q) =>
       q === "time"
@@ -38,13 +41,12 @@ function surface({ root = true, seen = false, wrongRoute = false } = {}) {
   const expand = node(5, "Show more replies"),
     outside = node(8, "Show replies"),
     spam = node(5, "Show probable spam");
+  const heading = { ...node(6, "Discover more"), tagName: "H2" };
   const column = {
-    querySelectorAll: (q) =>
-      q === "article"
-        ? articles
-        : q === 'h2,[role="heading"]'
-          ? [node(6, "Discover more")]
-          : [expand, outside, spam],
+    querySelectorAll: () =>
+      [...articles, expand, outside, spam, heading].sort(
+        (a, b) => a.order - b.order,
+      ),
   };
   const context = vm.createContext({
     URL,
@@ -153,8 +155,6 @@ test("DOM click uses the observed child's article and preserves thread context f
   const query = {
     view: "posts",
     targetId: "101",
-    threadRootId: "100",
-    threadRootSeen: true,
   };
   const result = {
     posts: [
@@ -171,6 +171,7 @@ test("DOM click uses the observed child's article and preserves thread context f
     intents = 0,
     verification;
   const button = {
+    waitFor: async () => {},
     count: async () => 1,
     click: async () => {
       clicks++;
@@ -206,7 +207,7 @@ test("DOM click uses the observed child's article and preserves thread context f
   assert.equal(clicks, 1);
   assert.equal(intents, 1);
   assert.equal(out.value.liked, true);
-  assert.equal(verification.threadRootId, "100");
+  assert.equal(verification.targetId, "101");
 });
 
 test("DOM preexisting like never invokes intent or button click", async () => {
@@ -237,4 +238,78 @@ test("DOM preexisting like never invokes intent or button click", async () => {
     },
   });
   assert.equal(out.value.preexisting, true);
+});
+
+// Execute the actual reader boundary rather than a preconstructed platform view.
+test("actual DOM reader supports thread bulk windows while ordinary reads keep the 5-card bound", () => {
+  assert.throws(() => readPosts({ limit: 6 }), /limit/);
+  assert.throws(
+    () => readPosts({ limit: 1000, threadRootId: "invalid" }),
+    /threadRootId/,
+  );
+  const context = vm.createContext({
+    document: { querySelectorAll: () => [], scrollingElement: null },
+  });
+  const out = vm.runInContext(
+    `(${readPosts.toString()})({limit:1000,threadRootId:"100"})`,
+    context,
+  );
+  assert.equal(out.posts.length, 0);
+  assert.throws(() => readPosts({ limit: 1001, threadRootId: "100" }), /limit/);
+});
+
+test("thread reader recovers one exact committed page after readiness timeout without another navigation", async () => {
+  let opens = 0,
+    reads = 0;
+  const value = {
+    page: "https://x.com/Author/status/100",
+    accountHandle: "Pei",
+    threadRootPresent: true,
+    threadConfirmed: true,
+    threadIds: ["100"],
+    posts: [{ id: "100" }],
+    alerts: [],
+  };
+  const reader = new PlatformThreadLikes({
+    open: async () => {
+      opens++;
+      throw Error("Playwright selector deadline exceeded");
+    },
+    observed: async () => {
+      reads++;
+      return value;
+    },
+    ready: async () => value,
+    browser: {
+      act: async () => {
+        throw Error("unexpected navigation");
+      },
+    },
+  });
+  const out = await reader.readThreadLikeWindow({
+    url: value.page,
+    rootId: "100",
+    evidenceRef: "proof",
+    reset: true,
+  });
+  assert.equal(out.needsStateCheck, false);
+  assert.equal(opens, 1);
+  assert.equal(reads, 1);
+});
+
+test("a CSS-hidden residual loading bar does not keep a finished thread loading", () => {
+  let visibility = "hidden";
+  const indicator = { getClientRects: () => [1], closest: () => null };
+  const context = vm.createContext({
+    document: {
+      scrollingElement: null,
+      querySelectorAll: (q) =>
+        q === '[role="progressbar"]' ? [indicator] : [],
+    },
+    getComputedStyle: () => ({ visibility, opacity: "1" }),
+  });
+  const read = `(${readPosts.toString()})({limit:5})`;
+  assert.equal(vm.runInContext(read, context).loading, false);
+  visibility = "visible";
+  assert.equal(vm.runInContext(read, context).loading, true);
 });
