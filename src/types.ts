@@ -600,6 +600,9 @@ export interface FollowPriorityResult {
   };
 }
 export interface XGrowthHarness {
+  captureAccountScreenshot(
+    options: AccountScreenshotOptions,
+  ): Promise<AccountScreenshotResult>;
   runFollowPriorityBatch(
     args: FollowPriorityOptions,
   ): Promise<FollowPriorityResult>;
@@ -672,3 +675,26 @@ export interface XGrowthHarness {
     mode?: "receipt" | "decision";
   }): Promise<ReadResult & { handle: string; verified: boolean }>;
 }
+
+/** Capture the currently selected, fully loaded own-account surface. */
+export interface AccountScreenshotOptions {
+  surface: "analytics" | "revenue";
+}
+
+export type AccountScreenshotResult =
+  | {
+      status: "captured";
+      surface: AccountScreenshotOptions["surface"];
+      accountHandle: string;
+      page: string;
+      capturedAt: string;
+      imagePath: string;
+      imageSha256: string;
+      headings: string[];
+      labels: string[];
+      dataScope: "visible-viewport-only";
+      imageKind: "real-screenshot";
+      evidenceRef: EvidenceRef;
+    }
+  | { status: "needsCapability"; missing: string[] }
+  | { status: "needsDecision"; reason: string; evidenceRef?: EvidenceRef };
