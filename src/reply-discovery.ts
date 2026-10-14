@@ -154,7 +154,14 @@ export class ReplyDiscovery {
       }
       if (
         !read.sources?.length &&
-        read.missing?.includes("bounded-source-window-exhausted")
+        read.missing?.some((m) =>
+          [
+            "stable-rendered-tail",
+            "pagination-did-not-advance",
+            "source-page-unconfirmed",
+            "search-resume-query-unconfirmed",
+          ].includes(m),
+        )
       )
         exhausted.add(query);
       for (const post of read.sources ?? []) {

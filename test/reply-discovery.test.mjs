@@ -148,7 +148,7 @@ test("deep source windows and exhausted queries are owned by one batch call", as
       assert.equal(q.maxPages, 10);
       return {
         status: "needsDecision",
-        missing: ["bounded-source-window-exhausted"],
+        missing: ["stable-rendered-tail", "bounded-source-window-exhausted"],
         sources: [],
       };
     },
@@ -177,6 +177,33 @@ test("batch owns consecutive exact-query continuation, not repeated top searches
     () => NOW,
   );
   const r = await d.run({ queries: ["first", "second"], target: 10 });
+  assert.equal(r.targetReached, true);
+  assert.equal(calls, 2);
+});
+
+test("finite empty windows are continued and never mistaken for query exhaustion", async (t) => {
+  const f = fixture(t);
+  let calls = 0;
+  const d = new ReplyDiscovery(
+    async (q) => {
+      calls++;
+      assert.equal(q.query, "first");
+      return calls === 1
+        ? {
+            status: "needsDecision",
+            missing: ["bounded-source-window-exhausted"],
+            sources: [],
+          }
+        : { status: "observed", evidenceRef: f.proof, sources: [post(1)] };
+    },
+    f.store,
+    () => NOW,
+  );
+  const r = await d.run({
+    queries: ["first", "second"],
+    target: 1,
+    maxWindows: 2,
+  });
   assert.equal(r.targetReached, true);
   assert.equal(calls, 2);
 });
