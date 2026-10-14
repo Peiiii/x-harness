@@ -426,7 +426,15 @@ export class BusinessHarness implements XGrowthHarness {
     const phrases = pending
       .map((a) => '"' + a.text.slice(0, 80).replace(/["\\]/g, " ") + '"')
       .join(" OR ");
-    const query = `from:${pending[0].accountHandle} (${phrases}) filter:replies`;
+    const recipients = pending.map(
+      (a) => a.conversation?.recipientHandle ?? a.author,
+    );
+    const recipientQuery = recipients.every((h) =>
+      /^[A-Za-z0-9_]{1,15}$/.test(h ?? ""),
+    )
+      ? [...new Set(recipients)].map((h) => `to:${h}`).join(" OR ")
+      : phrases;
+    const query = `from:${pending[0].accountHandle} (${recipientQuery}) filter:replies`;
     let found = await this.searchSources({
       query,
       limit: 5,
