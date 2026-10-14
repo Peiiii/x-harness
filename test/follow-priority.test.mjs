@@ -239,3 +239,50 @@ test("actual shared follow budgets and group gaps select replies instead of retr
     "follow-cadence-group-gap",
   );
 });
+
+test("due recovery settles only original unknown IDs through read-only recovery before the normal batch", async (t) => {
+  const q = await setup(t);
+  q.setClock(q.due);
+  let recovered = [],
+    batches = 0;
+  await q.f.store.transaction(({ state }) => {
+    state.actions[0].status = "unknown";
+    state.actions[0].intentAt = new Date(NOW - 5000).toISOString();
+    return state;
+  });
+  const before = (await q.f.store.load()).state.actions[0];
+  const r = await q.priority.run(
+    {
+      taskId: "round-1",
+      follow: {
+        executor: {
+          id: "follow",
+          scopeKinds: ["follow"],
+          evidenceRef: q.f.proof,
+        },
+        handles: ["Peer1", "Peer2", "Peer3", "Peer4", "Peer5"],
+        recoveryTargets: [{ handle: before.handle }],
+      },
+      reply: { actions: [] },
+    },
+    {
+      reply: async () => {
+        throw Error("reply must yield");
+      },
+      follow: async () => ({
+        verifySubmission: async (x) => {
+          recovered.push(x.actionId);
+          return { status: "unknown" };
+        },
+        followBatch: async () => {
+          batches++;
+          return { status: "verified" };
+        },
+      }),
+    },
+  );
+  assert.equal(r.selected, "follow");
+  assert.deepEqual(recovered, [before.id]);
+  assert.equal(batches, 1);
+  assert.equal((await q.f.store.load()).state.actions[0].status, "unknown");
+});

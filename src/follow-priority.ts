@@ -150,7 +150,7 @@ export class FollowPriority {
       ) => Promise<NonNullable<FollowPriorityResult["replyResult"]>>;
       follow: (
         executor: FollowPriorityOptions["follow"]["executor"],
-      ) => Promise<Pick<XGrowthHarness, "followBatch" | "verifyFollow">>;
+      ) => Promise<Pick<XGrowthHarness, "followBatch" | "verifySubmission">>;
     },
   ): Promise<FollowPriorityResult> {
     if (
@@ -198,13 +198,17 @@ export class FollowPriority {
           replyResult,
           reason: "night-platform-window",
         };
-      const pending = (await this.store.load()).state.actions.some(
+      const pending = (await this.store.load()).state.actions.find(
         (a: BoundaryRecord) =>
           a.kind === "follow" &&
           ["intent", "unknown"].includes(a.status) &&
           sameHandle(a.handle, target.handle),
       );
-      if (pending) await follow.verifyFollow(target);
+      if (pending)
+        await follow.verifySubmission({
+          taskId: args.taskId,
+          actionId: pending.id,
+        });
     }
     const beforeFollow = await priority.inspect(
       args.taskId,
