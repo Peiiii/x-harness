@@ -1,4 +1,5 @@
 import { sameHandle, samePublishedText } from "./platform-rules.js";
+import { publicationTime } from "./publication-time.js";
 import { FollowbackAudit } from "./followback-audit.js";
 import { IncomingReactions } from "./incoming-reactions.js";
 import { createGrowthHarness } from "./growth.js";
@@ -451,8 +452,8 @@ export class BusinessHarness implements XGrowthHarness {
           p.url?.toLowerCase() ===
             `https://x.com/${action.accountHandle}/status/${p.id}`.toLowerCase() &&
           !(action.beforeIds ?? []).includes(p.id) &&
-          Date.parse(p.datetime ?? "") >= Date.parse(action.intentAt) &&
-          Date.parse(p.datetime ?? "") <= this.#clock() + 5000,
+          publicationTime(p) >= Date.parse(action.intentAt) &&
+          publicationTime(p) <= this.#clock() + 5000,
       );
       if (matches.length !== 1) continue;
       let bound = false;

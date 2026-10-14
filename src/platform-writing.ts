@@ -1,4 +1,5 @@
 import type { PlatformDependencies } from "./platform-dependencies.js";
+import { publicationTime } from "./publication-time.js";
 import {
   xURL,
   sameHandle,
@@ -289,9 +290,9 @@ export class PlatformWriting {
       /^\d+$/.test(post.id ?? "") &&
       matchesReviewedAssets(post, action.assets) &&
       !(action.beforeIds ?? []).includes(post.id) &&
-      Number.isFinite(Date.parse(post.datetime)) &&
-      Date.parse(post.datetime) >= Date.parse(action.intentAt) &&
-      Date.parse(post.datetime) <= this.#clock() + 5000 &&
+      Number.isFinite(publicationTime(post)) &&
+      publicationTime(post) >= Date.parse(action.intentAt) &&
+      publicationTime(post) <= this.#clock() + 5000 &&
       !post.needsExpansion
     );
   }
