@@ -1,6 +1,6 @@
 # 原帖与评论抽样点赞
 
-用户于2026-10-14要求：调用方只选帖子，不先收集评论列表；harness 内部自动点赞原帖和评论。追加要求评论约60%抽样、时间分布优化且不过于缓慢。flow=standard，L3，plan=not-required；retrospective_state=pending。
+用户于2026-10-14要求：调用方只选帖子，不先收集评论列表；harness 内部自动点赞原帖和评论。追加要求评论约60%抽样、时间分布优化且不过于缓慢。flow=standard，L3，plan=not-required；retrospective_state=completed。
 
 ## 主链路与边界
 
@@ -20,7 +20,7 @@ parent-goal：仅URL输入即可由harness遍历并抽样点赞原帖/评论，�
 | TL-02 | true | 已赞不取消，未知不再提交，并发intent保守防重，恢复不重抽 | passed；下方验证 |
 | TL-03 | true | 间隔1–2秒、核验读取计入间隔、预算/夜间/告警停止；单调用内执行 | passed；下方验证 |
 | TL-04 | true | 类型、行为、真实浏览器边界验证，紧凑结果区分checkpoint和实际已加载范围 | passed；下方验证 |
-| TL-05 | true | 精确提交推送、匹配Skill、可用构建/适用发布；不混入WIP | not-run |
+| TL-05 | true | 精确提交推送、匹配Skill、可用构建/适用发布；不混入WIP | passed；0.2.71 npm精确归档验证、标准安装匹配Skill/runtime、consumer检查191 passed/1 skipped |
 
 黄金验收：绑定原台账和真实Chrome→只传观察到的帖子URL→原帖+抽样评论公开状态变为已赞→同批次恢复不重抽/不取消→回执列新增/已有/抽样跳过/未知及范围，不宣称全量。
 
@@ -28,8 +28,8 @@ parent-goal：仅URL输入即可由harness遍历并抽样点赞原帖/评论，�
 
 ## 验证与返工证据
 
-372项完整回归、类型/CLI/公共合同与Skill示例检查通过。真实Chrome批次观察原帖+6条评论，稳定选中5条（原帖+4评论），全部公开点赞核验通过，另2条抽样跳过；恢复执行只提交剩余2条，再次执行newLikesThisCall=0并到达loaded-thread-boundary。网络轨迹每个完成对象只有一条FavoriteTweet，无UnfavoriteTweet。实际间隔1.43、1.70、1.92秒；核验/读取计入间隔。实际证明及早期试验未知保留consumer原台账，不进入公开源码。
+388项完整回归、类型/CLI/公共合同与Skill示例检查通过。真实Chrome批次观察原帖+6条评论，稳定选中5条（原帖+4评论），全部公开点赞核验通过，另2条抽样跳过；恢复执行只提交剩余2条，再次执行newLikesThisCall=0并到达loaded-thread-boundary。网络轨迹每个完成对象只有一条FavoriteTweet，无UnfavoriteTweet。实际间隔1.43、1.70、1.92秒；核验/读取计入间隔。实际证明及早期试验未知保留consumer原台账，不进入公开源码。
 
 实际边界修复：CUA只读DOM不实现compareDocumentPosition，改为单次有序DOM选择；线程窗口沿原readPosts显式放宽，普通读取仍1–5；CSS visibility:hidden的残留progressbar不得阻止稳定尾部；仅一次精确URL就绪超时只读续验。键盘按钮聚焦实际会先点击并再次激活，已移除该路径，用已观察AX索引单次激活；测试保护一intent/一click、无键盘。Unknown只冻结对象，连接/身份/平台警告冻结批次。方案与实现Review基于上述修复后版本：no findings。
 
-复盘：浏览器缓存/定位器假设需要真实边界测试；具体发现已修原reader/activation owner并有回归。不新增全局提示词或通信规则。发布后更新TL-05和retrospective_state；发布时间进入翌日不改变本事项日期。
+复盘：浏览器缓存/定位器假设需要真实边界测试；具体发现已修原reader/activation owner并有回归。不新增全局提示词或通信规则。已发布并安装0.2.71，registry gitHead=01f48cbd22e19f3ea3ff7bfa909119ba2d36fe0c；发布时间进入翌日不改变本事项日期。
