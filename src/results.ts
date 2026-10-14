@@ -120,6 +120,23 @@ export function source(value: unknown, page?: string): PostEvidence {
     );
   if (out.links)
     out.links = out.links.filter((link) => isContentLink(link, out));
+  if (raw.metrics !== undefined) {
+    const metrics = list(raw.metrics).flatMap((value): string[] => {
+      if (typeof value === "string") return [value];
+      const label = object(value).label;
+      return typeof label === "string" ? [label] : [];
+    });
+    out.metrics = [
+      ...new Set(
+        metrics.filter(
+          (label) =>
+            /(?:回复|转帖|喜欢|书签|观看|查看|引用|replies|reply|reposts?|retweets?|likes?|bookmarks?|views?|quotes?)/i.test(
+              label,
+            ) && /\d/.test(label),
+        ),
+      ),
+    ];
+  }
   if (strings(raw.missing).length) out.missing = strings(raw.missing);
   return out;
 }
@@ -248,6 +265,29 @@ export function readResult(
   if (out.status !== "observed" && out.complete === undefined)
     out.complete = false;
   if (raw.ids !== undefined) out.ids = strings(raw.ids);
+  if (operation === "readExploreRecommendations") {
+    const origin = object(raw.sourceOrigin);
+    try {
+      const page = new URL(String(origin.page));
+      if (
+        origin.kind === "explore-recommendations" &&
+        page.protocol === "https:" &&
+        page.hostname === "x.com" &&
+        !page.username &&
+        !page.password &&
+        !page.port &&
+        page.pathname.replace(/\/+$/, "") === "/explore" &&
+        ["为你推荐", "For you"].includes(String(origin.selectedTab))
+      )
+        out.sourceOrigin = {
+          kind: "explore-recommendations",
+          page: page.href,
+          selectedTab: String(origin.selectedTab) as "为你推荐" | "For you",
+        };
+    } catch {
+      /* Unverified provenance is omitted at the public business boundary. */
+    }
+  }
   const missing = strings(raw.missing);
   if (list(raw.alerts).length && !missing.includes("platform-alert"))
     missing.push("platform-alert");

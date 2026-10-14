@@ -41,7 +41,22 @@ export const source = (post: any, page: any) => ({
   images: post.images ?? [],
   media: post.media ?? [],
   links: post.links ?? [],
-  metrics: [...(post.buttons ?? []), ...(post.metrics ?? [])],
+  metrics: [
+    ...new Set(
+      [...(post.buttons ?? []), ...(post.metrics ?? [])]
+        .map((metric: any) =>
+          typeof metric === "string" ? metric : metric?.label,
+        )
+        .filter(
+          (label: any) =>
+            typeof label === "string" &&
+            /(?:回复|转帖|喜欢|书签|观看|查看|引用|replies|reply|reposts?|retweets?|likes?|bookmarks?|views?|quotes?)/i.test(
+              label,
+            ) &&
+            /\d/.test(label),
+        ),
+    ),
+  ],
   needsExpansion: post.needsExpansion,
   missing: [
     ...(post.missing ?? []),

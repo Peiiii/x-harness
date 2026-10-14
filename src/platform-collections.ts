@@ -1,5 +1,18 @@
 import type { PlatformDependencies } from "./platform-dependencies.js";
 import { xURL, source } from "./platform-rules.js";
+
+const exploreNavigationEvidence = (nav: any) => ({
+  page: nav.page,
+  headings: (nav.headings ?? []).slice(0, 5),
+  tabs: (nav.controls ?? [])
+    .filter((control: any) => control.role === "tab")
+    .slice(0, 8)
+    .map((control: any) => ({
+      label: control.label,
+      selected: control.selected === true,
+    })),
+});
+
 export class PlatformCollections {
   #ready!: PlatformDependencies["ready"];
   #observed!: PlatformDependencies["observed"];
@@ -8,6 +21,9 @@ export class PlatformCollections {
   collectSources!: ({ processedIds, maxPages, limit }?: any) => Promise<any>;
   readCreator!: (args: import("./types.js").CreatorOptions) => Promise<any>;
   readBookmarks!: ({ folder, ...window }?: any) => Promise<any>;
+  readExploreRecommendations!: (
+    args?: import("./types.js").ExploreRecommendationOptions,
+  ) => Promise<any>;
   searchSources!: ({
     query,
     limit,
@@ -29,6 +45,8 @@ export class PlatformCollections {
     this.readCreator = this.handleReadCreator.bind(this);
     this.readBookmarks = this.handleReadBookmarks.bind(this);
     this.searchSources = this.handleSearchSources.bind(this);
+    this.readExploreRecommendations =
+      this.handleReadExploreRecommendations.bind(this);
   }
   private async handleCollectSources({
     processedIds = [],
@@ -508,6 +526,150 @@ export class PlatformCollections {
         missing: ["search-query-unconfirmed"],
       };
     return { ...value, query };
+  }
+  private async handleReadExploreRecommendations({
+    limit = 3,
+    maxPages = 1,
+    processedIds = [],
+  }: import("./types.js").ExploreRecommendationOptions = {}): Promise<any> {
+    await this.#browser.act({ operation: "openExploreRecommendations" });
+    let nav = await this.#ready({ view: "navigation" });
+    const page = (value: any) => {
+      try {
+        const url = xURL(value);
+        return url.pathname.replace(/\/+$/, "") === "/explore" ? url : null;
+      } catch {
+        return null;
+      }
+    };
+    const entryPage = page(nav.page);
+    if (!entryPage)
+      return {
+        status: "needsDecision",
+        fresh: true,
+        complete: false,
+        page: nav.page,
+        missing: ["explore-page-unconfirmed"],
+        sources: [],
+        navigationEvidence: exploreNavigationEvidence(nav),
+      };
+    if (!nav.alerts?.length && nav.needsStateCheck) {
+      try {
+        await this.#browser.act({ operation: "waitForPosts" });
+      } catch (error: any) {
+        if (!/timed out|timeout/i.test(error.message)) throw error;
+      }
+      nav = await this.#ready({ view: "navigation" });
+    }
+    if (nav.alerts?.length)
+      return {
+        status: "needsDecision",
+        fresh: true,
+        complete: false,
+        page: nav.page,
+        missing: ["platform-alert"],
+        sources: [],
+        navigationEvidence: exploreNavigationEvidence(nav),
+      };
+    if (nav.needsStateCheck) {
+      const diagnosticRead = await this.handleCollectSources({
+        limit,
+        maxPages,
+        processedIds,
+      });
+      const sameExplorePage = page(diagnosticRead.page);
+      return {
+        ...diagnosticRead,
+        status: "needsDecision",
+        complete: false,
+        missing: [
+          ...new Set([
+            "explore-navigation-unconfirmed",
+            ...(!sameExplorePage ? ["explore-page-changed-during-read"] : []),
+            ...(diagnosticRead.missing ?? []),
+          ]),
+        ],
+        sources: sameExplorePage ? (diagnosticRead.sources ?? []) : [],
+        navigationEvidence: exploreNavigationEvidence(nav),
+      };
+    }
+    const recommended = (nav.controls ?? []).filter(
+      (control: any) =>
+        control.role === "tab" &&
+        ["为你推荐", "For you"].includes(control.label.split("\n")[0]),
+    );
+    if (recommended.length !== 1)
+      return {
+        status: "needsDecision",
+        fresh: true,
+        complete: false,
+        page: entryPage.href,
+        missing: ["explore-recommended-tab-unconfirmed"],
+        sources: [],
+        navigationEvidence: exploreNavigationEvidence(nav),
+      };
+    const expectedLabel = recommended[0].label.split("\n")[0] as
+      "为你推荐" | "For you";
+    if (
+      !recommended[0].selected &&
+      !(await this.#choose(
+        nav,
+        (control: any) =>
+          control.role === "tab" &&
+          control.label.split("\n")[0] === expectedLabel,
+      ))
+    )
+      return {
+        status: "needsDecision",
+        fresh: true,
+        complete: false,
+        page: entryPage.href,
+        missing: ["explore-recommended-tab-selection-unavailable"],
+        sources: [],
+        navigationEvidence: exploreNavigationEvidence(nav),
+      };
+    nav = await this.#ready({ view: "navigation" });
+    const selected = (nav.controls ?? []).filter(
+      (control: any) =>
+        control.role === "tab" &&
+        control.label.split("\n")[0] === expectedLabel &&
+        control.selected,
+    );
+    if (
+      !page(nav.page) ||
+      nav.needsStateCheck ||
+      nav.alerts?.length ||
+      selected.length !== 1
+    )
+      return {
+        status: "needsDecision",
+        fresh: true,
+        complete: false,
+        page: nav.page,
+        missing: ["explore-recommended-tab-selection-unconfirmed"],
+        sources: [],
+        navigationEvidence: exploreNavigationEvidence(nav),
+      };
+    const value = await this.handleCollectSources({
+      limit,
+      maxPages,
+      processedIds,
+    });
+    if (!page(value.page))
+      return {
+        ...value,
+        status: "needsDecision",
+        complete: false,
+        missing: ["explore-page-changed-during-read"],
+      };
+    return {
+      ...value,
+      sourceOrigin: {
+        kind: "explore-recommendations",
+        page: entryPage.href,
+        selectedTab: expectedLabel,
+      },
+    };
   }
 }
 export function createPlatformCollections(

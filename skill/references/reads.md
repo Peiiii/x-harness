@@ -6,6 +6,7 @@
 | readCreator | handle | target (10;1–50), maxScrolls, navigate, expand, mode |
 | readBookmarks | folder (observed name), or discoverOnly:true | processedIds, limit (1–5), maxPages (1–10), resume, mode |
 | searchSources | query | processedIds, limit (1–5), maxPages (1–10), mode |
+| readExploreRecommendations | none | processedIds, limit (1–5), maxPages (1–10), mode |
 | readPost | target: {postId,url,evidenceRef} | includeContext, resolveQuote, mode |
 | readPerson | target: {handle,url,evidenceRef} | mode |
 | readPeople | target: {url,evidenceRef} | offset, limit (1–5), advance, mode |
@@ -13,20 +14,20 @@
 | inspectAccount | none | mode |
 | inspectRound | taskId (original batch ID) | none |
 
-Targets require proof. Native creator: selected profile, navigate:false; relative time unknown; stop on page change.
+Targets need proof. Native `readCreator` requires a selected profile (`navigate:false`); relative time is unknown. Stop on route changes.
 
-Bookmarks resume:true continues the bound folder; rendered tail ≠ full proof.
+Bookmarks `resume:true` continues the bound folder; rendered tail ≠ full proof.
 
-observed ≠ field completeness; pageComplete:false = scope. View media before describing; preserve target text; keep other reads local.
+Observed ≠ complete; `pageComplete:false` means finite scope. Preserve full text; view media before describing; keep raw reads local.
 
-`readIncomingReplies`: ledger account; skip settled/intent/unknown and processedIds across dates. readPost(includeContext:true) for ancestors; missing context blocks review. Dedup publicly.
+Incoming replies: ledger only; carry processedIds; skip settled/intent/unknown. Read parents with `readPost(includeContext:true)`; deduplicate.
 
-Incoming: `readIncomingConversations({targets?,...window})` combines discovery/context (≤5); no preceding `readIncomingReplies`. Preflight/source failures remain visible. Returns ancestorPath, nodes, confirmed edges, unknown parents and attempts; rootCandidateId is only the earliest loaded ancestor. Missing context blocks review; never guess roots/edges or inbox clearance.
+Incoming conversations: `readIncomingConversations({targets?,...window})` discovers/reads ≤5 chains in one call. Targets need proof; returns nodes, ancestors, confirmed edges, unknown parents and attempts. `rootCandidateId` may not be root. Missing context blocks review; don't infer edges or clearance.
 
 `resolveQuote:true` follows one observed card and returns `post.quoteSource` only after exact destination/body/author/time binding.
 
-`readPeople`: observed follower/following; offset reuses cells; advance scrolls a fresh unique handle. Full bio/blue/relationship; dedup; unknowns need profiles. No Native.
+`readPeople`: selected followers/following; `offset` reuses cells, `advance` scrolls. Returns bio, blue, relationship; dedup. Unknowns need profiles; Native unsupported.
 
 Discovery: names only.
 
-Source decisions retain visible metric labels for batch screening; absent counts stay unknown.
+Count `sourceOrigin` only with confirmed `/explore` “For you” tab; exclude trends/search. Preserve visible counts; absent stays unknown.

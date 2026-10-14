@@ -26,6 +26,7 @@ export interface PlatformDependencies {
     media: any;
     links: any;
     needsExpansion: any;
+    metrics: string[];
     missing: any[];
   };
   collectSources: ({ processedIds, maxPages, limit }?: any) => Promise<any>;
@@ -40,6 +41,9 @@ export interface PlatformDependencies {
     maxPages,
     processedIds,
   }?: any) => Promise<any>;
+  readExploreRecommendations: (
+    args?: import("./types.js").ExploreRecommendationOptions,
+  ) => Promise<any>;
   readFeedback: ({ targets, replyLimit }?: any) => Promise<any>;
   readPerson: (target: any) => Promise<any>;
   readPost: (target: any) => Promise<any>;

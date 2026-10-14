@@ -67,6 +67,7 @@ export class GrowthHarness {
   readPerson!: (args: any) => Promise<any>;
   readBookmarks!: (args: any) => Promise<any>;
   searchSources!: (args: any) => Promise<any>;
+  readExploreRecommendations!: (args?: any) => Promise<any>;
   readFeedback!: (args: any) => Promise<any>;
   runGrowthRound!: (args: any) => Promise<any>;
   resumeGrowthRound!: (args: any) => Promise<any>;

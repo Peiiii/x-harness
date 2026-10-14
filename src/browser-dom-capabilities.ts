@@ -62,7 +62,12 @@ export class DOMCapabilities {
       return this.creatorCapabilities(base, operation);
     }
     if (
-      ["readBookmarks", "searchSources", "readFeedback"].includes(operation)
+      [
+        "readBookmarks",
+        "searchSources",
+        "readExploreRecommendations",
+        "readFeedback",
+      ].includes(operation)
     ) {
       return this.collectionCapabilities(base, operation);
     }

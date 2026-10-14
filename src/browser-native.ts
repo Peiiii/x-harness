@@ -193,9 +193,13 @@ export class NativeXBrowser {
   public capabilities(operation: any): any {
     if (operation === "readPeople") return ["native-people-blue-evidence"];
     if (
-      ["readBookmarks", "searchSources", "readFeedback", "likePost"].includes(
-        operation,
-      )
+      [
+        "readBookmarks",
+        "searchSources",
+        "readExploreRecommendations",
+        "readFeedback",
+        "likePost",
+      ].includes(operation)
     )
       return [`native.${operation}`];
     const names =

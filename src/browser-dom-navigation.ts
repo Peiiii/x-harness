@@ -7,6 +7,7 @@ export class DOMNavigation {
   #observe!: DOMDependencies["observe"];
   openQuote!: (command: any) => Promise<any>;
   searchSources!: (command: any) => Promise<void>;
+  openExploreRecommendations!: (command: any) => Promise<void>;
   waitForFolder!: (command: any) => Promise<void>;
   waitForPosts!: (command: any) => Promise<void>;
   openObserved!: (command: any) => Promise<void>;
@@ -21,6 +22,8 @@ export class DOMNavigation {
     this.#observe = observe;
     this.openQuote = this.handleOpenQuote.bind(this);
     this.searchSources = this.handleSearchSources.bind(this);
+    this.openExploreRecommendations =
+      this.handleOpenExploreRecommendations.bind(this);
     this.waitForFolder = this.handleWaitForFolder.bind(this);
     this.waitForPosts = this.handleWaitForPosts.bind(this);
     this.openObserved = this.handleOpenObserved.bind(this);
@@ -89,6 +92,10 @@ export class DOMNavigation {
     )
       await this.#tab.goto(destination);
     return;
+  }
+  private async handleOpenExploreRecommendations() {
+    this.#session.current = null;
+    await this.#tab.goto("https://x.com/explore");
   }
   private async handleWaitForFolder(command: any) {
     if (command.selected) {

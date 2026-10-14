@@ -35,6 +35,8 @@ export class GrowthTasks {
     this.runGrowthRound = this.runGrowthRound.bind(this);
     this.readFeedback = this.readFeedback.bind(this);
     this.searchSources = this.searchSources.bind(this);
+    this.readExploreRecommendations =
+      this.readExploreRecommendations.bind(this);
     this.readBookmarks = this.readBookmarks.bind(this);
     this.readPerson = this.readPerson.bind(this);
     this.readPeople = this.readPeople.bind(this);
@@ -68,9 +70,13 @@ export class GrowthTasks {
   public preflight({ operation, input = {} }: any) {
     const executor = this.#executor;
     if (
-      ["readPeople", "readBookmarks", "searchSources", "readFeedback"].includes(
-        operation,
-      )
+      [
+        "readPeople",
+        "readBookmarks",
+        "searchSources",
+        "readExploreRecommendations",
+        "readFeedback",
+      ].includes(operation)
     )
       return this.#platform.preflight({ operation, input });
     if (["inspectRound", "verifySubmission"].includes(operation))
@@ -150,6 +156,9 @@ export class GrowthTasks {
   }
   public searchSources(args: any) {
     return this.#readTask("searchSources", args);
+  }
+  public readExploreRecommendations(args: any = {}) {
+    return this.#readTask("readExploreRecommendations", args);
   }
   public readFeedback(args: any) {
     return this.#readTask("readFeedback", args);

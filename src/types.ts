@@ -86,6 +86,11 @@ export interface Diagnostic {
   next?: "inspect-local-proof" | "restore-proof-store";
   evidenceRef?: EvidenceRef;
 }
+export interface SourceOriginEvidence {
+  kind: "explore-recommendations";
+  page: string;
+  selectedTab: "为你推荐" | "For you";
+}
 export interface ReadResult {
   status: "observed" | "needsDecision" | "needsCapability";
   fresh?: boolean;
@@ -113,6 +118,7 @@ export interface ReadResult {
     scopeComplete?: boolean;
   };
   sources?: PostEvidence[];
+  sourceOrigin?: SourceOriginEvidence;
   post?: PostEvidence;
   context?: PostEvidence[];
   threadPosts?: PostEvidence[];
@@ -220,6 +226,7 @@ export interface BookmarkOptions extends WindowOptions {
 export interface SearchOptions extends WindowOptions {
   query: string;
 }
+export interface ExploreRecommendationOptions extends WindowOptions {}
 export interface CreatorOptions {
   handle: string;
   target?: number;
@@ -525,6 +532,9 @@ export interface XGrowthHarness {
   ): Promise<FollowbackAuditResult>;
   readBookmarks(args: BookmarkOptions): Promise<ReadResult>;
   searchSources(args: SearchOptions): Promise<ReadResult>;
+  readExploreRecommendations(
+    args?: ExploreRecommendationOptions,
+  ): Promise<ReadResult>;
   readIncomingReplies(args?: IncomingReplyOptions): Promise<ReadResult>;
   readIncomingConversations(
     args?: IncomingConversationOptions,
