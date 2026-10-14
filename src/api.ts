@@ -1,3 +1,4 @@
+import { FollowPriority } from "./follow-priority.js";
 import { VerifiedTargetPlanning } from "./verified-target-planning.js";
 import { ReplyDiscovery } from "./reply-discovery.js";
 import { sameHandle, samePublishedText } from "./platform-rules.js";
@@ -42,6 +43,7 @@ export class BusinessHarness implements XGrowthHarness {
       import("./types.js").Executor | undefined;
     this.readFollowbackAudit = this.readFollowbackAudit.bind(this);
     this.replyBatch = this.replyBatch.bind(this);
+    this.runFollowPriorityBatch = this.runFollowPriorityBatch.bind(this);
     this.likeIncomingBatch = this.likeIncomingBatch.bind(this);
     this.#reactions = new IncomingReactions(dependencies);
     this.verifyFollow = this.verifyFollow.bind(this);
@@ -342,9 +344,28 @@ export class BusinessHarness implements XGrowthHarness {
       this.#clock,
     ).run(args);
   }
+  public async runFollowPriorityBatch(
+    args: import("./types.js").FollowPriorityOptions,
+  ) {
+    return new FollowPriority(this.#store, this.#clock).run(args, {
+      reply: (options) => this.replyBatch(options),
+      follow: async (executor) => {
+        const original = (await this.#store.load()).state.executions[
+          executor.id
+        ];
+        return new BusinessHarness({
+          store: this.#store,
+          platform: this.#platform,
+          clock: this.#clock,
+          executor: { ...original, ...executor },
+        });
+      },
+    });
+  }
   public async replyBatch(args: {
     taskId: string;
     actions: import("./types.js").PreparedAction[];
+    followPriorityExecutorId?: string;
     verifiedTarget?: Omit<
       import("./types.js").VerifiedTargetPlanOptions,
       "taskId" | "kind"
@@ -364,6 +385,29 @@ export class BusinessHarness implements XGrowthHarness {
     const results: ActionResult[] = [];
     for (const action of args.actions) {
       if (action.kind !== "reply") continue;
+      const existingStatus = args.followPriorityExecutorId
+        ? (await this.#store.load()).state.actions.find(
+            (a: BoundaryRecord) => a.id === action.id,
+          )?.status
+        : undefined;
+      if (
+        args.followPriorityExecutorId &&
+        (!existingStatus || existingStatus === "prepared")
+      ) {
+        const priority = await new FollowPriority(
+          this.#store,
+          this.#clock,
+        ).inspect(args.taskId, args.followPriorityExecutorId);
+        if (priority.ready || priority.blocked) {
+          results.push({
+            status: "needsDecision",
+            taskId: args.taskId,
+            actionId: action.id,
+            reason: priority.ready ? "follow-priority-ready" : priority.reason,
+          });
+          break;
+        }
+      }
       if (args.verifiedTarget) {
         const plan = await this.planVerifiedTarget({
           ...args.verifiedTarget,
@@ -403,6 +447,23 @@ export class BusinessHarness implements XGrowthHarness {
         if (Number.isFinite(delay) && delay <= 30000) {
           if (delay > 0)
             await new Promise((resolve) => setTimeout(resolve, delay));
+          const afterWait = args.followPriorityExecutorId
+            ? await new FollowPriority(this.#store, this.#clock).inspect(
+                args.taskId,
+                args.followPriorityExecutorId,
+              )
+            : undefined;
+          if (afterWait?.ready || afterWait?.blocked) {
+            results.push({
+              status: "needsDecision",
+              taskId: args.taskId,
+              actionId: action.id,
+              reason: afterWait?.ready
+                ? "follow-priority-ready"
+                : afterWait?.reason,
+            });
+            break;
+          }
           result = await this.replyToPost({
             taskId: args.taskId,
             postId: action.postId,
@@ -427,7 +488,14 @@ export class BusinessHarness implements XGrowthHarness {
       )
         break;
     }
-    await this.recoverBatchReplyLinks(args.taskId, results);
+    const beforeRecovery = args.followPriorityExecutorId
+      ? await new FollowPriority(this.#store, this.#clock).inspect(
+          args.taskId,
+          args.followPriorityExecutorId,
+        )
+      : undefined;
+    if (beforeRecovery?.reason !== "night-platform-window")
+      await this.recoverBatchReplyLinks(args.taskId, results);
     return {
       status:
         results.length === args.actions.length &&

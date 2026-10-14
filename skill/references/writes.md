@@ -99,3 +99,9 @@ Optional executor.replyEmojiPolicy={sampleRate,maxInRecent} gates new reply draf
 ## Executor-local read restrictions
 
 A non-actionable item remains account-wide unless its original ledger explicitly records `executionRestriction:{scope:'executor',executorId,reason,evidenceRef}`. The exact current reason and evidence in `blockEvidence` must match, and the restricting executor must exist with the same kind. Another authorized executor can proceed through the root API with its own identity/source proof; the affected executor stays blocked. Missing/stale scope proof, shared capacity, alerts, windows, pacing, quality and unknown guards still reject. Do not infer locality from a message or silently clear another executor's marker.
+
+## Follow priority during reply gaps
+
+Use `runFollowPriorityBatch({taskId,follow:{executor:{id,scopeKinds:['follow'],evidenceRef},handles,pacing?,recoveryTargets?},reply:{actions,verifiedTarget?}})` on the current reply-scoped root. Supply the existing authorized follow actor, reviewed original handles, and optional original unknown person targets. The root serially selects a follow batch when available; before a due backoff it executes the reviewed reply batch. New reply boundaries and short pacing waits recheck follow readiness and hand over in the same call. Only a matching evidenced expired backoff can reopen, without clearing other actor markers; unknowns are read-only verified, never resubmitted. All normal time, authorization, budget, review and account serialization gates remain.
+
+Return: `selected:'follow'|'reply'|'none'`, `followResult?`, `replyResult?`, `reason?`, `resumeAt?`. Continue through this same API while work is available. Midnight returns without platform work. Counts/results remain original-ledger facts; a batch receipt never guarantees the daily target.

@@ -573,13 +573,43 @@ export type HostConnectionResult =
       tab?: CuaTab;
     };
 
+export interface FollowPriorityOptions {
+  taskId: string;
+  follow: FollowOptions & {
+    executor: Executor;
+    recoveryTargets?: {
+      handle: string;
+      url?: string;
+      evidenceRef?: EvidenceRef;
+    }[];
+  };
+  reply: {
+    actions: PreparedAction[];
+    verifiedTarget?: Omit<VerifiedTargetPlanOptions, "taskId" | "kind">;
+  };
+}
+export interface FollowPriorityResult {
+  selected: "follow" | "reply" | "none";
+  reason?: string;
+  resumeAt?: string;
+  followResult?: BatchResult;
+  replyResult?: {
+    status: "verified" | "needsDecision";
+    reason?: string;
+    results: ActionResult[];
+  };
+}
 export interface XGrowthHarness {
+  runFollowPriorityBatch(
+    args: FollowPriorityOptions,
+  ): Promise<FollowPriorityResult>;
   planVerifiedTarget(
     args: VerifiedTargetPlanOptions,
   ): Promise<VerifiedTargetPlanResult>;
   replyBatch(args: {
     taskId: string;
     actions: PreparedAction[];
+    followPriorityExecutorId?: string;
     verifiedTarget?: Omit<VerifiedTargetPlanOptions, "taskId" | "kind">;
   }): Promise<{
     status: "verified" | "needsDecision";
