@@ -73,3 +73,39 @@ for (const mode of [
     assert.equal(navigations, mode === "unchanged" ? 2 : 1);
   });
 }
+
+test("thread reads directly open the evidenced root before checking membership", async () => {
+  const url = "https://x.com/peer/status/123";
+  let page = "https://x.com/home";
+  const commands = [];
+  const observation = createPlatformObservation({
+    clock: () => Date.parse("2026-10-15T01:00:00Z"),
+    browser: {
+      observe: async () => ({
+        page,
+        accountHandle: "owner",
+        alerts: [],
+        needsStateCheck: page !== url,
+        threadRootPresent: page === url,
+        posts: page === url ? [{ id: "123", body: "Root" }] : [],
+      }),
+      act: async (command) => {
+        commands.push(command);
+        // A scoped reader cannot validate an inert visible link on another thread.
+        if (!command.forceNavigation)
+          throw Error(`Timed out waiting for URL ${url}`);
+        page = url;
+      },
+    },
+  });
+  const result = await observation.open(
+    { url, evidenceRef: "observed-root-proof" },
+    { view: "posts", threadRootId: "123" },
+  );
+  assert.equal(commands.length, 1);
+  assert.equal(commands[0].operation, "openObserved");
+  assert.equal(commands[0].evidenceRef, "observed-root-proof");
+  assert.equal(commands[0].url, url);
+  assert.equal(result.threadRootPresent, true);
+  assert.equal(result.verified, undefined);
+});
