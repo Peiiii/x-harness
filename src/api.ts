@@ -19,8 +19,6 @@ import type {
   PostEvidence,
   PersonEvidence,
   FeedbackEvidence,
-  AccountScreenshotOptions,
-  AccountScreenshotResult,
 } from "./types.js";
 import type { BoundaryRecord } from "./boundary.js";
 
@@ -36,9 +34,7 @@ export interface BusinessDependencies {
 
 export class BusinessHarness implements XGrowthHarness {
   configureOriginalCadence: OriginalPostCadence["configure"];
-  captureAccountScreenshot: (
-    options: AccountScreenshotOptions,
-  ) => Promise<AccountScreenshotResult>;
+  captureAccountScreenshot: XGrowthHarness["captureAccountScreenshot"];
   #threadReactions: ThreadReactions;
   #reactions!: IncomingReactions;
   #followbackAudit: FollowbackAudit;
