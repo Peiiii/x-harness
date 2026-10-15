@@ -255,10 +255,11 @@ test("representative complete tasks have one public invocation and retain writes
   );
 });
 
-test("an inert observed permalink gets one bounded direct navigation; alerts or interrupted connection never fall back", async () => {
+test("observed post navigates directly once; alerts or interrupted connection never retry", async () => {
   for (const fault of ["inert", "alert", "interrupted"]) {
     const calls = [];
-    let waits = 0;
+    let waits = 0,
+      page = "https://x.com/Pei";
     const link = {
       filter() {
         return this;
@@ -271,13 +272,14 @@ test("an inert observed permalink gets one bounded direct navigation; alerts or 
       },
     };
     const tab = {
-      async goto() {
+      async goto(url) {
         calls.push("goto");
+        page = url;
       },
       playwright: {
         async evaluate() {
           return {
-            page: "https://x.com/Pei",
+            page,
             alerts: fault === "alert" ? ["请验证身份"] : [],
             needsStateCheck: false,
           };
@@ -316,11 +318,11 @@ test("an inert observed permalink gets one bounded direct navigation; alerts or 
       });
     if (fault === "inert") {
       await action();
-      assert.deepEqual(calls, ["click", "goto"]);
-      assert.equal(waits, 2);
+      assert.deepEqual(calls, ["goto"]);
+      assert.equal(waits, 1);
     } else {
       await assert.rejects(action());
-      assert.deepEqual(calls, ["click"]);
+      assert.deepEqual(calls, ["goto"]);
     }
   }
 });

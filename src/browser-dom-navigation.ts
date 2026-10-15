@@ -218,6 +218,8 @@ export class DOMNavigation {
           this.#tab.playwright.locator('[data-testid="UserName"]'),
           command.url,
         );
+      else if (command.view === "posts")
+        await this.waitObservedPost(command.url);
       return;
     }
     const originalPage =
@@ -232,6 +234,7 @@ export class DOMNavigation {
     let link: any;
     if (
       !command.forceNavigation &&
+      command.view !== "posts" &&
       typeof this.#tab.playwright?.locator === "function"
     ) {
       link = this.#tab.playwright
@@ -304,19 +307,22 @@ export class DOMNavigation {
         .getByRole("textbox", { name: /^(帖子文本|Post text)$/i })
         .waitFor({ state: "visible", timeoutMs: 5000 });
     } else if (command.view === "posts") {
-      // URL commit is not document/network idle. Wait on the exact observed
-      // permalink, so a stale timeline article cannot satisfy detail readiness.
-      const articles = this.#tab.playwright.getByRole("article");
-      const detail = /^\/\w{1,15}\/status\/\d+$/.test(path)
-        ? articles.filter({
-            has: this.#tab.playwright.locator(
-              `a[href=${JSON.stringify(path)}],a[href=${JSON.stringify(path + "/history")}]`,
-            ),
-          })
-        : articles;
-      await this.handleWaitTargetContent(detail.first(), command.url);
+      await this.waitObservedPost(command.url);
     }
     return;
+  }
+  private async waitObservedPost(url: string) {
+    // URL commit alone is not content readiness, including same-page reads.
+    const path = xURL(url).pathname + xURL(url).search;
+    const articles = this.#tab.playwright.getByRole("article");
+    const detail = /^\/\w{1,15}\/status\/\d+$/.test(path)
+      ? articles.filter({
+          has: this.#tab.playwright.locator(
+            `a[href=${JSON.stringify(path)}],a[href=${JSON.stringify(path + "/history")}]`,
+          ),
+        })
+      : articles;
+    await this.handleWaitTargetContent(detail.first(), url);
   }
   private async waitFallbackRoute(command: any) {
     try {

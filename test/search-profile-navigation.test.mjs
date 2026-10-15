@@ -69,7 +69,7 @@ for (const mode of ["inert", "warning", "changed-route"]) {
 }
 
 for (const mode of ["committed", "wrong-route", "alert", "other-error"]) {
-  test(`post fallback URL wait preserves fresh exact route: ${mode}`, async () => {
+  test(`post direct URL wait preserves fresh exact route: ${mode}`, async () => {
     const target = "https://x.com/peer/status/123";
     let page = "https://x.com/search?q=mutual",
       waits = 0,
@@ -109,7 +109,7 @@ for (const mode of ["committed", "wrong-route", "alert", "other-error"]) {
         },
         async waitForURL() {
           waits++;
-          if (waits === 2 && mode === "other-error")
+          if (waits === 1 && mode === "other-error")
             throw Error("transport unavailable");
           throw Error(`Timed out waiting for URL ${target}`);
         },
@@ -119,7 +119,7 @@ for (const mode of ["committed", "wrong-route", "alert", "other-error"]) {
             accountHandle: "owner",
             needsStateCheck: false,
             alerts:
-              waits === 2 && mode === "alert" ? ["verification needed"] : [],
+              waits === 1 && mode === "alert" ? ["verification needed"] : [],
           };
         },
       },
@@ -139,7 +139,37 @@ for (const mode of ["committed", "wrong-route", "alert", "other-error"]) {
       await assert.rejects(run());
       assert.equal(contentWaits, 0);
     }
-    assert.deepEqual(calls, ["click", "goto"]);
-    assert.equal(waits, 2);
+    assert.deepEqual(calls, ["goto"]);
+    assert.equal(waits, 1);
   });
 }
+
+test("already committed post still waits for exact content without another navigation", async () => {
+  const target = "https://x.com/reader/status/123";
+  let waits = 0;
+  const article = {
+    filter() {
+      return this;
+    },
+    first() {
+      return this;
+    },
+    async waitFor() {
+      waits++;
+    },
+  };
+  const browser = createDOMXBrowser({
+    url: async () => target,
+    goto: async () => {
+      throw Error("unexpected navigation");
+    },
+    playwright: { getByRole: () => article, locator: () => ({}) },
+  });
+  await browser.act({
+    operation: "openObserved",
+    view: "posts",
+    url: target,
+    evidenceRef: "observed",
+  });
+  assert.equal(waits, 1);
+});

@@ -31,3 +31,15 @@ Committed-profile validation: full check passed 410 tests. Both original consume
 A live original-submission verification returned a URL timeout from the host navigation itself, before the adapter’s explicit waitForURL catch. Move only navigation activation into that existing catch. The same exact committed route and alert checks still apply, followed by mandatory exact article readiness; no new navigation, submit, acceptance or weakened parent verification. Design review: this closes the same adapter boundary without new fallback state. Synthetic regressions require committed goto timeout to continue, wrong route and challenge to stop before article use.
 
 Validation: full check passes 413 tests, including all three host-goto regressions, types, maintainability and Skill budgets. Implementation review: only placement inside the pre-existing timeout catch changes; unknowns still require original-ID verification and no submission path is repeated. Retrospective: host goto itself can own the URL wait, so adapter recovery must encompass both navigation activation and its explicit wait rather than only the latter. Local adoption, no isolated npm release.
+
+
+## 2026-10-15：已到详情页仍必须等待精确正文
+
+flow=bugfix，risk=L2，retrospective_state=pending。真实来话链接在原读取路径两次缺证后，一次直达已观察URL成功；同页立即读取尚无正文，随后同一根reader取得完整原目标和上下文。原DOMNavigation同URL早返回只等人物内容、不等帖子，遗漏详情就绪门。多次原帖链接点击未离开源页，直达同证据URL已实证可用，不把该症状推断为平台拒绝。
+
+修订：同URL的posts也复用原精确permalink/history文章等待；抽取原等待块为同一private helper，冷导航与同页复用共用，不重新导航当前页。帖子详情从已观察URL一次goto，不再先做可惰性的locator链接点击；其它视图不改。保留路由、告警、content readiness和超时预算；不让源页旧文章满足详情。方案Review(mode=design)：passed，现有边界减少一次不可靠点击与重复wait，exact内容门得到统一而非放宽。Required：同页无goto且精确正文等待；首次直达一次goto/commit wait；错误路由、告警/transport依旧拒绝；根来话真实同ID恢复。
+
+
+验证/Review：修前同URL边界实际contentWaits=0，回归失败；修后同一边界contentWaits=1、零重导航。帖子直达/错误路由/告警/transport定向检查通过，完整check428项通过（合并最新原发帖节奏源码）。真实根readIncomingConversations对原来话的一次冷调用取得完整正文、原祖先和已确认父子边，不需调用方预先warmup；证明这条原失败路径，不保证所有导航无故障。实现Review(mode=implementation)：no findings；原帖子精确文章等待收敛为同一helper，profile其它视图不改，超时/告警/未知门未放宽。
+
+retrospective_state=completed；复盘：URL相同只说明路由已到，不等于内容就绪；共享原content readiness，并优先使用已观察URL避免不必要的链接点击。用户小改集中发布约定保持，本修复随当前必要导航维护本地采用，不单独发npm；原运营目标继续，不以修复完成结算全天。
