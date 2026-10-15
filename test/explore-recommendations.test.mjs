@@ -11,6 +11,9 @@ function collection({
   needsNavigationWait = false,
   unflaggedNavigationWait = false,
   navigationWaitCompletes = true,
+  navigationNeedsPostRead = false,
+  postReadyPage,
+  postReadyAlerts = [],
   posts = [
     {
       id: "100",
@@ -25,6 +28,7 @@ function collection({
     reads = [];
   let currentPage = "https://x.com/home";
   let postsReady = false;
+  let postsObserved = false;
   const dependencies = {
     ready: async (query) => {
       reads.push(query.view);
@@ -32,19 +36,23 @@ function collection({
         return {
           page: currentPage,
           controls:
-            (needsNavigationWait || unflaggedNavigationWait) && !postsReady
+            (needsNavigationWait || unflaggedNavigationWait) &&
+            (!postsReady || (navigationNeedsPostRead && !postsObserved))
               ? []
               : tabs,
           headings: [],
-          needsStateCheck: needsNavigationWait && !postsReady,
+          needsStateCheck:
+            needsNavigationWait &&
+            (!postsReady || (navigationNeedsPostRead && !postsObserved)),
           alerts: [],
         };
+      postsObserved = true;
       return {
-        page: currentPage,
+        page: postReadyPage ?? currentPage,
         accountHandle: "writer",
         posts,
         needsStateCheck: false,
-        alerts: [],
+        alerts: postReadyAlerts,
       };
     },
     observed: async () => ({ posts: [] }),
@@ -407,3 +415,41 @@ test("business root exposes readHomeRecommendations with source provenance", asy
   assert.deepEqual(result.sources[0].metrics, ["Likes 25"]);
   assert.deepEqual(calls, ["openHomeRecommendations"]);
 });
+
+for (const completes of [true, false]) {
+  test(`Home navigation hydration after post readiness is bounded: ${completes}`, async () => {
+    const f = collection({
+      page: "https://x.com/home",
+      needsNavigationWait: true,
+      navigationNeedsPostRead: true,
+      navigationWaitCompletes: completes,
+    });
+    const r = await f.api.readHomeRecommendations({ limit: 1 });
+    assert.equal(r.complete, completes);
+    assert.deepEqual(f.calls, ["openHomeRecommendations", "waitForPosts"]);
+    assert.ok(f.reads.filter((v) => v === "navigation").length <= 4);
+    if (completes) {
+      assert.equal(r.sourceOrigin.kind, "home-recommendations");
+      assert.equal(r.sourceOrigin.selectedTab, "为你推荐");
+      assert.equal(f.reads.filter((v) => v === "posts").length, 2);
+    } else assert.equal(r.sourceOrigin, undefined);
+  });
+}
+
+for (const mode of ["alert", "route-change"]) {
+  test(`Home post-readiness preserves observed ${mode}`, async () => {
+    const f = collection({
+      page: "https://x.com/home",
+      needsNavigationWait: true,
+      navigationNeedsPostRead: true,
+      ...(mode === "alert"
+        ? { postReadyAlerts: ["challenge"] }
+        : { postReadyPage: "https://x.com/explore" }),
+    });
+    const r = await f.api.readHomeRecommendations({ limit: 1 });
+    assert.equal(r.complete, false);
+    assert.equal(r.sourceOrigin, undefined);
+    assert.equal(f.reads.filter((v) => v === "posts").length, 1);
+    assert.deepEqual(f.calls, ["openHomeRecommendations", "waitForPosts"]);
+  });
+}

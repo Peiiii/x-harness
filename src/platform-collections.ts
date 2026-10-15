@@ -547,6 +547,33 @@ export class PlatformCollections {
       };
     return { ...value, query };
   }
+  private async waitRecommendationNavigation(nav: any) {
+    if (
+      !nav.alerts?.length &&
+      (nav.needsStateCheck ||
+        (!(nav.controls ?? []).some((c: any) => c.role === "tab") &&
+          !nav.headings?.length))
+    ) {
+      try {
+        await this.#browser.act({ operation: "waitForPosts" });
+      } catch (error: any) {
+        if (!/timed out|timeout/i.test(error.message)) throw error;
+      }
+      return this.#ready({ view: "navigation" });
+    }
+    return nav;
+  }
+  private async settleHomeNavigation(
+    nav: any,
+    isPage: (value: any) => unknown,
+  ) {
+    if (!nav.needsStateCheck || nav.alerts?.length) return nav;
+    // A mounted article can precede the Home tab header. Observe readiness
+    // once, then confirm fresh navigation before any attributed collection.
+    const content = await this.#ready({ view: "posts", limit: 1 });
+    if (content.alerts?.length || !isPage(content.page)) return content;
+    return content.needsStateCheck ? nav : this.#ready({ view: "navigation" });
+  }
   private async handleReadRecommendations(
     {
       limit = 3,
@@ -581,26 +608,19 @@ export class PlatformCollections {
         sources: [],
         navigationEvidence: recommendationNavigationEvidence(nav),
       };
-    if (
-      !nav.alerts?.length &&
-      (nav.needsStateCheck ||
-        (!(nav.controls ?? []).some((c: any) => c.role === "tab") &&
-          !nav.headings?.length))
-    ) {
-      try {
-        await this.#browser.act({ operation: "waitForPosts" });
-      } catch (error: any) {
-        if (!/timed out|timeout/i.test(error.message)) throw error;
-      }
-      nav = await this.#ready({ view: "navigation" });
-    }
-    if (nav.alerts?.length)
+    nav = await this.waitRecommendationNavigation(nav);
+    if (surface === "home") nav = await this.settleHomeNavigation(nav, page);
+    if (!page(nav.page) || nav.alerts?.length)
       return {
         status: "needsDecision",
         fresh: true,
         complete: false,
         page: nav.page,
-        missing: ["platform-alert"],
+        missing: [
+          nav.alerts?.length
+            ? "platform-alert"
+            : `${surface}-page-changed-during-read`,
+        ],
         sources: [],
         navigationEvidence: recommendationNavigationEvidence(nav),
       };
