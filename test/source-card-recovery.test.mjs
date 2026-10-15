@@ -2,7 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { GrowthRecovery } from "../dist/growth-recovery.js";
 
-async function recover(change = {}, sourceChange = {}, actionChange = {}) {
+async function recover(
+  change = {},
+  sourceChange = {},
+  actionChange = {},
+  profileChange = null,
+) {
   const action = {
     id: "source-card",
     kind: "original",
@@ -26,7 +31,22 @@ async function recover(change = {}, sourceChange = {}, actionChange = {}) {
   let settled;
   const recovery = new GrowthRecovery({
     capability: () => ({ covered: true, missing: [] }),
-    platform: { readPost: async () => ({ posts: [post], alerts: [] }) },
+    platform: {
+      readPost: async () => ({
+        posts: [post],
+        alerts: [],
+        loading: profileChange !== null,
+      }),
+      readCreator: async () => ({
+        page: "https://x.com/owner",
+        complete: true,
+        missing: [],
+        observedAt: "2026-10-12T02:00:02Z",
+        profile: { handle: "owner", alerts: [] },
+        posts: [{ ...post, links: ["https://t.co/observed"] }],
+        ...profileChange,
+      }),
+    },
     load: async () => ({ state: { actions: [action] } }),
     evidenceExists: (p) => ["public-proof", "redirect-proof"].includes(p),
     clock: () => Date.parse("2026-10-12T02:00:02Z"),
@@ -119,5 +139,56 @@ test("reviewed quote cannot verify as a plain post or a different quote", async 
     (await recover({ quoteSource: { parentId: "10", id: "123" } }, {}, action))
       .result.status,
     "verified",
+  );
+});
+
+test("a loading source card can recover from a fresh exact public author timeline", async () => {
+  const r = await recover({ links: [] }, {}, {}, {});
+  assert.equal(r.result.status, "verified");
+  assert.equal(r.settled.sourceCardProfileRead.page, "https://x.com/owner");
+  assert.deepEqual(r.settled.sourceCardPermalinkRead.posts[0].links, []);
+});
+test("timeline source-card fallback preserves freshness, route, exact target and final guards", async () => {
+  for (const profile of [
+    { complete: false },
+    { missing: ["partial"] },
+    { observedAt: "2026-10-12T01:59:00Z" },
+    { page: "https://x.com/other" },
+    { profile: { handle: "other" } },
+    { profile: { handle: "owner", alerts: ["restricted"] } },
+    { posts: [] },
+    {
+      posts: [{ id: "11", author: "owner", links: ["https://t.co/observed"] }],
+    },
+  ])
+    assert.equal(
+      (await recover({ links: [] }, {}, {}, profile)).result.status,
+      "unknown",
+    );
+  for (const post of [
+    { body: "Different content." },
+    { author: "other" },
+    { datetime: "2026-10-12T01:59:59Z" },
+    { needsExpansion: true },
+  ])
+    assert.equal(
+      (await recover({ ...post, links: [] }, {}, {}, {})).result.status,
+      "unknown",
+    );
+  assert.equal(
+    (
+      await recover(
+        { links: [] },
+        { resolvedURL: "https://github.com/other" },
+        {},
+        {},
+      )
+    ).result.status,
+    "unknown",
+  );
+  assert.equal(
+    (await recover({ links: [] }, { evidenceRef: "missing" }, {}, {})).result
+      .status,
+    "unknown",
   );
 });
