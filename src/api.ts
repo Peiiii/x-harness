@@ -745,6 +745,7 @@ export class BusinessHarness implements XGrowthHarness {
       (request) => this.searchSources(request),
       this.#store,
       this.#clock,
+      this.#executor,
     ).run(args);
   }
   public searchSources(args: import("./types.js").SearchOptions) {

@@ -207,3 +207,54 @@ test("finite empty windows are continued and never mistaken for query exhaustion
   assert.equal(r.targetReached, true);
   assert.equal(calls, 2);
 });
+
+test("06h discovery uses only its own valid reply permit and stops at midnight", async (t) => {
+  const f = fixture(t);
+  let calls = 0,
+    now = Date.parse("2026-10-11T06:00:00+08:00");
+  const executor = { id: "morning", scopeKinds: ["reply"] };
+  const d = new ReplyDiscovery(
+    async () => {
+      calls++;
+      return {
+        status: "observed",
+        evidenceRef: f.proof,
+        sources: [post(9, { datetime: new Date(now - 1000).toISOString() })],
+      };
+    },
+    f.store,
+    () => now,
+    executor,
+  );
+  assert.equal(
+    (await d.run({ queries: ["互关"], target: 1 })).reason,
+    "night-platform-boundary",
+  );
+  assert.equal(calls, 0);
+  await f.store.transaction(({ state }) => {
+    state.executions = {
+      [executor.id]: {
+        windowAuthorization: {
+          kind: "reply",
+          executorId: executor.id,
+          userAuthorized: true,
+          evidenceRef: f.proof,
+          startsAt: "2026-10-11T06:00:00+08:00",
+          expiresAt: "2026-10-12T00:00:00+08:00",
+        },
+      },
+    };
+    return state;
+  });
+  assert.equal(
+    (await d.run({ queries: ["互关"], target: 1 })).targetReached,
+    true,
+  );
+  assert.equal(calls, 1);
+  now = Date.parse("2026-10-12T00:00:00+08:00");
+  assert.equal(
+    (await d.run({ queries: ["互关"], target: 1 })).reason,
+    "night-platform-boundary",
+  );
+  assert.equal(calls, 1);
+});

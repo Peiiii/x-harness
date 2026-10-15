@@ -284,16 +284,12 @@ export class GrowthPolicy {
   }
   private handleAuthorizedWindow(state: any, kind: string) {
     const executor = this.#executor;
-    const permit = state.executions?.[executor?.id]?.windowAuthorization;
-    const now = this.#clock();
-    return Boolean(
-      permit &&
-      permit.kind === kind &&
-      permit.executorId === executor?.id &&
-      permit.userAuthorized === true &&
-      this.#evidenceExists(permit.evidenceRef) &&
-      Date.parse(permit.startsAt) <= now &&
-      now < Date.parse(permit.expiresAt),
+    return executorWindowAllowed(
+      state,
+      executor,
+      kind,
+      this.#clock(),
+      this.#evidenceExists,
     );
   }
   private handleScope(state: any) {
@@ -317,4 +313,25 @@ export function createGrowthPolicy(
   ...args: ConstructorParameters<typeof GrowthPolicy>
 ) {
   return new GrowthPolicy(...args);
+}
+
+/** Shared executor permit; every caller still checks its own actual boundary. */
+export function executorWindowAllowed(
+  state: any,
+  executor: any,
+  kind: string,
+  now: number,
+  evidenceExists: (ref: string) => boolean,
+) {
+  const permit = state.executions?.[executor?.id]?.windowAuthorization;
+  return Boolean(
+    permit &&
+    executor?.scopeKinds?.includes(kind) &&
+    permit.kind === kind &&
+    permit.executorId === executor?.id &&
+    permit.userAuthorized === true &&
+    evidenceExists(permit.evidenceRef) &&
+    Date.parse(permit.startsAt) <= now &&
+    now < Date.parse(permit.expiresAt),
+  );
 }

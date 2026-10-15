@@ -1,3 +1,4 @@
+import { executorWindowAllowed } from "./growth-policy.js";
 import type { BusinessDependencies } from "./api.js";
 import type { IncomingLikeOptions, IncomingLikeResult } from "./types.js";
 import type { BoundaryRecord } from "./boundary.js";
@@ -77,9 +78,9 @@ export class IncomingReactions {
     target: IncomingLikeOptions["targets"][number],
   ): Promise<BoundaryRecord> {
     const { store, platform } = this.#deps;
-    const now = this.#clock(),
-      hour = new Date(now + 8 * 3600000).getUTCHours();
-    if (hour < 7)
+    const now = this.#clock();
+    const snapshot = await store.load();
+    if (!this.inWindow(snapshot.state))
       return { status: "waiting", reason: "outside-authorized-window" };
     if (
       !store.evidenceExists(target.evidenceRef) ||
@@ -89,8 +90,7 @@ export class IncomingReactions {
         status: "needsDecision",
         reason: "incoming-like-proof-required",
       };
-    const snapshot = await store.load(),
-      handle = snapshot.state.accountHandle;
+    const handle = snapshot.state.accountHandle;
     const old = (snapshot.state.reactions ?? []).find(
       (a: BoundaryRecord) => a.postId === target.postId,
     );
@@ -165,9 +165,9 @@ export class IncomingReactions {
         ...target,
         accountHandle: handle,
         beforeSubmit: async () => {
-          const hour = new Date(this.#clock() + 8 * 3600000).getUTCHours();
-          if (hour < 7) throw Error("outside-authorized-window");
           await store.transaction((s) => {
+            if (!this.inWindow(s.state))
+              throw Error("outside-authorized-window");
             s.state.reactions ??= [];
             if (
               s.state.reactions.some(
@@ -228,6 +228,15 @@ export class IncomingReactions {
         reason: "like-public-state-unconfirmed",
       };
     }
+  }
+  private inWindow(state: any) {
+    const now = this.#clock();
+    if (new Date(now + 8 * 3600000).getUTCHours() >= 7) return true;
+    return ["reply", "follow"].some((kind) =>
+      executorWindowAllowed(state, this.#deps.executor, kind, now, (ref) =>
+        this.#deps.store.evidenceExists(ref),
+      ),
+    );
   }
   private async settle(
     postId: string,

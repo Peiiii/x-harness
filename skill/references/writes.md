@@ -128,3 +128,5 @@ var result = await x.likePostAndComments({
   timeBudgetMs: 120000,
 });
 ```
+
+Executor-scoped early windows: incoming likes and thread likes use the same evidenced `windowAuthorization` as their reply/follow executor. The matching kind, executor ID, actual start/exclusive expiry and existing proof are required; missing or expired permits retain the default gate. Recheck before each intent and continuation. This permit does not schedule work, clear refusals or authorize another executor.

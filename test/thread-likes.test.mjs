@@ -84,6 +84,9 @@ function scenario(t, options = {}) {
   const api = createBusinessHarness({
     store: f.store,
     platform,
+    executor: options.executor
+      ? { ...options.executor, tabId: "thread-test-tab", evidenceRef: f.proof }
+      : undefined,
     clock: () => now,
     sleep: async (ms) => {
       waits.push(ms);
@@ -459,4 +462,74 @@ test("root like boolean without the exact liked button stays unknown", async (t)
   });
   assert.equal(result.counts.unknown, 1);
   assert.equal((await s.f.store.load()).state.reactions[0].status, "unknown");
+});
+
+test("early thread likes require a matching evidenced executor permit and stop at expiry", async (t) => {
+  const executor = {
+    id: "morning-replies",
+    scopeKinds: ["reply"],
+    evidenceRef: "scope",
+  };
+  const now = Date.parse("2026-10-11T06:00:00+08:00");
+  const s = scenario(t, { now, executor, windows: [["100"]] });
+  assert.equal((await s.api.likePostAndComments({ url })).status, "waiting");
+  const permit = {
+    kind: "reply",
+    executorId: executor.id,
+    userAuthorized: true,
+    evidenceRef: s.f.proof,
+    startsAt: "2026-10-11T06:00:00+08:00",
+    expiresAt: "2026-10-12T00:00:00+08:00",
+  };
+  await s.f.store.transaction(({ state }) => {
+    state.executions = {
+      [executor.id]: { scopeKinds: ["reply"], windowAuthorization: permit },
+    };
+    return state;
+  });
+  assert.equal(
+    (await s.api.likePostAndComments({ url, sampleRate: 1 })).counts
+      .newLikesThisCall,
+    1,
+  );
+  s.setTime(Date.parse(permit.expiresAt));
+  assert.equal((await s.api.likePostAndComments({ url })).status, "waiting");
+});
+
+test("early thread permit rejects wrong owner, kind, missing evidence and future start without reads", async (t) => {
+  for (const invalid of [
+    { executorId: "other" },
+    { kind: "original" },
+    { evidenceRef: "missing" },
+    { startsAt: "2026-10-11T07:00:00+08:00" },
+  ]) {
+    const executor = {
+      id: "morning",
+      scopeKinds: ["reply"],
+      evidenceRef: "scope",
+    };
+    const s = scenario(t, {
+      now: Date.parse("2026-10-11T06:05:00+08:00"),
+      executor,
+    });
+    await s.f.store.transaction(({ state }) => {
+      state.executions = {
+        [executor.id]: {
+          windowAuthorization: {
+            kind: "reply",
+            executorId: executor.id,
+            userAuthorized: true,
+            evidenceRef: s.f.proof,
+            startsAt: "2026-10-11T06:00:00+08:00",
+            expiresAt: "2026-10-12T00:00:00+08:00",
+            ...invalid,
+          },
+        },
+      };
+      return state;
+    });
+    assert.equal((await s.api.likePostAndComments({ url })).status, "waiting");
+    assert.equal(s.reads, 0);
+    assert.equal(s.clicks.length, 0);
+  }
 });

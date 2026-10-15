@@ -85,3 +85,9 @@ LC1/LC2本地通过：修前同一已intent原生回读异常回归，其它已�
 LC3真实采用：消费者显式重绑完整受检构建后，在原两条线程新增8个公开已赞核验。有限已加载范围内prepared归零；10个unknown保持原intent冻结，22个无intent且原生目标缺证的selected对象明确skipped，均未当成功或preexisting。保存的六个代表恢复观察均为原完整URL、原账号、threadConfirmed=true、无告警/残缺；未由调用方重点击未知。线程仍scopeComplete=false，达到页/时间预算返回checkpoint，不声称全量隐藏评论已完成。初版真实缺口与返工证据保留；实际点赞能力仍有目标无法绑定，后续相关稳定维护再集中发布。LC1–LC3在该隔离/继续范围passed，retrospective_state=completed。
 
 复盘增量：单目标错误必须先按是否已有intent区分；有intent保持unknown，无intent只有CAS证实没有任何reaction才可明确跳过。继续其它对象须有一次新的原线程/账号/无告警证明，不能将“其它任务继续”泛化为忽略平台状态。测试与真实采用分开，部分未核验不扩大为全局停工，也不当作成功补数。
+
+## Explicit executor windows
+
+Thread likes, received-comment likes and reply discovery must share the original GrowthPolicy executor permit validator. Keep the default 07h gate for consumers without a permit; an evidenced matching reply/follow permit can open the caller's actual window. Discovery accepts only its reply executor. Read the saved state at continuation and check again immediately before write intent; expiry/midnight has zero new reads or clicks. Do not change sampling, pacing, intent freezing, author exclusion or public verification.
+
+Acceptance: default early refusal; matching 06h permit succeeds; wrong executor/kind, absent proof, future start and expired permits refuse; expiry during submission prevents intent. Existing normal-hour, unknown and pacing tests remain applicable. Real consumer adoption is separately evidenced by the consumer ledger, never by test counts.

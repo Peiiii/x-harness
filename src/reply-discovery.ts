@@ -1,3 +1,4 @@
+import { executorWindowAllowed } from "./growth-policy.js";
 import type { RoundStore } from "./store.js";
 import type {
   PostEvidence,
@@ -14,6 +15,7 @@ export class ReplyDiscovery {
     private search: (args: SearchOptions) => Promise<ReadResult>,
     private store: RoundStore,
     private clock: () => number,
+    private executor?: BoundaryRecord,
   ) {}
   private exclusion(state: BoundaryRecord, handles: string[]) {
     const authors = new Set(
@@ -110,14 +112,17 @@ export class ReplyDiscovery {
     for (let i = 0; i < maxWindows && candidates.length < target; i++) {
       const now = this.clock(),
         hour = new Date(now + 8 * 3600000).getUTCHours();
-      if (hour < 7) {
+      const state = (await this.store.load()).state;
+      if (
+        hour < 7 &&
+        !executorWindowAllowed(state, this.executor, "reply", now, (ref) =>
+          this.store.evidenceExists(ref),
+        )
+      ) {
         reason = "night-platform-boundary";
         break;
       }
-      const excluded = this.exclusion(
-        (await this.store.load()).state,
-        args.excludedHandles ?? [],
-      );
+      const excluded = this.exclusion(state, args.excludedHandles ?? []);
       const available = args.queries.filter((q) => !exhausted.has(q));
       if (!available.length) break;
       const query = available[0];

@@ -367,3 +367,75 @@ test("replyBatch recovers an observed detail URL timeout with one submission", a
     );
   }
 });
+
+test("received likes respect evidenced 06h executor permit and recheck expiry before intent", async (t) => {
+  for (const mode of ["allowed", "missing", "expired-at-submit"]) {
+    const f = fixture(t);
+    let now = Date.parse("2026-10-11T06:00:00+08:00"),
+      clicks = 0;
+    const executor = {
+      id: "incoming-morning",
+      tabId: "incoming-test-tab",
+      scopeKinds: ["reply"],
+      evidenceRef: f.proof,
+    };
+    const permit = {
+      kind: "reply",
+      executorId: executor.id,
+      userAuthorized: true,
+      evidenceRef: f.proof,
+      startsAt: "2026-10-11T06:00:00+08:00",
+      expiresAt: "2026-10-12T00:00:00+08:00",
+    };
+    const api = createBusinessHarness({
+      store: f.store,
+      executor,
+      clock: () => now,
+      platform: {
+        preflight: () => ({ covered: true }),
+        captureProof: ({ observation }) => ({ observation }),
+        readPost: async () => ({
+          complete: true,
+          context: [{ author: "Pei" }],
+        }),
+        likePost: async (a) => {
+          if (mode === "expired-at-submit") now = Date.parse(permit.expiresAt);
+          await a.beforeSubmit();
+          clicks++;
+          return { liked: true };
+        },
+      },
+    });
+    if (mode !== "missing")
+      await f.store.transaction(({ state }) => {
+        state.executions ??= {};
+        state.executions[executor.id] = {
+          scopeKinds: ["reply"],
+          windowAuthorization: permit,
+        };
+        return state;
+      });
+    const r = await api.likeIncomingBatch({
+      batchId: "morning-likes",
+      sampleRate: 1,
+      targets: [
+        {
+          postId: "100",
+          author: "Reader",
+          url: "https://x.com/Reader/status/100",
+          evidenceRef: f.proof,
+          incomingEvidenceRef: f.proof,
+        },
+      ],
+    });
+    assert.equal(clicks, mode === "allowed" ? 1 : 0);
+    assert.equal(
+      r.status,
+      mode === "allowed"
+        ? "verified"
+        : mode === "missing"
+          ? "waiting"
+          : "needsDecision",
+    );
+  }
+});

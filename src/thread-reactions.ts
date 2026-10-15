@@ -1,3 +1,4 @@
+import { executorWindowAllowed } from "./growth-policy.js";
 import { randomUUID } from "node:crypto";
 import type { BusinessDependencies } from "./api.js";
 import type { ThreadLikeOptions, ThreadLikeResult } from "./types.js";
@@ -29,7 +30,7 @@ export class ThreadReactions {
     }
     const batchId = args.batchId ?? `thread-likes-${config.rootId}`;
     const { platform, store } = this.#deps;
-    if (!this.inWindow())
+    if (!(await this.inWindow()))
       return this.empty(
         { ...args, batchId },
         "outside-authorized-window",
@@ -64,7 +65,7 @@ export class ThreadReactions {
         reset: true,
       });
       while (true) {
-        if (!this.inWindow())
+        if (!(await this.inWindow()))
           return this.receipt(
             batchId,
             newLikes,
@@ -165,8 +166,16 @@ export class ThreadReactions {
       return { ...receipt, evidenceRef };
     }
   }
-  private inWindow() {
-    return new Date(this.#clock() + 8 * 3600000).getUTCHours() >= 7;
+  private async inWindow() {
+    const now = this.#clock();
+    if (new Date(now + 8 * 3600000).getUTCHours() >= 7) return true;
+    const { state } = await this.#deps.store.load();
+    const executor = this.#deps.executor;
+    return ["reply", "follow"].some((kind) =>
+      executorWindowAllowed(state, executor, kind, now, (ref) =>
+        this.#deps.store.evidenceExists(ref),
+      ),
+    );
   }
   private async prepare(
     id: string,
@@ -272,7 +281,7 @@ export class ThreadReactions {
           resumeAt: new Date(resumeAt).toISOString(),
         };
       await this.#sleep(Math.min(45000, resumeAt - this.#clock()));
-      if (!this.inWindow())
+      if (!(await this.inWindow()))
         return { status: "waiting", reason: "outside-authorized-window" };
       snapshot = await store.load();
       resumeAt = latestReactionTime(snapshot.state) + gap;
@@ -285,7 +294,7 @@ export class ThreadReactions {
         author: post.author,
         accountHandle: batch.accountHandle,
         beforeSubmit: async () => {
-          if (!this.inWindow() || this.#clock() >= deadline)
+          if (!(await this.inWindow()) || this.#clock() >= deadline)
             throw Error("thread-like-window-or-budget");
           await store.transaction((s) => {
             s.state.reactions ??= [];
@@ -386,7 +395,7 @@ export class ThreadReactions {
     accountHandle: string,
     deadline: number,
   ) {
-    if (!this.inWindow() || this.#clock() >= deadline) return false;
+    if (!(await this.inWindow()) || this.#clock() >= deadline) return false;
     let view: any;
     try {
       view = await this.#deps.platform.readThreadLikeWindow({
@@ -415,7 +424,7 @@ export class ThreadReactions {
       return state;
     });
     return (
-      this.inWindow() &&
+      (await this.inWindow()) &&
       this.#clock() < deadline &&
       view.page === request.url &&
       view.threadConfirmed === true &&
