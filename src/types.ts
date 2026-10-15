@@ -717,6 +717,7 @@ export type AccountScreenshotResult =
       page: string;
       capturedAt: string;
       imagePath: string;
+      imageMimeType: "image/png" | "image/jpeg";
       imageSha256: string;
       headings: string[];
       labels: string[];

@@ -153,18 +153,23 @@ export class AccountScreenshots {
             observation: after,
           }),
         };
-      if (
-        !(bytes instanceof Uint8Array) ||
-        bytes.length < 8 ||
-        !Buffer.from(bytes)
-          .subarray(0, 8)
-          .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-      )
-        throw new Error("screenshot-png-unconfirmed");
+      if (!(bytes instanceof Uint8Array) || bytes.length < 8)
+        throw new Error("screenshot-image-unconfirmed");
+      const image = Buffer.from(bytes);
+      const png = image
+        .subarray(0, 8)
+        .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+      const jpeg =
+        image.subarray(0, 3).equals(Buffer.from([255, 216, 255])) &&
+        image.subarray(-2).equals(Buffer.from([255, 217]));
+      if (!png && !jpeg) throw new Error("screenshot-image-unconfirmed");
+      const imageMimeType: "image/png" | "image/jpeg" = png
+        ? "image/png"
+        : "image/jpeg";
       await mkdir(this.#directory, { recursive: true });
       const imagePath = join(
         this.#directory,
-        `account-${options.surface}-${randomUUID()}.png`,
+        `account-${options.surface}-${randomUUID()}.${png ? "png" : "jpg"}`,
       );
       await writeFile(imagePath, bytes, { flag: "wx" });
       const result = {
@@ -173,6 +178,7 @@ export class AccountScreenshots {
         page: after.page,
         capturedAt: new Date(this.#clock()).toISOString(),
         imagePath,
+        imageMimeType,
         imageSha256: createHash("sha256").update(bytes).digest("hex"),
         headings: after.headings,
         labels: after.labels,
