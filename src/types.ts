@@ -291,6 +291,8 @@ export interface ExploreRecommendationOptions extends WindowOptions {}
 export interface HomeRecommendationOptions extends WindowOptions {}
 export interface CreatorOptions {
   handle: string;
+  /** Explicitly select the observed profile Replies tab; default remains Posts. */
+  timeline?: "posts" | "replies";
   target?: number;
   maxScrolls?: number;
   navigate?: boolean;
@@ -298,6 +300,7 @@ export interface CreatorOptions {
   mode?: ReadMode;
 }
 export interface CreatorEvidence {
+  timeline?: { kind: "replies"; page: string; selectedTab: string };
   name?: string | null;
   joined?: string | null;
   totalPostsText?: string | null;

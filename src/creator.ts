@@ -73,9 +73,12 @@ export async function collectCreatorDOM(
     maxScrolls = 18,
     navigate = true,
     expand = true,
+    timeline = "posts",
   }: Omit<CreatorOptions, "handle" | "mode"> = {},
 ): Promise<BoundaryRecord> {
   if (
+    !["posts", "replies"].includes(timeline) ||
+    (timeline === "replies" && navigate) ||
     !/^[A-Za-z0-9_]{1,15}$/.test(handle) ||
     !Number.isInteger(target) ||
     target < 1 ||
@@ -93,7 +96,10 @@ export async function collectCreatorDOM(
   const current = new URL(await tab.url());
   if (
     current.origin !== "https://x.com" ||
-    current.pathname.toLowerCase() !== "/" + handle.toLowerCase()
+    current.pathname.toLowerCase() !==
+      "/" +
+        handle.toLowerCase() +
+        (timeline === "replies" ? "/with_replies" : "")
   )
     throw Error("creator-url-mismatch");
   await tab.getAXState({ emit: false });

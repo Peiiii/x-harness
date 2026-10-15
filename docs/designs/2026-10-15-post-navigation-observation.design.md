@@ -43,3 +43,27 @@ flow=bugfix，risk=L2，retrospective_state=pending。真实来话链接在原�
 验证/Review：修前同URL边界实际contentWaits=0，回归失败；修后同一边界contentWaits=1、零重导航。帖子直达/错误路由/告警/transport定向检查通过，完整check428项通过（合并最新原发帖节奏源码）。真实根readIncomingConversations对原来话的一次冷调用取得完整正文、原祖先和已确认父子边，不需调用方预先warmup；证明这条原失败路径，不保证所有导航无故障。实现Review(mode=implementation)：no findings；原帖子精确文章等待收敛为同一helper，profile其它视图不改，超时/告警/未知门未放宽。
 
 retrospective_state=completed；复盘：URL相同只说明路由已到，不等于内容就绪；共享原content readiness，并优先使用已观察URL避免不必要的链接点击。用户小改集中发布约定保持，本修复随当前必要导航维护本地采用，不单独发npm；原运营目标继续，不以修复完成结算全天。
+
+## Own-replies receipt recovery
+
+Flow: bugfix; risk: L3; retrospective pending. Contract `reply-receipt-surface-20261015`, revision 1, parent goal: recover an actually published reply under its original action without resending. Consumer failures and account evidence remain private. The current batch recovery searches one bounded own-account reply query; an empty search window cannot establish absence or guarantee immediate indexing. The creator reader currently accepts only the profile Posts route.
+
+Golden path: the authorized operator submits a reviewed reply once; the existing search cannot locate its receipt; the same root batch opens the observed profile Replies tab, reads a finite own-account window, binds only a unique matching public candidate, then runs the existing exact-parent verifier and settles the original action. Missing/ambiguous evidence stays unknown. Existing unknowns may use an explicit fresh `readCreator({timeline:'replies'})` observation, then only verify original IDs that acquire new evidence. Ordinary creator reads and successful search recovery keep their current path.
+
+Reuse `PlatformCollections` for observed tab navigation and `collectCreatorDOM` for exact route/content collection. Add only the optional `CreatorOptions.timeline` posts/replies choice and compact selected-timeline evidence. Replies navigation must come from a unique observed same-profile tab; never fabricate a destination. A `navigate:false` request never switches tabs. The existing reply recovery lifecycle moves out of the nearly 1000-line API into `src/reply-receipt-recovery.ts`, beside the other focused task owners, retaining its original CAS, intent, content/time/identity and parent gates. This is the planned-path check: no new directory, store, registry or parallel receipt state.
+
+Variant propagation: root typed input → platform validation/observed tab selection → DOM exact requested route → compact creator timeline evidence → existing original-action recovery. Read-cache entries already include returned creator metadata; post-content identity remains shared. Native adapters lacking creator collection continue to refuse before reading. No ledger schema migration or separate CLI operation is introduced; the matching Skill documents the root option. Delivery uses a checked local build and ordinary source push, with npm deferred to consolidated delivery.
+
+Active acceptance ledger:
+
+| ID | Required | Status | Observable result |
+| --- | --- | --- | --- |
+| RR1 | true | passed | Only the unique observed Replies tab for the exact profile can be selected; wrong/missing/ambiguous/unselected surfaces cannot be reported as Replies. |
+| RR2 | true | passed | Default Posts reads remain unchanged; explicit non-navigation requires the already selected exact Replies route. |
+| RR3 | true | passed | An empty fresh non-alert search gets at most one bounded own-Replies lookup for the batch; successful search and platform warnings do not trigger it. No submission is repeated. |
+| RR4 | true | passed | Foreign, changed, old, ambiguous or baseline candidates cannot bind; original CAS and exact-parent verification still determine settlement. |
+| RR5 | true | not-run | Applicable full checks and implementation review pass; the consumer explicitly adopts the checked instance and obtains real root Replies evidence, then continues original duty. |
+
+Design review (mode=design): passed. The new surface addresses an actual index-dependent recovery gap without changing what counts as a verified reply. The fallback is limited to empty fresh non-alert search evidence, not a bypass of a rejection; its exit is one finite lookup. Extracting the existing recovery owner removes the old implementation from API rather than adding a second binding path. No claim of full account coverage, universal recovery, daily goal completion or a measured throughput gain is permitted. Plan: not-required; one bounded repair/check/adoption batch, with operating duty still open. User-facing UI and credentials do not change; AI performs installation and validation.
+
+Implementation review (mode=implementation): no findings after correcting duplicate selected-tab acceptance and an overbroad edit caught by typecheck. Recovery is extracted, not duplicated; original CAS/body/time/baseline/parent checks remain unchanged. Full check passed 447 tests plus types, format, maintainability, generated observations and Skill budgets. New empty-search regressions failed against the previous build, then passed; actual local adoption and live Replies selection remain pending under RR5.

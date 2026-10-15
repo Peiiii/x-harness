@@ -219,3 +219,119 @@ test("creator delta preserves changed profile when post content is unchanged", a
   assert.equal(result.person.biography, "新简介");
   assert.equal(result.creator, undefined);
 });
+
+for (const scenario of [
+  "select",
+  "already-selected",
+  "no-navigation",
+  "missing",
+  "foreign",
+  "ambiguous",
+  "selected-ambiguous",
+  "alert",
+  "not-selected",
+]) {
+  test(`observed creator Replies surface: ${scenario}`, async () => {
+    const { PlatformCollections } =
+      await import("../dist/platform-collections.js");
+    let selected = ["already-selected", "selected-ambiguous"].includes(
+        scenario,
+      ),
+      activations = 0;
+    const collected = [];
+    const nav = () => ({
+      page: "https://x.com/creator" + (selected ? "/with_replies" : ""),
+      accountHandle: "Pei",
+      alerts: scenario === "alert" ? ["challenge"] : [],
+      controls:
+        scenario === "missing"
+          ? []
+          : Array.from(
+              {
+                length: ["ambiguous", "selected-ambiguous"].includes(scenario)
+                  ? 2
+                  : 1,
+              },
+              () => ({
+                role: "tab",
+                label: "回复",
+                href:
+                  scenario === "foreign"
+                    ? "/other/with_replies"
+                    : "/creator/with_replies",
+                selected,
+              }),
+            ),
+    });
+    const collections = new PlatformCollections({
+      ready: async () => nav(),
+      observed: async () => nav(),
+      choose: async (n, p) => {
+        const matches = n.controls.filter(p);
+        if (matches.length !== 1) return false;
+        activations++;
+        if (scenario !== "not-selected") selected = true;
+        return true;
+      },
+      browser: {
+        collectCreator: async (q) => {
+          collected.push(q);
+          return {
+            profile: { handle: "creator" },
+            meta: { missing: [] },
+            posts: [],
+            complete: true,
+          };
+        },
+      },
+    });
+    const result = await collections.readCreator({
+      handle: "creator",
+      timeline: "replies",
+      navigate: !["already-selected", "no-navigation"].includes(scenario),
+    });
+    const success = ["select", "already-selected"].includes(scenario);
+    assert.equal(result.complete, success);
+    assert.equal(result.timeline?.kind, success ? "replies" : undefined);
+    assert.equal(
+      activations,
+      ["select", "not-selected"].includes(scenario) ? 1 : 0,
+    );
+    if (success) {
+      assert.equal(collected.at(-1).timeline, "replies");
+      assert.equal(collected.at(-1).navigate, false);
+      assert.equal(result.timeline.page, "https://x.com/creator/with_replies");
+    }
+    if (scenario === "no-navigation") assert.equal(collected.length, 0);
+  });
+}
+
+test("creator DOM accepts only exact already selected Replies route and preserves default Posts", async () => {
+  const { collectCreatorDOM } = await import("../dist/creator.js");
+  const v = tabFixture();
+  v.tab.url = async () => "https://x.com/creator/with_replies";
+  const result = await collectCreatorDOM(v.tab, "creator", {
+    timeline: "replies",
+    navigate: false,
+    target: 1,
+    maxScrolls: 0,
+  });
+  assert.equal(result.complete, true);
+  assert.ok(!v.calls.includes("goto"));
+  v.tab.url = async () => "https://x.com/creator";
+  await assert.rejects(() =>
+    collectCreatorDOM(v.tab, "creator", {
+      timeline: "replies",
+      navigate: false,
+      target: 1,
+      maxScrolls: 0,
+    }),
+  );
+  await assert.rejects(() =>
+    collectCreatorDOM(v.tab, "creator", {
+      timeline: "replies",
+      target: 1,
+      maxScrolls: 0,
+    }),
+  );
+});

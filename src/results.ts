@@ -326,9 +326,21 @@ export function readResult(
   else if (operation === "readCreator" && raw.profile && raw.meta) {
     const meta = object(raw.meta);
     const header = typeof meta.headerText === "string" ? meta.headerText : "";
+    const timeline = object(raw.timeline);
     out.person = person(raw.profile);
     out.creator = {
       ...pick(raw, ["scrolls", "observedAt"]),
+      ...(timeline.kind === "replies" &&
+      typeof timeline.page === "string" &&
+      typeof timeline.selectedTab === "string"
+        ? {
+            timeline: {
+              kind: "replies" as const,
+              page: timeline.page,
+              selectedTab: timeline.selectedTab,
+            },
+          }
+        : {}),
       ...pick(meta, ["totalPostsText"]),
       name: header.split("\n")[0] || null,
       joined: header.match(/\d{4}年\d{1,2}月 加入/)?.[0] ?? null,

@@ -1,5 +1,5 @@
 import type { PlatformDependencies } from "./platform-dependencies.js";
-import { xURL, source } from "./platform-rules.js";
+import { xURL, source, sameHandle } from "./platform-rules.js";
 
 const recommendationNavigationEvidence = (nav: any) => ({
   page: nav.page,
@@ -258,7 +258,15 @@ export class PlatformCollections {
         complete: false,
         missing: ["browser.collectCreator"],
       };
-    const value = await this.#browser.collectCreator(args);
+    if (
+      args.timeline !== undefined &&
+      !["posts", "replies"].includes(args.timeline)
+    )
+      throw new Error("creator-timeline-invalid");
+    const value =
+      args.timeline === "replies"
+        ? await this.readCreatorReplies(args)
+        : await this.#browser.collectCreator(args);
     const absent = [
       ...new Set([
         ...(value.missing ?? []),
@@ -269,11 +277,89 @@ export class PlatformCollections {
     return {
       ...value,
       sources: value.posts,
-      page: `https://x.com/${args.handle}`,
+      page: value.timeline?.page ?? `https://x.com/${args.handle}`,
       pageComplete: false,
       complete:
         value.complete === true && !absent.length && !value.alerts?.length,
       missing: absent,
+    };
+  }
+  private async readCreatorReplies(args: import("./types.js").CreatorOptions) {
+    if (args.navigate !== false) {
+      const profile = await this.#browser.collectCreator({
+        ...args,
+        timeline: "posts",
+        target: 1,
+        maxScrolls: 0,
+        expand: false,
+      });
+      if (
+        profile.alerts?.length ||
+        profile.profile?.alerts?.length ||
+        profile.meta?.missing?.length ||
+        !sameHandle(profile.profile?.handle, args.handle)
+      )
+        return {
+          ...profile,
+          complete: false,
+          missing: ["creator-profile-unconfirmed"],
+        };
+    }
+    let nav = await this.#ready({ view: "navigation" });
+    const base = "/" + args.handle.toLowerCase(),
+      path = base + "/with_replies";
+    const matches = (c: any) => {
+      if (c.role !== "tab" || c.disabled || !/^(回复|Replies)$/i.test(c.label))
+        return false;
+      try {
+        return (
+          xURL(new URL(c.href, nav.page).href).pathname.toLowerCase() === path
+        );
+      } catch {
+        return false;
+      }
+    };
+    const failed = () => ({
+      ...nav,
+      complete: false,
+      missing: ["creator-replies-tab-unconfirmed"],
+    });
+    if (
+      nav.needsStateCheck ||
+      nav.alerts?.length ||
+      !nav.accountHandle ||
+      (nav.controls ?? []).filter(matches).length !== 1 ||
+      ![base, path].includes(xURL(nav.page).pathname.toLowerCase())
+    )
+      return failed();
+    if (!(nav.controls ?? []).some((c: any) => matches(c) && c.selected)) {
+      if (args.navigate === false || !(await this.#choose(nav, matches)))
+        return failed();
+      nav = await this.#ready({ view: "navigation" });
+    }
+    const selected = (nav.controls ?? []).filter(
+      (c: any) => matches(c) && c.selected,
+    );
+    if (
+      nav.needsStateCheck ||
+      nav.alerts?.length ||
+      !nav.accountHandle ||
+      xURL(nav.page).pathname.toLowerCase() !== path ||
+      selected.length !== 1 ||
+      (nav.controls ?? []).filter(matches).length !== 1
+    )
+      return failed();
+    const value = await this.#browser.collectCreator({
+      ...args,
+      navigate: false,
+    });
+    return {
+      ...value,
+      timeline: {
+        kind: "replies",
+        page: nav.page,
+        selectedTab: selected[0].label,
+      },
     };
   }
   private async handleReadBookmarks({

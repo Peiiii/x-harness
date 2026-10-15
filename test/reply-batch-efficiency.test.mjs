@@ -394,3 +394,95 @@ test("one unconfirmed parent baseline does not block other reviewed new authors"
   assert.equal(r.results[1].status, "verified");
   assert.equal(r.status, "needsDecision");
 });
+
+for (const scenario of [
+  "unique",
+  "parent-unconfirmed",
+  "old",
+  "foreign",
+  "ambiguous",
+  "wrong-surface",
+  "alert",
+  "stale",
+]) {
+  test(`empty-search own-Replies recovery: ${scenario}`, async (t) => {
+    const f = fixture(t, { actionKinds: ["reply"], planned: [0, 0, 1] });
+    await f.store.transaction(({ state }) => {
+      Object.assign(state.actions[0], {
+        status: "unknown",
+        intentAt: new Date(NOW).toISOString(),
+        beforeIds: [],
+      });
+      return state;
+    });
+    const a = (await f.store.load()).state.actions[0];
+    const api = createBusinessHarness({
+      store: f.store,
+      platform: {},
+      clock: () => NOW,
+    });
+    let submits = 0,
+      reads = 0,
+      verifies = 0;
+    api.replyToPost = async () => {
+      submits++;
+      return { status: "unknown", actionId: a.id };
+    };
+    api.searchSources = async () => ({
+      fresh: scenario !== "stale",
+      evidenceRef: f.proof,
+      sources: [],
+      missing: scenario === "alert" ? ["platform-alert"] : [],
+    });
+    api.readCreator = async (q) => {
+      reads++;
+      assert.equal(q.timeline, "replies");
+      assert.equal(q.target, 10);
+      assert.equal(q.maxScrolls, 1);
+      const row = {
+        id: "11",
+        author: scenario === "foreign" ? "other" : "Pei",
+        body: a.text,
+        url: "https://x.com/Pei/status/11",
+        datetime: new Date(
+          NOW + (scenario === "old" ? -1000 : 1000),
+        ).toISOString(),
+      };
+      return {
+        fresh: true,
+        evidenceRef: f.proof,
+        person: { handle: "Pei" },
+        creator: {
+          timeline: {
+            kind: scenario === "wrong-surface" ? "posts" : "replies",
+          },
+        },
+        sources:
+          scenario === "ambiguous"
+            ? [row, { ...row, id: "12", url: "https://x.com/Pei/status/12" }]
+            : [row],
+      };
+    };
+    api.verifySubmission = async () => {
+      verifies++;
+      return {
+        status: scenario === "parent-unconfirmed" ? "unknown" : "verified",
+        actionId: a.id,
+      };
+    };
+    const r = await api.replyBatch({ taskId: "round-1", actions: [a] });
+    assert.equal(submits, 1);
+    assert.equal(f.writes.length, 0);
+    assert.equal(reads, ["alert", "stale"].includes(scenario) ? 0 : 1);
+    const match = ["unique", "parent-unconfirmed"].includes(scenario);
+    assert.equal(verifies, match ? 1 : 0);
+    assert.equal(
+      Boolean((await f.store.load()).state.actions[0].observedPublicURL),
+      match,
+    );
+    assert.equal(
+      r.results[0].status,
+      scenario === "unique" ? "verified" : "unknown",
+    );
+  });
+}
