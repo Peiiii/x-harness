@@ -439,3 +439,54 @@ test("received likes respect evidenced 06h executor permit and recheck expiry be
     );
   }
 });
+
+for (const thread of [true, false]) {
+  test(`normal incoming like retains its interval without thread starvation: ${thread}`, async (t) => {
+    const f = fixture(t);
+    let clicks = 0;
+    await f.store.transaction(({ state }) => {
+      state.reactions = [
+        {
+          postId: "999",
+          status: "unknown",
+          intentAt: new Date(NOW - 1000).toISOString(),
+          ...(thread ? { threadBatchId: "thread-other-executor" } : {}),
+        },
+      ];
+      return state;
+    });
+    const api = createBusinessHarness({
+      store: f.store,
+      clock: () => NOW,
+      platform: {
+        preflight: () => ({ covered: true }),
+        captureProof: ({ observation }) => ({ observation }),
+        readPost: async () => ({
+          complete: true,
+          context: [{ author: "Pei" }],
+        }),
+        likePost: async (a) => {
+          await a.beforeSubmit();
+          clicks++;
+          return { liked: true };
+        },
+      },
+    });
+    const r = await api.likeIncomingBatch({
+      batchId: "normal-likes",
+      sampleRate: 1,
+      targets: [
+        {
+          postId: "100",
+          author: "Reader",
+          url: "https://x.com/Reader/status/100",
+          evidenceRef: f.proof,
+          incomingEvidenceRef: f.proof,
+        },
+      ],
+    });
+    assert.equal(clicks, thread ? 1 : 0);
+    assert.equal(r.status, thread ? "verified" : "waiting");
+    if (!thread) assert.equal(r.resumeAt, new Date(NOW + 29000).toISOString());
+  });
+}

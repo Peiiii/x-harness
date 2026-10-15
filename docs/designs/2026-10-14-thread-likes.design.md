@@ -91,3 +91,9 @@ LC3真实采用：消费者显式重绑完整受检构建后，在原两条线�
 Thread likes, received-comment likes and reply discovery must share the original GrowthPolicy executor permit validator. Keep the default 07h gate for consumers without a permit; an evidenced matching reply/follow permit can open the caller's actual window. Discovery accepts only its reply executor. Read the saved state at continuation and check again immediately before write intent; expiry/midnight has zero new reads or clicks. Do not change sampling, pacing, intent freezing, author exclusion or public verification.
 
 Acceptance: default early refusal; matching 06h permit succeeds; wrong executor/kind, absent proof, future start and expired permits refuse; expiry during submission prevents intent. Existing normal-hour, unknown and pacing tests remain applicable. Real consumer adoption is separately evidenced by the consumer ledger, never by test counts.
+
+## Independent pacing anchors
+
+Normal replies and received-comment likes retain their shared 30-second interval, measured from normal reply/like intents. Thread reactions carry their own threadBatchId and use the existing 1–2-second lane; their continuing timestamps must not renew a normal reply/like wait forever. Reuse one normal-interaction timestamp calculation in reply admission and both incoming-like checks. Do not change thread pacing, account serialization, unknown freezing, authorization windows or refusal handling.
+
+Acceptance: a recent thread reaction does not block the normal task; a recent ordinary reaction still returns the same exact 30-second resumeAt; ordinary reply intents (including unknown) remain anchors. Run the assembled reply/like boundaries and existing thread/window/pacing tests, then resume the consumer's original prepared action. A test pass is not real publication proof.

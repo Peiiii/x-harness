@@ -335,3 +335,20 @@ export function executorWindowAllowed(
     now < Date.parse(permit.expiresAt),
   );
 }
+
+/** Ordinary replies/received likes retain their own pacing anchor. */
+export function latestNormalInteractionTime(state: any): number {
+  const intents = [
+    ...(state.actions ?? []).filter(
+      (a: any) =>
+        a.kind === "reply" &&
+        ["intent", "unknown", "verified"].includes(a.status),
+    ),
+    ...(state.reactions ?? []).filter((a: any) => !a.threadBatchId),
+  ];
+  return intents.reduce(
+    (latest: number, action: any) =>
+      Math.max(latest, Date.parse(action.intentAt) || 0),
+    0,
+  );
+}

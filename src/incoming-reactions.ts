@@ -1,4 +1,7 @@
-import { executorWindowAllowed } from "./growth-policy.js";
+import {
+  executorWindowAllowed,
+  latestNormalInteractionTime,
+} from "./growth-policy.js";
 import type { BusinessDependencies } from "./api.js";
 import type { IncomingLikeOptions, IncomingLikeResult } from "./types.js";
 import type { BoundaryRecord } from "./boundary.js";
@@ -140,24 +143,12 @@ export class IncomingReactions {
         status: "needsDecision",
         reason: "incoming-like-context-unconfirmed",
       };
-    const latest = [
-      ...(snapshot.state.reactions ?? []),
-      ...(snapshot.state.actions ?? []).filter(
-        (a: BoundaryRecord) =>
-          a.kind === "reply" &&
-          ["intent", "unknown", "verified"].includes(a.status),
-      ),
-    ]
-      .filter((a: BoundaryRecord) => a.intentAt)
-      .sort(
-        (a: BoundaryRecord, b: BoundaryRecord) =>
-          Date.parse(b.intentAt) - Date.parse(a.intentAt),
-      )[0];
-    if (latest && now - Date.parse(latest.intentAt) < 30000)
+    const latest = latestNormalInteractionTime(snapshot.state);
+    if (latest && now - latest < 30000)
       return {
         status: "waiting",
         reason: "like-pacing",
-        resumeAt: new Date(Date.parse(latest.intentAt) + 30000).toISOString(),
+        resumeAt: new Date(latest + 30000).toISOString(),
       };
     let intent = false;
     try {
@@ -175,17 +166,8 @@ export class IncomingReactions {
               )
             )
               throw Error("like-intent-conflict");
-            const recent = [
-              ...s.state.reactions,
-              ...(s.state.actions ?? []).filter(
-                (a: BoundaryRecord) =>
-                  a.kind === "reply" &&
-                  ["intent", "unknown", "verified"].includes(a.status),
-              ),
-            ].some(
-              (a: BoundaryRecord) =>
-                this.#clock() - Date.parse(a.intentAt) < 30000,
-            );
+            const latest = latestNormalInteractionTime(s.state);
+            const recent = latest && this.#clock() - latest < 30000;
             if (recent) throw Error("like-pacing");
             s.state.reactions.push({
               postId: target.postId,

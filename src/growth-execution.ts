@@ -1,3 +1,4 @@
+import { latestNormalInteractionTime } from "./growth-policy.js";
 import { OriginalPostCadence } from "./original-post-cadence.js";
 import { actionableForExecutor } from "./executor-actionability.js";
 import type { BoundaryRecord } from "./boundary.js";
@@ -145,27 +146,15 @@ export class GrowthExecution {
     const cadence = this.#cadence.check(state, action);
     if (cadence) return { snapshot, need: cadence };
     if (action.kind === "reply" && action.conversation) {
-      const recent = [
-        ...(state.actions ?? []).filter(
-          (a: any) =>
-            a.kind === "reply" &&
-            ["intent", "unknown", "verified"].includes(a.status) &&
-            a.intentAt,
-        ),
-        ...(state.reactions ?? []).filter((a: any) => a.intentAt),
-      ].sort(
-        (a: any, b: any) => Date.parse(b.intentAt) - Date.parse(a.intentAt),
-      )[0];
-      if (recent && this.#clock() < Date.parse(recent.intentAt) + 30000)
+      const recent = latestNormalInteractionTime(state);
+      if (recent && this.#clock() < recent + 30000)
         return {
           snapshot,
           need: {
             status: "waiting",
             actionId: action.id,
             reason: "incoming-interaction-pacing",
-            resumeAt: new Date(
-              Date.parse(recent.intentAt) + 30000,
-            ).toISOString(),
+            resumeAt: new Date(recent + 30000).toISOString(),
           },
         };
     }
