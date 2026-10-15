@@ -269,11 +269,12 @@ export class DOMNavigation {
       // Some hosts time out a URL wait even after the exact route committed.
       // Fresh route evidence may continue to content readiness, never acceptance.
       if (
-        command.view === "posts" &&
+        (command.view === "posts" ||
+          (command.view === "person" && !check.needsStateCheck)) &&
         check.page === command.url &&
         !check.alerts?.length
       ) {
-        // The exact article wait below is still mandatory while UI is loading.
+        // Exact target content readiness below remains mandatory while loading.
       } else {
         if (
           !clickedLink ||
@@ -325,12 +326,17 @@ export class DOMNavigation {
       });
     } catch (error: any) {
       if (
-        command.view !== "posts" ||
+        !["posts", "person"].includes(command.view) ||
         !/Timed out waiting for URL/.test(error.message)
       )
         throw error;
       const check = await this.#observe({ view: "account", limit: 1 });
-      if (check.page !== command.url || check.alerts?.length) throw error;
+      if (
+        check.page !== command.url ||
+        check.alerts?.length ||
+        (command.view === "person" && check.needsStateCheck)
+      )
+        throw error;
       // Only a committed exact route is recovered; exact content readiness still follows.
     }
   }

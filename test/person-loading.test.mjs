@@ -161,3 +161,51 @@ test("native relationship proof does not reopen for unsupported color evidence",
   assert.equal(out.blueEvidenceSupported, false);
   assert.deepEqual(clicks, []);
 });
+
+for (const signal of ["committed", "alert", "incomplete", "wrong-route"]) {
+  test(`committed profile URL timeout preserves profile readiness: ${signal}`, async () => {
+    const { DOMNavigation } = await import("../dist/browser-dom-navigation.js");
+    const url = "https://x.com/reader";
+    let page = "https://x.com/home",
+      navigations = 0,
+      profileWaits = 0;
+    const nav = new DOMNavigation({
+      session: {},
+      observe: async () => ({
+        page: signal === "wrong-route" ? "https://x.com/explore" : page,
+        accountHandle: "owner",
+        alerts: signal === "alert" ? ["challenge"] : [],
+        needsStateCheck: signal === "incomplete",
+      }),
+      tab: {
+        url: async () => page,
+        goto: async (u) => {
+          page = u;
+          navigations++;
+        },
+        playwright: {
+          waitForURL: async () => {
+            throw Error("Timed out waiting for URL");
+          },
+          locator: () => ({
+            waitFor: async () => {
+              profileWaits++;
+            },
+          }),
+        },
+      },
+    });
+    const run = () =>
+      nav.openObserved({
+        url,
+        view: "person",
+        forceNavigation: true,
+        handle: "reader",
+        evidenceRef: "synthetic-proof",
+      });
+    if (signal === "committed") await run();
+    else await assert.rejects(run());
+    assert.equal(navigations, 1);
+    assert.equal(profileWaits, signal === "committed" ? 1 : 0);
+  });
+}
