@@ -1,5 +1,6 @@
 import type { BoundaryRecord } from "./boundary.js";
 import { readPeople, readProfile } from "./readers-profile.js";
+import { readThreadLikeSurface } from "./readers-thread-likes.js";
 import { readPosts } from "./readers-posts.js";
 import { readComposer, readMediaEditor } from "./readers-composer.js";
 import { readNavigation, readMenu } from "./readers-navigation.js";
@@ -208,6 +209,7 @@ export function readXSurface({
 // CUA accepts a page-function string. Compose the existing read-only parsers,
 // rather than running two browser requests or maintaining another tweet parser.
 export const atomicObservationCode = `(query) => {
+  const readThreadLikeSurface = ${readThreadLikeSurface.toString()};
   const readPosts = ${readPosts.toString()};
   const readProfile = ${readProfile.toString()};
   const readPeople = ${readPeople.toString()};
@@ -220,6 +222,6 @@ export const atomicObservationCode = `(query) => {
   if (!readers[query.view]) throw new Error('未封装的DOM视图');
   const raw = readers[query.view](query);
   const surface = readXSurface({...query, posts:(raw.posts??[]).map(p=>({id:p.id,primary:p.primary}))});
-  return {...raw,...surface,needsStateCheck:Boolean(raw.needsStateCheck)||!surface.accountHandle,
+  return {...raw,...surface,...readThreadLikeSurface(query),needsStateCheck:Boolean(raw.needsStateCheck)||!surface.accountHandle,
     ...(query.view==='posts'?{posts:raw.posts.map(p=>({...p,...surface.bodies.find(b=>b.id===p.id)}))}: {})};
 }`;

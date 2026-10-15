@@ -10,10 +10,10 @@ Use root API/current task reference. Normal use needs no implementation source o
 
 ## Bind once
 
-Use current CUA docs and one real `tab`/`app`; preserve others' editors. First connection: [automatic binding](references/connection.md). Reuse valid bindings.
+Use current CUA docs and one real `tab`/`app`; preserve other editors. [First connection](references/connection.md); reuse valid bindings.
 
 Installed module: `{{MODULE_URL}}`; CLI: `{{CLI_PATH}}`.
-In development, use `<harness-repository>/dist/index.js` as an absolute file URL with existing ledger/proof paths. Unresolved placeholders: retain the existing runtime. Only missing runtime/workspace or updates need [setup](references/setup.md).
+Development: use `<harness-repository>/dist/index.js` as an absolute file URL with original ledger/proofs. Unresolved placeholders: reuse runtime. Missing runtime/workspace or updates: [setup](references/setup.md).
 
 ```js
 var { createXGrowthHarness } = await import(moduleURL);
@@ -22,13 +22,15 @@ var x = createXGrowthHarness({ tab, ledgerPath, proofDirectory });
 
 ## Load by task
 
+Work at scale starts with verified [batch discovery](references/batch-discovery.md); never search person by person. Reuse queues; repair real gaps, verify and resume.
+
 | Current need | Read only |
 | --- | --- |
 | Creator/bookmarks/search/post/person/feedback/account | [reads](references/reads.md) |
 | Followback list audit | [audit](references/followback-audit.md) |
-| Publish/reply/follow or a round | [writes](references/writes.md), preamble + common review + matching operation heading |
+| Publish/reply/follow/thread likes or a round | [writes](references/writes.md), preamble + common review + matching operation heading |
 | Unknown submission, missing capability or connection failure | [recovery](references/recovery.md) |
 
-Default `receipt` is for status; use `decision` on the first call needing content, `delta` for changed evidence with valid prior context. Keep observations in REPL/proof; return complete relevant evidence and actionable warnings. Never truncate target text or print full DOM/AX. Root calls own capability checks, intent, submission, verification and settlement; verified results need no extra preflight/reload/verify.
+Use `receipt` for status, `decision` for first content, `delta` for changes with valid prior context. Keep observations locally; return complete target evidence and warnings. Never truncate target text or dump DOM/AX. Root calls own capability checks, intent, submission, verification and settlement; verified results need no rechecks.
 
-Writes require user authorization, verified identity, reviewed evidence and the original ledger plan; project rules own policy. Unknown submission: verify the same action before any new submission. Follow recovery for other failures; read source only to repair a concrete defect/unsupported capability, verify, then return to root calls.
+Writes require user authorization, verified identity, reviewed evidence and the original ledger plan; project rules own policy. Unknown: verify the original action before new submission. Follow recovery otherwise; read source only for concrete repairs, verify and resume root calls.

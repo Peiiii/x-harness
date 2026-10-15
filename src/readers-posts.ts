@@ -3,15 +3,18 @@ export function readPosts({
   offset = 0,
   limit = 5,
   targetId = "",
+  threadRootId = "",
 }: any = {}): any {
   if (
     !Number.isInteger(offset) ||
     offset < 0 ||
     !Number.isInteger(limit) ||
     limit < 1 ||
-    limit > 5
+    limit > (threadRootId ? 1000 : 5)
   )
     throw new Error("offset>=0；limit为1～5");
+  if (threadRootId && !/^\d+$/.test(threadRootId))
+    throw new Error("threadRootId必须是数字公开ID");
   if (targetId && !/^\d+$/.test(targetId))
     throw new Error("targetId必须是数字公开ID");
   const visible = (el: any) => el.getClientRects().length > 0;
@@ -154,7 +157,11 @@ export function readPosts({
         document.scrollingElement!.clientHeight >=
         document.scrollingElement!.scrollHeight - 2,
     loading: Array.from(document.querySelectorAll('[role="progressbar"]')).some(
-      visible,
+      (el: any) =>
+        visible(el) &&
+        getComputedStyle(el).visibility !== "hidden" &&
+        getComputedStyle(el).opacity !== "0" &&
+        !el.closest('[aria-hidden="true"]'),
     ),
     matched: candidates.length,
     offset,

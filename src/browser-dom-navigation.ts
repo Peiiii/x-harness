@@ -9,6 +9,7 @@ export class DOMNavigation {
   searchSources!: (command: any) => Promise<void>;
   openExploreRecommendations!: (command: any) => Promise<void>;
   waitForFolder!: (command: any) => Promise<void>;
+  waitForThreadReplies!: (command: any) => Promise<void>;
   waitForPosts!: (command: any) => Promise<void>;
   openObserved!: (command: any) => Promise<void>;
   refreshPerson!: (command: any) => Promise<void>;
@@ -25,6 +26,7 @@ export class DOMNavigation {
     this.openExploreRecommendations =
       this.handleOpenExploreRecommendations.bind(this);
     this.waitForFolder = this.handleWaitForFolder.bind(this);
+    this.waitForThreadReplies = this.handleWaitForThreadReplies.bind(this);
     this.waitForPosts = this.handleWaitForPosts.bind(this);
     this.openObserved = this.handleOpenObserved.bind(this);
     this.refreshPerson = this.handleRefreshPerson.bind(this);
@@ -124,6 +126,28 @@ export class DOMNavigation {
       .getByText(command.folder, { exact: true })
       .waitFor({ state: "visible", timeoutMs: 2000 });
     return;
+  }
+  private async handleWaitForThreadReplies(command: any) {
+    if (
+      !Array.isArray(command.excludeIds) ||
+      command.excludeIds.some((id: any) => !/^\d+$/.test(id)) ||
+      !Number.isInteger(command.timeoutMs) ||
+      command.timeoutMs < 1 ||
+      command.timeoutMs > 5000
+    )
+      throw Error("thread-pagination-wait-invalid");
+    let articles = this.#tab.playwright.getByRole("article");
+    if (command.excludeIds.length)
+      articles = articles.filter({
+        hasNot: this.#tab.playwright.locator(
+          command.excludeIds
+            .map((id: string) => `a[href$="/status/${id}"]`)
+            .join(","),
+        ),
+      });
+    await articles
+      .first()
+      .waitFor({ state: "visible", timeoutMs: command.timeoutMs });
   }
   private async handleWaitForPosts(command: any) {
     if (command.ancestorHandle) {

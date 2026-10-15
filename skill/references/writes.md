@@ -82,6 +82,8 @@ Explicit same-day suspension of internal follow pacing: use [follow observation 
 
 ## Round
 
+Explicit success goal blocked by total reservations: [verified-target planning](planning.md).
+
 `await x.inspectRound({taskId})` inspects original state; `await x.runGrowthRound({taskId,maxActions})` runs/resumes it. maxActions bounds this call, not original planned total. Preparation uses decision:{type:'prepareActions',accountHandle,ownershipEvidenceRef,actions}; actions are the reviewed structures above.
 
 Optional decision fields: attemptsCoverage:{complete,since,evidenceRef}, sharedAttempts:[{kind,at}], nextScheduledCheckAt. For follow budgets, coverage must actually cover the required window; unknown history cannot be recorded as zero. Missing data remains a decision gap.
@@ -97,3 +99,30 @@ Optional executor.replyEmojiPolicy={sampleRate,maxInRecent} gates new reply draf
 ## Executor-local read restrictions
 
 A non-actionable item remains account-wide unless its original ledger explicitly records `executionRestriction:{scope:'executor',executorId,reason,evidenceRef}`. The exact current reason and evidence in `blockEvidence` must match, and the restricting executor must exist with the same kind. Another authorized executor can proceed through the root API with its own identity/source proof; the affected executor stays blocked. Missing/stale scope proof, shared capacity, alerts, windows, pacing, quality and unknown guards still reject. Do not infer locality from a message or silently clear another executor's marker.
+
+## Follow priority during reply gaps
+
+Use `runFollowPriorityBatch({taskId,follow:{executor:{id,scopeKinds:['follow'],evidenceRef},handles,pacing?,recoveryTargets?},reply:{actions,verifiedTarget?}})` on the current reply-scoped root. Supply the existing authorized follow actor, reviewed original handles, and optional original unknown person targets. The root serially selects a follow batch when available; before a due backoff it executes the reviewed reply batch. New reply boundaries and short pacing waits recheck follow readiness and hand over in the same call. Only a matching evidenced expired backoff can reopen, without clearing other actor markers; unknowns are read-only verified, never resubmitted. All normal time, authorization, budget, review and account serialization gates remain.
+
+Return: `selected:'follow'|'reply'|'none'`, `followResult?`, `replyResult?`, `reason?`, `resumeAt?`. Continue through this same API while work is available. Midnight returns without platform work. Counts/results remain original-ledger facts; a batch receipt never guarantees the daily target.
+
+An unconfirmed individual reply parent baseline submits nothing and does not stop the remaining reviewed authors in `replyBatch`. Its receipt remains needsDecision; shared alerts, missing capabilities, pacing/time gates and other refusals still stop the batch. Never treat a skipped baseline as completion.
+
+## Thread likes
+
+`likePostAndComments({url,batchId?,sampleRate:0.6,maxLikes:20,maxPages:40,timeBudgetMs:120000})` opens the selected X permalink and internally scans/expands ordinary rendered replies. No caller comment/author list is needed. Root is selected separately; comments use a persisted per-ID 60% sample, not an exact quota. Same batch/root/rate resumes without redrawing; changed sampling requires a new batch ID. Existing global reactions prevent duplicate clicks across batches. Already-liked controls never toggle; unknown intent is verified when visible and never clicked again.
+
+Thread clicks use one fresh, exact Chrome AX button activation, avoiding locator keyboard focus that itself clicks. The thread page remains open; exact card ID, author, account and fresh public liked state are checked without visiting commenter profiles. Ancestors, ads, sidebar and Discover more recommendations are excluded; only unambiguous observed Show replies/Show more replies controls expand. Hidden/unavailable replies are outside verified coverage. DOM Chrome tab required; native app binding returns capability-required.
+
+Serial fresh submissions are 1–2 seconds apart, including read/verification time. This is load pacing, not human impersonation or detection evasion. Limits can rise to 100 new likes, 200 advances and 600000ms per call. Internal waits consume no additional model calls; insufficient time returns waiting/resumeAt, caps return checkpoint. Continue the same call arguments/batch with a sufficient outer tool timeout; never poll or resample. Account warning, wrong identity, midnight (Shanghai 00–07) stops. Unknown intent freezes only that post; other selected comments may continue, and the final receipt retains unknown status. Result counts separate newLikesThisCall, verified, preexisting, skipped, unknown and pending. `verified` only means the loaded thread reached a bounded stable tail; scopeComplete is always false, never all comments on X.
+
+X's published rules prohibit automated likes: https://help.x.com/en/rules-and-policies/x-automation . Sampling and timing do not change that rule or guarantee against restrictions. This API requires explicit task authorization and does not automatically attach to every reply.
+
+```js
+var result = await x.likePostAndComments({
+  url: "https://x.com/example/status/123",
+  batchId: "thread-123",
+  sampleRate: 0.6,
+  timeBudgetMs: 120000,
+});
+```

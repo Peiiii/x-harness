@@ -173,6 +173,33 @@ export interface WindowOptions {
   processedIds?: string[];
 }
 export interface IncomingReplyOptions extends WindowOptions {}
+export interface ThreadLikeOptions {
+  url: string;
+  batchId?: string;
+  sampleRate?: number;
+  maxLikes?: number;
+  maxPages?: number;
+  timeBudgetMs?: number;
+}
+export interface ThreadLikeResult {
+  status: "verified" | "checkpoint" | "waiting" | "unknown" | "needsDecision";
+  batchId: string;
+  url: string;
+  scopeComplete: false;
+  reason?: string;
+  resumeAt?: string;
+  evidenceRef?: string;
+  counts: {
+    observed: number;
+    selected: number;
+    verified: number;
+    preexisting: number;
+    skipped: number;
+    unknown: number;
+    pending: number;
+    newLikesThisCall: number;
+  };
+}
 export interface IncomingLikeOptions {
   batchId: string;
   targets: (PostTarget & { author: string; incomingEvidenceRef: string })[];
@@ -225,6 +252,40 @@ export interface BookmarkOptions extends WindowOptions {
 }
 export interface SearchOptions extends WindowOptions {
   query: string;
+  /** Continue only the currently confirmed exact query without reopening its top. */
+  resume?: boolean;
+}
+export interface ReplyDiscoveryOptions {
+  queries: string[];
+  target?: number;
+  maxWindows?: number;
+  processedIds?: string[];
+  excludedHandles?: string[];
+  minLikes?: number;
+  maxAgeHours?: number;
+  chineseOnly?: boolean;
+}
+export interface ReplyDiscoveryResult {
+  status: "observed" | "needsDecision";
+  reason?: string;
+  candidates: {
+    post: PostEvidence;
+    evidenceRef: EvidenceRef;
+    query: string;
+    requiresReview: true;
+  }[];
+  examinedIds: string[];
+  windows: {
+    query: string;
+    evidenceRef?: EvidenceRef;
+    status: ReadResult["status"];
+    missing: string[];
+    observed: number;
+  }[];
+  rejections: Record<string, number>;
+  targetReached: boolean;
+  pageComplete: false;
+  evidenceRef?: EvidenceRef;
 }
 export interface ExploreRecommendationOptions extends WindowOptions {}
 export interface CreatorOptions {
@@ -429,6 +490,27 @@ export interface SourceLinkEvidence {
   evidenceRef: EvidenceRef;
   renderedText?: string;
 }
+export interface VerifiedTargetPlanOptions {
+  taskId: string;
+  kind: OperationKind;
+  target: number;
+  sourceCategories?: string[];
+  excludedActionIds?: string[];
+  userAuthorized: boolean;
+  evidenceRef: EvidenceRef;
+}
+export interface VerifiedTargetPlanResult {
+  status: "planned" | "needsDecision";
+  reason?: string;
+  kind?: OperationKind;
+  target?: number;
+  matchedVerified?: number;
+  remaining?: number;
+  capacity?: number;
+  preservedUnknown?: number;
+  goalEvidenceRef?: EvidenceRef;
+  evidenceRef?: EvidenceRef;
+}
 export interface Executor {
   id: string;
   scopeKinds: OperationKind[];
@@ -518,11 +600,49 @@ export type HostConnectionResult =
       tab?: CuaTab;
     };
 
+export interface FollowPriorityOptions {
+  taskId: string;
+  follow: FollowOptions & {
+    executor: Executor;
+    recoveryTargets?: {
+      handle: string;
+      url?: string;
+      evidenceRef?: EvidenceRef;
+    }[];
+  };
+  reply: {
+    actions: PreparedAction[];
+    verifiedTarget?: Omit<VerifiedTargetPlanOptions, "taskId" | "kind">;
+  };
+}
+export interface FollowPriorityResult {
+  selected: "follow" | "reply" | "none";
+  reason?: string;
+  resumeAt?: string;
+  followResult?: BatchResult;
+  replyResult?: {
+    status: "verified" | "needsDecision";
+    reason?: string;
+    results: ActionResult[];
+  };
+}
 export interface XGrowthHarness {
   captureAccountScreenshot(
     options: AccountScreenshotOptions,
   ): Promise<AccountScreenshotResult>;
-  replyBatch(args: { taskId: string; actions: PreparedAction[] }): Promise<{
+  runFollowPriorityBatch(
+    args: FollowPriorityOptions,
+  ): Promise<FollowPriorityResult>;
+  likePostAndComments(args: ThreadLikeOptions): Promise<ThreadLikeResult>;
+  planVerifiedTarget(
+    args: VerifiedTargetPlanOptions,
+  ): Promise<VerifiedTargetPlanResult>;
+  replyBatch(args: {
+    taskId: string;
+    actions: PreparedAction[];
+    followPriorityExecutorId?: string;
+    verifiedTarget?: Omit<VerifiedTargetPlanOptions, "taskId" | "kind">;
+  }): Promise<{
     status: "verified" | "needsDecision";
     reason?: string;
     results: ActionResult[];
@@ -534,6 +654,9 @@ export interface XGrowthHarness {
     args: FollowbackAuditOptions,
   ): Promise<FollowbackAuditResult>;
   readBookmarks(args: BookmarkOptions): Promise<ReadResult>;
+  discoverReplyCandidates(
+    args: ReplyDiscoveryOptions,
+  ): Promise<ReplyDiscoveryResult>;
   searchSources(args: SearchOptions): Promise<ReadResult>;
   readExploreRecommendations(
     args?: ExploreRecommendationOptions,
@@ -594,6 +717,7 @@ export type AccountScreenshotResult =
       page: string;
       capturedAt: string;
       imagePath: string;
+      imageMimeType: "image/png" | "image/jpeg";
       imageSha256: string;
       headings: string[];
       labels: string[];

@@ -50,13 +50,44 @@ export class PlatformObservation {
         (value.blue === null && value.blueEvidenceSupported !== false) ||
         value.relationship === "unknown");
     if (!atTarget || incompletePerson) {
-      await this.#browser.act({
-        operation: "openObserved",
-        url: url.href,
-        evidenceRef: target.evidenceRef,
-        view: query.view,
-        handle: query.handle,
-      });
+      try {
+        await this.#browser.act({
+          operation: "openObserved",
+          url: url.href,
+          evidenceRef: target.evidenceRef,
+          view: query.view,
+          handle: query.handle,
+        });
+      } catch (error: unknown) {
+        // A URL wait may expire just before the committed document is observable.
+        // Observe once; an inert unchanged page may navigate the same evidenced
+        // URL directly once. Never repeat a submission. Exact post and
+        // account/content/parent verification remain owned by the caller.
+        if (
+          query.view !== "posts" ||
+          !/Timed out waiting for URL/.test(
+            error instanceof Error ? error.message : "",
+          )
+        )
+          throw error;
+        const committed = await this.handleObserved(query);
+        if (committed.needsStateCheck || committed.alerts?.length) throw error;
+        if (committed.page !== url.href) {
+          if (
+            committed.page !== value.page ||
+            !value.accountHandle ||
+            committed.accountHandle !== value.accountHandle
+          )
+            throw error;
+          await this.#browser.act({
+            operation: "openObserved",
+            url: url.href,
+            evidenceRef: target.evidenceRef,
+            view: "posts",
+            forceNavigation: true,
+          });
+        }
+      }
       value = await this.handleReady(query);
     }
     if (!value.page || xURL(value.page).href !== url.href)
@@ -81,15 +112,32 @@ export class PlatformObservation {
       !value.alerts?.length &&
       query.view === "posts"
     ) {
-      try {
-        await this.#browser.act({
-          operation: "waitForPosts",
-          ...(waitingForOffset ? { offset: query.offset } : {}),
-        });
-      } catch (error: any) {
-        if (!/timed out|timeout/i.test(error.message)) throw error;
+      const page = value.page;
+      const deadline = Date.now() + 15000;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+          await this.#browser.act({
+            operation: "waitForPosts",
+            ...(waitingForOffset ? { offset: query.offset } : {}),
+          });
+        } catch (error: any) {
+          if (!/timed out|timeout|deadline exceeded/i.test(error.message))
+            throw error;
+        }
+        value = await this.handleObserved(query);
+        if (value.page !== page) {
+          value = { ...value, needsStateCheck: true };
+          break;
+        }
+        if (
+          !waitingForList ||
+          value.posts?.length ||
+          value.loading !== true ||
+          value.alerts?.length ||
+          Date.now() >= deadline
+        )
+          break;
       }
-      value = await this.handleObserved(query);
       if (waitingForList && !query.offset && !value.posts?.length)
         value = { ...value, needsStateCheck: true };
     }

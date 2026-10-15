@@ -163,6 +163,8 @@ test("one lookup recovers unique own-account permalinks for the whole unknown ba
     lookups++;
     assert.match(q.query, /from:Pei/);
     assert.match(q.query, /first.*OR.*second/);
+    assert.match(q.query, /filter:replies/);
+    assert.doesNotMatch(q.query, /since:/);
     return {
       fresh: true,
       evidenceRef: f.proof,
@@ -318,4 +320,77 @@ test("serialized shared metric aliases do not discard the visible button counts"
     "25 喜欢次数。喜欢",
     "1002 次查看。查看帖子分析",
   ]);
+});
+
+test("known recipients use one grouped lookup rather than common-text search", async (t) => {
+  const f = fixture(t, { actionKinds: ["reply"], planned: [0, 0, 2] });
+  await f.store.transaction(({ state }) => {
+    const a = state.actions[0];
+    Object.assign(a, {
+      id: "a",
+      status: "unknown",
+      intentAt: new Date(NOW).toISOString(),
+      text: "hello",
+      author: "alpha",
+      beforeIds: [],
+    });
+    state.actions.push({ ...a, id: "b", postId: "456", author: "beta" });
+    return state;
+  });
+  const api = createBusinessHarness({
+    store: f.store,
+    platform: {},
+    clock: () => NOW,
+  });
+  let searches = 0;
+  api.replyToPost = async (q) => ({
+    status: "unknown",
+    actionId: q.postId === "123" ? "a" : "b",
+  });
+  api.verifySubmission = async (q) => ({
+    status: "unknown",
+    actionId: q.actionId,
+  });
+  api.searchSources = async (q) => {
+    searches++;
+    assert.match(q.query, /from:Pei \(to:alpha OR to:beta\) filter:replies/);
+    assert.doesNotMatch(q.query, /hello|since:/);
+    return { fresh: true, evidenceRef: f.proof, sources: [] };
+  };
+  await api.replyBatch({
+    taskId: "round-1",
+    actions: (await f.store.load()).state.actions,
+  });
+  assert.equal(searches, 1);
+});
+
+test("one unconfirmed parent baseline does not block other reviewed new authors", async (t) => {
+  const f = fixture(t);
+  const api = createBusinessHarness({
+    store: f.store,
+    platform: {},
+    clock: () => NOW,
+  });
+  const seen = [];
+  api.replyToPost = async (q) => {
+    seen.push(q.postId);
+    return q.postId === "first"
+      ? {
+          status: "needsDecision",
+          reason: "publication-baseline-unconfirmed",
+          actionId: "a",
+        }
+      : { status: "verified", actionId: "b" };
+  };
+  const r = await api.replyBatch({
+    taskId: "round-1",
+    actions: [
+      { id: "a", kind: "reply", postId: "first" },
+      { id: "b", kind: "reply", postId: "second" },
+    ],
+  });
+  assert.deepEqual(seen, ["first", "second"]);
+  assert.equal(r.results[0].reason, "publication-baseline-unconfirmed");
+  assert.equal(r.results[1].status, "verified");
+  assert.equal(r.status, "needsDecision");
 });

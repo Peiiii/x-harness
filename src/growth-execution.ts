@@ -237,7 +237,7 @@ export class GrowthExecution {
     if (action.kind !== "follow") {
       let baseline: any;
       try {
-        baseline = await this.#platform.findSubmission(
+        baseline = await this.readSubmissionWithURLContinuation(
           { ...action, intentAt: this.#stamp() },
           { phase: "baseline" },
         );
@@ -265,6 +265,42 @@ export class GrowthExecution {
     }
     return { beforeIds };
   }
+  private async readSubmissionWithURLContinuation(
+    action: any,
+    context?: any,
+  ): Promise<any> {
+    try {
+      return await this.#platform.findSubmission(action, context);
+    } catch (error: any) {
+      const preparedBaseline = context?.phase === "baseline";
+      const observedReceipt =
+        !context &&
+        action.observedPublicURL &&
+        this.#evidenceExists(action.observedPublicEvidenceRef);
+      const message = String(error?.message ?? "");
+      const parentPath = action.url?.match(
+        /^https:\/\/(?:x\.com|twitter\.com)(\/[^?#]+)(?:[?#].*)?$/i,
+      )?.[1];
+      const hrefs = [
+        ...message.replaceAll("\\", "").matchAll(/a\[href="([^"]+)"\]/g),
+      ].map((m) => m[1]);
+      const preparedArticleTimeout =
+        preparedBaseline &&
+        action.status === "prepared" &&
+        /locator\.waitFor\(visible\) timed out/.test(message) &&
+        /internal:role=article/.test(message) &&
+        parentPath &&
+        hrefs.some((h) => h === parentPath || h === parentPath + "/history");
+      if (
+        action.kind !== "reply" ||
+        !(preparedBaseline || observedReceipt) ||
+        !(/Timed out waiting for URL/.test(message) || preparedArticleTimeout)
+      )
+        throw error;
+      // Continue only this read; the existing admission and receipt gates stay intact.
+      return this.#platform.findSubmission(action, context);
+    }
+  }
   private async handleExecute(
     snapshot: any,
     action: any,
@@ -284,7 +320,7 @@ export class GrowthExecution {
     if (recovering) {
       let observation: any;
       try {
-        observation = await this.#platform.findSubmission(action);
+        observation = await this.readSubmissionWithURLContinuation(action);
       } catch (error: any) {
         observation = {
           verified: false,

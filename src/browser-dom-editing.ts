@@ -1,12 +1,15 @@
+import { ThreadLikeActivation } from "./thread-like-activation.js";
 import { attachImage } from "./readers-actions.js";
 
 import type { DOMDependencies } from "./browser-dom-dependencies.js";
 export class DOMEditing {
+  #threadLikeActivation?: ThreadLikeActivation;
   #session!: DOMDependencies["session"];
   #unique!: DOMDependencies["unique"];
   #locator!: DOMDependencies["locator"];
   #tab!: DOMDependencies["tab"];
   #observe!: DOMDependencies["observe"];
+  expandThreadReplies!: (command: any) => Promise<any>;
   dismissMenu!: (
     command: any,
   ) => Promise<
@@ -126,6 +129,7 @@ export class DOMEditing {
     this.#tab = tab;
     this.#observe = observe;
     this.dismissMenu = this.handleDismissMenu.bind(this);
+    this.expandThreadReplies = this.handleExpandThreadReplies.bind(this);
     this.openControl = this.handleOpenControl.bind(this);
     this.openOwnPostMenu = this.handleOpenOwnPostMenu.bind(this);
     this.submitEditedPost = this.handleSubmitEditedPost.bind(this);
@@ -356,6 +360,24 @@ export class DOMEditing {
     if (typeof this.#tab.pressKey === "function")
       await this.#tab.pressKey(null, "PageDown");
     else await unique.press("PageDown");
+    return { completed: true };
+  }
+  private async handleExpandThreadReplies(command: any) {
+    const { query, result } = this.#session.current;
+    if (
+      query.threadRootId !== command.rootId ||
+      !result.threadConfirmed ||
+      result.needsStateCheck ||
+      result.alerts?.length ||
+      result.threadExpandControls?.filter((c: any) => c.label === command.label)
+        .length !== 1
+    )
+      throw Error("thread-expand-unconfirmed");
+    const control = this.#tab.playwright
+      .locator('main [data-testid="primaryColumn"]')
+      .getByRole("button", { name: command.label, exact: true });
+    await (await this.#unique(control)).click();
+    this.#session.current = null;
     return { completed: true };
   }
   private async handleNextPosts(command: any) {
@@ -592,10 +614,31 @@ export class DOMEditing {
     const button = await this.#unique(
       article.getByRole("button", { name: buttons[0].label, exact: true }),
     );
-    await command.beforeSubmit?.();
+    if (query.threadRootId) {
+      this.#threadLikeActivation ??= new ThreadLikeActivation(this.#tab);
+      const activation = await this.#threadLikeActivation.submit({
+        post,
+        page: result.page,
+        beforeSubmit: command.beforeSubmit,
+      });
+      if (activation.preexisting)
+        return { completed: true, value: { ...result, preexisting: true } };
+    } else {
+      await command.beforeSubmit?.();
+      await button.click();
+    }
     this.#session.current = null;
-    await button.click();
+    // Observe the actual rendered acknowledgement; a click receipt is not a like.
+    try {
+      await article
+        .getByRole("button", { name: /喜欢了|取消喜欢|Unlike|Liked/i })
+        .waitFor({ state: "visible", timeoutMs: 2000 });
+    } catch (error: any) {
+      if (!/timed out|timeout|deadline exceeded/i.test(String(error)))
+        throw error;
+    }
     const after = await this.#observe({
+      ...query,
       view: "posts",
       targetId: command.postId,
     });

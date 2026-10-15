@@ -1,0 +1,21 @@
+# Authorized verified-target capacity planning
+
+Flow standard, risk L3; parent goal remains 400 follows/200 qualified external replies. Existing shared reservation counts all verified and unknown actions against item.planned. A live round has 177 total verified +23 unknown =200 reserved, but only160 match its authorized qualified-source target. Raising the success target or deleting unknowns would be false.
+
+## Contract / design review
+
+Add root local-only `planVerifiedTarget`: explicit userAuthorized, goal proof, original task ID and an executor whose authorized scope includes the kind. A source-category filter can express the original qualified target. It computes matched verified, remaining success quantity and a total reservation plan `max(existing planned, total verified + total unknown + remaining)`. Original target stays in the user contract/goal owner; existing planAdjustments records the capacity mapping, quantities and authority proof. It changes only the original item's planned reservation quantity, preserving all counters, actions, claims, executor markers and actual attempts. It never performs browser I/O or relaxes pacing/backoff/night/source/author/no-resend gates.
+
+CAP-R1: 160 qualified /177 total verified /23 unknown /200 authorized success target produces capacity240, remaining40; no counter mutation. CAP-R2: missing authorization/proof, wrong task or outside scope produces no mutation. CAP-R3: never shrink an existing reservation plan. CAP-R4: CAS computes from current original counters; concurrent markers/actions preserved. CAP-R5: no browser operations and no completion claim; actual attempts/unknown budget evidence remains.
+
+Design review passed: reuse original item/planAdjustments/store rather than introduce duplicate business state; local planning is separated from platform limits. Stable paths src/verified-target-planning.ts, types/API, tests and existing writes Skill planning reference. Required contract CAP-R1–5; validation and implementation review passed. Plan not-required, one feature batch with current caller. CLI/private context still distinguishes original goal evidence from total reservation capacity; no change to explicit authorized success quantity.
+
+## Validation and implementation review
+
+Full check: 355 tests passed, including authorization/scope rejection, 177/23 reservation mapping with 160 matching verified actions, no shrink, and batch stop at the verified target. Type, CLI, contract, format, maintainability and Skill checks passed. Live local root planning preserved all 23 unknown actions while mapping capacity240 for the authorized200 qualified target; blocked prepared actions then submitted and publicly verified. Later root batches recalculated capacity while retaining unknown actions.
+
+Implementation review CAP-R1–5: original store transaction owns the computation and changes only item.planned plus the original planAdjustments audit; every write still traverses the existing execution gates. No browser call, counter reset, claim replacement or completion claim in the planner. Existing callers without verifiedTarget retain their prior behavior. The optional batch target stops new prepared writes at the actual matched verified count, while original unknown recovery remains read-only. No findings in the reviewed diff. This is reservation capacity mapping, not relaxation of platform pacing or the user goal.
+
+CAP-R6 / qualification audit: explicit excludedActionIds subtracts only audited unqualified actions from matchedVerified; original verified/unknown counts, action statuses and author history remain. Live audit found one same-author ordinary second greeting without substantive-continuation evidence. The added synthetic regression proves the audited duplicate stays verified, unknown remains reserved and one qualified slot remains required. 356 full checks passed; review found no write/claim/counter mutation in this extension.
+
+Live CAP-R6 acceptance: category count200 mapped to qualified199 with the audited exclusion, preserving26 unknown reservations. A distinct reviewed new author then publicly verified; root planner returned qualified200/remaining0. Subsequent original unknown recovery performs no new submission. Public artifact validation belongs to consolidated0.2.70 delivery.

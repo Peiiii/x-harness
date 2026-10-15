@@ -8,7 +8,7 @@ const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXioAAAAASUVORK5CYII=",
   "base64",
 );
-async function fixture(t, observations, existing = {}) {
+async function fixture(t, observations, existing = {}, image = png) {
   const directory = await mkdtemp(join(tmpdir(), "account-shot-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   let state = { accountHandle: "testowner", executions: existing },
@@ -40,7 +40,7 @@ async function fixture(t, observations, existing = {}) {
     },
     screenshot: async () => {
       calls++;
-      return png;
+      return image;
     },
   };
   return {
@@ -105,4 +105,21 @@ test("同Tab正在提交时不截图、不改对方claim", async (t) => {
   );
   assert.equal(f.calls, 0);
   assert.equal(f.state.executions.other.actionId, "original");
+});
+
+test("保留浏览器JPEG字节和正确后缀；不把未知格式冒充PNG", async (t) => {
+  const jpeg = Buffer.from([
+    255, 216, 255, 224, 0, 16, 74, 70, 73, 70, 0, 1, 255, 217,
+  ]);
+  const f = await fixture(t, [{}, {}], {}, jpeg);
+  const r = await f.capture.capture({ surface: "analytics" });
+  assert.equal(r.status, "captured");
+  assert.equal(r.imageMimeType, "image/jpeg");
+  assert.ok(r.imagePath.endsWith(".jpg"));
+  assert.deepEqual(await readFile(r.imagePath), jpeg);
+  const invalid = await fixture(t, [{}, {}], {}, Buffer.from("not-an-image"));
+  assert.equal(
+    (await invalid.capture.capture({ surface: "analytics" })).reason,
+    "screenshot-image-unconfirmed",
+  );
 });

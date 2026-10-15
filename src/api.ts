@@ -1,4 +1,9 @@
+import { FollowPriority } from "./follow-priority.js";
+import { VerifiedTargetPlanning } from "./verified-target-planning.js";
+import { ReplyDiscovery } from "./reply-discovery.js";
+import { ThreadReactions } from "./thread-reactions.js";
 import { sameHandle, samePublishedText } from "./platform-rules.js";
+import { publicationTime } from "./publication-time.js";
 import { FollowbackAudit } from "./followback-audit.js";
 import { IncomingReactions } from "./incoming-reactions.js";
 import { createGrowthHarness } from "./growth.js";
@@ -24,6 +29,7 @@ export interface BusinessDependencies {
   platform: BoundaryRecord;
   store: import("./store.js").RoundStore;
   clock?: () => number;
+  sleep?: (ms: number) => Promise<void>;
   executor?: BoundaryRecord;
 }
 
@@ -31,6 +37,7 @@ export class BusinessHarness implements XGrowthHarness {
   captureAccountScreenshot: (
     options: AccountScreenshotOptions,
   ) => Promise<AccountScreenshotResult>;
+  #threadReactions: ThreadReactions;
   #reactions!: IncomingReactions;
   #followbackAudit: FollowbackAudit;
   #platform!: BusinessDependencies["platform"];
@@ -38,6 +45,7 @@ export class BusinessHarness implements XGrowthHarness {
   #core!: ReturnType<typeof createGrowthHarness>;
   #readCache!: Map<string, string>;
   #clock!: () => number;
+  #executor?: import("./types.js").Executor;
   constructor(dependencies: BusinessDependencies) {
     this.captureAccountScreenshot =
       dependencies.screenshots?.capture ||
@@ -45,8 +53,14 @@ export class BusinessHarness implements XGrowthHarness {
         status: "needsCapability",
         missing: ["DOM-tab-screenshot"],
       }));
+    this.planVerifiedTarget = this.planVerifiedTarget.bind(this);
+    this.#executor = dependencies.executor as
+      import("./types.js").Executor | undefined;
+    this.#threadReactions = new ThreadReactions(dependencies);
+    this.likePostAndComments = this.likePostAndComments.bind(this);
     this.readFollowbackAudit = this.readFollowbackAudit.bind(this);
     this.replyBatch = this.replyBatch.bind(this);
+    this.runFollowPriorityBatch = this.runFollowPriorityBatch.bind(this);
     this.likeIncomingBatch = this.likeIncomingBatch.bind(this);
     this.#reactions = new IncomingReactions(dependencies);
     this.verifyFollow = this.verifyFollow.bind(this);
@@ -65,6 +79,7 @@ export class BusinessHarness implements XGrowthHarness {
     this.readPost = this.readPost.bind(this);
     this.readIncomingConversations = this.readIncomingConversations.bind(this);
     this.readIncomingReplies = this.readIncomingReplies.bind(this);
+    this.discoverReplyCandidates = this.discoverReplyCandidates.bind(this);
     this.searchSources = this.searchSources.bind(this);
     this.readExploreRecommendations =
       this.readExploreRecommendations.bind(this);
@@ -337,9 +352,41 @@ export class BusinessHarness implements XGrowthHarness {
     if (d) out.diagnostic = d;
     return out;
   }
+  public planVerifiedTarget(
+    args: import("./types.js").VerifiedTargetPlanOptions,
+  ) {
+    return new VerifiedTargetPlanning(
+      this.#store,
+      this.#executor,
+      this.#clock,
+    ).run(args);
+  }
+  public async runFollowPriorityBatch(
+    args: import("./types.js").FollowPriorityOptions,
+  ) {
+    return new FollowPriority(this.#store, this.#clock).run(args, {
+      reply: (options) => this.replyBatch(options),
+      follow: async (executor) => {
+        const original = (await this.#store.load()).state.executions[
+          executor.id
+        ];
+        return new BusinessHarness({
+          store: this.#store,
+          platform: this.#platform,
+          clock: this.#clock,
+          executor: { ...original, ...executor },
+        });
+      },
+    });
+  }
   public async replyBatch(args: {
     taskId: string;
     actions: import("./types.js").PreparedAction[];
+    followPriorityExecutorId?: string;
+    verifiedTarget?: Omit<
+      import("./types.js").VerifiedTargetPlanOptions,
+      "taskId" | "kind"
+    >;
   }) {
     if (
       !Array.isArray(args.actions) ||
@@ -355,6 +402,53 @@ export class BusinessHarness implements XGrowthHarness {
     const results: ActionResult[] = [];
     for (const action of args.actions) {
       if (action.kind !== "reply") continue;
+      const existingStatus = args.followPriorityExecutorId
+        ? (await this.#store.load()).state.actions.find(
+            (a: BoundaryRecord) => a.id === action.id,
+          )?.status
+        : undefined;
+      if (
+        args.followPriorityExecutorId &&
+        (!existingStatus || existingStatus === "prepared")
+      ) {
+        const priority = await new FollowPriority(
+          this.#store,
+          this.#clock,
+        ).inspect(args.taskId, args.followPriorityExecutorId);
+        if (priority.ready || priority.blocked) {
+          results.push({
+            status: "needsDecision",
+            taskId: args.taskId,
+            actionId: action.id,
+            reason: priority.ready ? "follow-priority-ready" : priority.reason,
+          });
+          break;
+        }
+      }
+      if (args.verifiedTarget) {
+        const plan = await this.planVerifiedTarget({
+          ...args.verifiedTarget,
+          taskId: args.taskId,
+          kind: "reply",
+        });
+        const existing = (await this.#store.load()).state.actions.find(
+          (a: BoundaryRecord) => a.id === action.id,
+        );
+        if (
+          plan.status !== "planned" ||
+          (plan.remaining === 0 &&
+            (!existing || existing.status === "prepared"))
+        ) {
+          results.push({
+            status: "needsDecision",
+            taskId: args.taskId,
+            actionId: action.id,
+            reason: plan.reason ?? "verified-target-reached",
+            evidenceRef: plan.evidenceRef,
+          });
+          break;
+        }
+      }
       let result = await this.replyToPost({
         taskId: args.taskId,
         postId: action.postId,
@@ -370,6 +464,23 @@ export class BusinessHarness implements XGrowthHarness {
         if (Number.isFinite(delay) && delay <= 30000) {
           if (delay > 0)
             await new Promise((resolve) => setTimeout(resolve, delay));
+          const afterWait = args.followPriorityExecutorId
+            ? await new FollowPriority(this.#store, this.#clock).inspect(
+                args.taskId,
+                args.followPriorityExecutorId,
+              )
+            : undefined;
+          if (afterWait?.ready || afterWait?.blocked) {
+            results.push({
+              status: "needsDecision",
+              taskId: args.taskId,
+              actionId: action.id,
+              reason: afterWait?.ready
+                ? "follow-priority-ready"
+                : afterWait?.reason,
+            });
+            break;
+          }
           result = await this.replyToPost({
             taskId: args.taskId,
             postId: action.postId,
@@ -390,11 +501,23 @@ export class BusinessHarness implements XGrowthHarness {
       }
       results.push(result);
       if (
+        result.status === "needsDecision" &&
+        result.reason === "publication-baseline-unconfirmed"
+      )
+        continue;
+      if (
         ["waiting", "needsCapability", "needsDecision"].includes(result.status)
       )
         break;
     }
-    await this.recoverBatchReplyLinks(args.taskId, results);
+    const beforeRecovery = args.followPriorityExecutorId
+      ? await new FollowPriority(this.#store, this.#clock).inspect(
+          args.taskId,
+          args.followPriorityExecutorId,
+        )
+      : undefined;
+    if (beforeRecovery?.reason !== "night-platform-window")
+      await this.recoverBatchReplyLinks(args.taskId, results);
     return {
       status:
         results.length === args.actions.length &&
@@ -435,7 +558,15 @@ export class BusinessHarness implements XGrowthHarness {
     const phrases = pending
       .map((a) => '"' + a.text.slice(0, 80).replace(/["\\]/g, " ") + '"')
       .join(" OR ");
-    const query = `from:${pending[0].accountHandle} (${phrases}) since:${new Date(Math.min(...pending.map((a) => Date.parse(a.intentAt)))).toISOString().slice(0, 10)}`;
+    const recipients = pending.map(
+      (a) => a.conversation?.recipientHandle ?? a.author,
+    );
+    const recipientQuery = recipients.every((h) =>
+      /^[A-Za-z0-9_]{1,15}$/.test(h ?? ""),
+    )
+      ? [...new Set(recipients)].map((h) => `to:${h}`).join(" OR ")
+      : phrases;
+    const query = `from:${pending[0].accountHandle} (${recipientQuery}) filter:replies`;
     let found = await this.searchSources({
       query,
       limit: 5,
@@ -463,8 +594,8 @@ export class BusinessHarness implements XGrowthHarness {
           p.url?.toLowerCase() ===
             `https://x.com/${action.accountHandle}/status/${p.id}`.toLowerCase() &&
           !(action.beforeIds ?? []).includes(p.id) &&
-          Date.parse(p.datetime ?? "") >= Date.parse(action.intentAt) &&
-          Date.parse(p.datetime ?? "") <= this.#clock() + 5000,
+          publicationTime(p) >= Date.parse(action.intentAt) &&
+          publicationTime(p) <= this.#clock() + 5000,
       );
       if (matches.length !== 1) continue;
       let bound = false;
@@ -496,6 +627,9 @@ export class BusinessHarness implements XGrowthHarness {
         if (index >= 0) results[index] = recovered;
       }
     }
+  }
+  public likePostAndComments(args: import("./types.js").ThreadLikeOptions) {
+    return this.#threadReactions.run(args);
   }
   public likeIncomingBatch(args: import("./types.js").IncomingLikeOptions) {
     return this.#reactions.run(args);
@@ -698,6 +832,15 @@ export class BusinessHarness implements XGrowthHarness {
         : {}),
       pageComplete: false as const,
     };
+  }
+  public discoverReplyCandidates(
+    args: import("./types.js").ReplyDiscoveryOptions,
+  ) {
+    return new ReplyDiscovery(
+      (request) => this.searchSources(request),
+      this.#store,
+      this.#clock,
+    ).run(args);
   }
   public searchSources(args: import("./types.js").SearchOptions) {
     return this.read("searchSources", args, args.mode);

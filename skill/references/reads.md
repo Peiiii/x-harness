@@ -5,7 +5,7 @@
 | readIncomingReplies | none | processedIds, limit (5), maxPages (3), mode |
 | readCreator | handle | target (10;1–50), maxScrolls, navigate, expand, mode |
 | readBookmarks | folder (observed name), or discoverOnly:true | processedIds, limit (1–5), maxPages (1–10), resume, mode |
-| searchSources | query | processedIds, limit (1–5), maxPages (1–10), mode |
+| searchSources | query | resume, processedIds, limit (1–5), maxPages (1–10), mode |
 | readExploreRecommendations | none | processedIds, limit (1–5), maxPages (1–10), mode |
 | readPost | target: {postId,url,evidenceRef} | includeContext, resolveQuote, mode |
 | readPerson | target: {handle,url,evidenceRef} | mode |
@@ -18,7 +18,7 @@ Targets need proof. Native `readCreator` requires a selected profile (`navigate:
 
 Bookmarks `resume:true` continues the bound folder; rendered tail ≠ full proof.
 
-Observed ≠ complete; `pageComplete:false` means finite scope. Preserve full text; view media before describing; keep raw reads local.
+`pageComplete:false`: finite scope. Preserve full text; view media before describing.
 
 Incoming replies: ledger only; carry processedIds; skip settled/intent/unknown. Read parents with `readPost(includeContext:true)`; deduplicate.
 
@@ -28,6 +28,8 @@ Incoming conversations: `readIncomingConversations({targets?,...window})` discov
 
 `readPeople`: selected followers/following; `offset` reuses cells, `advance` scrolls. Returns bio, blue, relationship; dedup. Unknowns need profiles; Native unsupported.
 
-Discovery: names only.
+Discover names only.
 
 Count `sourceOrigin` only with confirmed `/explore` “For you” tab; exclude trends/search. Preserve visible counts; absent stays unknown.
+
+Batch replies: [automated discovery](batch-discovery.md).

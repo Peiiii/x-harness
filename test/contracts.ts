@@ -65,3 +65,13 @@ void incomplete;
 api.readCreator({ handle: "creator", target: 10, mode: "decision" });
 // @ts-expect-error Creator collection accepts a typed count, not a string.
 api.readCreator({ handle: "creator", target: "10" });
+
+api
+  .likePostAndComments({ url: "https://x.com/a/status/123", sampleRate: 0.6 })
+  .then((result) => {
+    const coverage: false = result.scopeComplete;
+    void coverage;
+    result.counts.newLikesThisCall;
+  });
+// @ts-expect-error No precollected target list is needed/accepted.
+api.likePostAndComments({ targets: [] });

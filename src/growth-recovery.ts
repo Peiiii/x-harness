@@ -1,4 +1,5 @@
 import type { GrowthDependencies } from "./growth-dependencies.js";
+import { publicationTime } from "./publication-time.js";
 
 import { xURL, matchesReviewedAssets } from "./platform-rules.js";
 import { matchesRenderedLinks } from "./source-link-recovery.js";
@@ -184,8 +185,8 @@ export class GrowthRecovery {
           )) &&
         !p.needsExpansion &&
         !(action.beforeIds ?? []).includes(p.id) &&
-        Date.parse(p.datetime) >= Date.parse(action.intentAt) &&
-        Date.parse(p.datetime) <= this.#clock() + 5000 &&
+        publicationTime(p) >= Date.parse(action.intentAt) &&
+        publicationTime(p) <= this.#clock() + 5000 &&
         matchesReviewedAssets(p, action.assets)
       );
     });
