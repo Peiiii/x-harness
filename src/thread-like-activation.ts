@@ -1,29 +1,64 @@
-import { createAXHarness } from "./readers-ax-host.js";
-import { sameHandle, xURL } from "./platform-rules.js";
+import { readAX } from "./readers-ax-parser.js";
+import { sameHandle, sameText, xURL } from "./platform-rules.js";
 
-/** Chrome's locator press focuses by clicking first. Likes use one AX press. */
+/** Like toggles require one native activation, never locator keyboard focus. */
 export class ThreadLikeActivation {
-  #low: ReturnType<typeof createAXHarness>;
+  readonly #tab: any;
   constructor(tab: any) {
-    this.#low = createAXHarness({
-      getAXState: (options: any) => tab.getAXState(options),
-      click: (index: number) => tab.click(index),
-    });
+    this.#tab = tab;
   }
-  public async submit(args: any) {
-    const query = { mode: "posts", targetId: args.post.id, limit: 1 };
-    const raw = await this.#low.observe(query);
-    const post = raw.posts?.[0];
+  private target(state: string, args: any) {
+    const raw = readAX(state, { mode: "posts", limit: 5 });
     if (
       raw.needsStateCheck ||
       raw.alerts?.length ||
-      raw.posts?.length !== 1 ||
-      post.id !== args.post.id ||
-      !sameHandle(post.author, args.post.author) ||
       xURL(raw.page).href !== args.page
     )
       throw Error("thread-like-native-target-unconfirmed");
-    const controls = (post.evidence ?? []).filter((e: any) =>
+    // Page the same immutable full snapshot in memory, not repeated UI reads.
+    const posts = [...raw.posts];
+    for (let offset = 5; offset < raw.renderedArticles; offset += 5)
+      posts.push(...readAX(state, { mode: "posts", offset, limit: 5 }).posts);
+    const exact = posts.filter((p: any) => p.id === args.post.id);
+    const sameBody = posts.filter(
+      (p: any) =>
+        sameText(p.text, args.post.body) &&
+        p.evidence.some((e: any) =>
+          sameHandle(
+            e.label.match(/x\.com\/(\w+)\/status\//)?.[1],
+            args.post.author,
+          ),
+        ),
+    );
+    const candidates = exact.length
+      ? exact.filter((p: any) => sameHandle(p.author, args.post.author))
+      : sameBody.length !== 1
+        ? []
+        : sameBody.filter(
+            (p: any) =>
+              p.id === null &&
+              sameText(p.text, args.post.body) &&
+              p.evidence.some((e: any) => {
+                const link = e.label.match(
+                  /x\.com\/(\w+)\/status\/(\d{12,})…(?:,|$)/,
+                );
+                return (
+                  link &&
+                  sameHandle(link[1], args.post.author) &&
+                  args.post.id.startsWith(link[2])
+                );
+              }),
+          );
+    if (exact.length > 1 || candidates.length !== 1)
+      throw Error("thread-like-native-target-unconfirmed");
+    return { ...raw, posts: candidates };
+  }
+  public async submit(args: any) {
+    const raw = this.target(
+      await this.#tab.getAXState({ emit: false, disableDiffing: true }),
+      args,
+    );
+    const controls = raw.posts[0].evidence.filter((e: any) =>
       /^(?:按钮|切换按钮) .*?(?:喜欢|Likes?|Unlike)/i.test(e.label),
     );
     if (controls.length !== 1 || /disabled/.test(controls[0].label))
@@ -31,11 +66,12 @@ export class ThreadLikeActivation {
     if (/喜欢了|取消喜欢|Unlike|Liked/i.test(controls[0].label))
       return { preexisting: true };
     await args.beforeSubmit?.();
-    const after = await this.#low.act({
-      index: controls[0].index,
-      operation: "click",
-      read: query,
-    });
-    return { observation: after };
+    await this.#tab.click(controls[0].index);
+    return {
+      observation: this.target(
+        await this.#tab.getAXState({ emit: false, disableDiffing: true }),
+        args,
+      ),
+    };
   }
 }

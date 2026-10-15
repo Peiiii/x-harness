@@ -33,3 +33,25 @@ parent-goal：仅URL输入即可由harness遍历并抽样点赞原帖/评论，�
 实际边界修复：CUA只读DOM不实现compareDocumentPosition，改为单次有序DOM选择；线程窗口沿原readPosts显式放宽，普通读取仍1–5；CSS visibility:hidden的残留progressbar不得阻止稳定尾部；仅一次精确URL就绪超时只读续验。键盘按钮聚焦实际会先点击并再次激活，已移除该路径，用已观察AX索引单次激活；测试保护一intent/一click、无键盘。Unknown只冻结对象，连接/身份/平台警告冻结批次。方案与实现Review基于上述修复后版本：no findings。
 
 复盘：浏览器缓存/定位器假设需要真实边界测试；具体发现已修原reader/activation owner并有回归。不新增全局提示词或通信规则。已发布并安装0.2.71，registry gitHead=01f48cbd22e19f3ea3ff7bfa909119ba2d36fe0c；发布时间进入翌日不改变本事项日期。
+
+
+## 2026-10-15：截断 AX 链接造成线程点赞中断
+
+flow=bugfix，risk=L2，retrospective_state=pending。现有 DOM 观察拥有完整目标ID、作者、正文和唯一点赞按钮；其后的原生辅助信息在渲染较多卡片时会把 permalink Value 截为省略号，原 AX parser 正确拒绝认作完整ID，导致无 intent 的 prepared 对象反复中断。真实诊断保留消费者原证明，不进入公开仓库。
+
+修复使用现有 DOMEditing.likePost 的唯一按钮 click，一次 beforeSubmit/一次 click；线程平台层仍先核账号、精确URL、根线程归属、完整目标ID和作者，DOMEditing仍核唯一文章与按钮，并fresh观察已赞状态。删除冗余 ThreadLikeActivation 路径及其专属测试，扩展原 DOM 浏览器边界测试覆盖线程上下文、禁止键盘/AX调用、已赞与wrong-target零点击。未知反应继续冻结，批次、抽样和状态合同不变。无需新公共API、配置或持久字段。不尝试从截断URL推测完整ID。
+
+方案Review(mode=design)：passed。与扩展 AX 前缀绑定/再读恢复相比，复用已有完整 DOM 控件路径减少一套身份推断和额外读取；只改变提交激活实现，不删除平台或公开已赞验证门。Required：原线程上下文单intent/单click；错误目标/告警不提交；既有未知防重/分页/节奏回归；完整check；真实原批次恢复及再次恢复不取消已赞。未验证前不宣称采用或修复完成。
+
+
+修前线程 DOM 边界测试在旧激活路径因缺少 AX 能力失败；修后同一边界与线程状态测试15项通过。完整check416项通过（移除2项旧AX专属测试，新增1项线程DOM拒绝测试），含类型、CLI/公开合同、格式、维护性及Skill检查。实现Review(mode=implementation)：no findings；diff-only人工核原精确DOM目标、线程归属/作者/账号门未删除，项目维护性入口已通过。真实采用待原批次复测，不以本地检查冒充已采用或总体效率达标。
+
+
+真实验证返工：DOM click 方案未通过。原批次新点击后的公开已赞状态未持久确认，新增12个unknown，保持原ID冻结，不再点击；不将单元测试通过当真实激活成功。撤回DOM路径改动，先恢复原单次AX激活，原根任务继续用最后受检构建。原方案Review/采用结论对该路径撤销，retrospective_state=pending。
+
+修订方案Review(mode=design)：passed，范围仅原ThreadLikeActivation。保留新鲜DOM的完整ID/作者/正文作为目标输入；一次完整新鲜AX观察在内存按既有parser分页，完整ID路径照旧。仅在native URL明确被省略且ID不可解析时，用同一原始container内的完整正文、准确作者URL和至少12位观察到的ID前缀联合绑定，必须在整份AX中唯一；不补造完整AX ID。直接对该新鲜快照中的唯一like按钮执行一次AX click，随后观察状态，仍由原DOM/反应owner核持久已赞。前缀相同/正文相同多候选、正文缺失、错作者/路由、告警/残缺快照一律不达intent；原完整ID出现但不符不得fallback。原根平台ID/账号/线程检查不变。验证首先限制1个新点赞，真实通过再扩大，避免把未通过的激活试验扩成批量。
+
+
+修订验证：完整check419项通过，含截断/完整链接、重复候选、正文/作者/前缀/路由/告警拒绝及原未知冻结。保存的真实失败快照与原完整DOM对象在消费者侧离线回放：唯一绑定一次模拟intent/AX index，native帖子ID仍为null，没有伪造ID、没有平台写入。真实原批次恢复取得新已赞核验，另一批次单成功上限验证新增1个已赞且无新未知；同时真实运行另有1个点击后未确认，保留未知，不声称普遍消除了点赞未知。原截断绑定故障已有回归与边界回放覆盖；先前DOM试验12个未知也全部冻结，不重发/重点击。
+
+实现Review(mode=implementation)：no findings；复用原parser、原平台身份/线程门和反应store，完整ID路径不转前缀fallback，只有准确作者+完整正文+至少12位省略前缀且整份AX唯一才绑定；不改变样例为合成源的事实或未知结果。项目完整维护性/类型/格式/合同与测试通过。retrospective_state=completed；复盘增量：原生UI字符串会截断而DOM完整，跨表面应绑定已有完整对象与唯一可见控件，不用截断值冒充完整ID；激活替换必须先限制真实试验，单元click计数不能证明宿主的持久切换。当前消费者采用受检本地构建，公开npm版本未变；运营全天目标仍归原合同，不因修复完成关闭。
