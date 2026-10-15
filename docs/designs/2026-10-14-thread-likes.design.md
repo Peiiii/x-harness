@@ -81,3 +81,7 @@ LC1/LC2本地通过：修前同一已intent原生回读异常回归，其它已�
 真实LC3返工（revision 2）：原批次恢复在其它prepared目标的intent之前也复现同一精确native错误，零新提交，不能把第一修订当成整个路径已修复。新增已冻结分支：intent前同一精确错误也只在一次鲜读原线程通过后，CAS确认本batch entry仍prepared、账号未变且该post无任何全局reaction，才将该entry记skipped并写明确原因/证明；不创建reaction、不当作preexisting/已赞，继续其它selected项。账号/告警/线程缺证或CAS不通过仍停；原有intent/unknown不进入此skip分支、不重点击。最终回执若只有此类selected跳过也必须needsDecision而非成功。修订方案Review(mode=design)：passed，新增分支有实际零intent边界证据，权限与公开已赞门不变。LC1–LC3对修订范围重新验证，运营仍继续。
 
 修订2本地验证：完整check464项通过；新增intent前单项明确skip后其余4项核验，且不写全局reaction、不计preexisting，原批次再次运行不重试该skip。鲜证错误/告警仍停，CAS遇到并发reaction或账号变更不skip、不覆盖。实现Review(mode=implementation)：no findings；状态归原entry，未引入第二台账，原unknown与公共已赞门保持。真实原批次接续仍待验证，不能据此关闭运营任务。
+
+LC3真实采用：消费者显式重绑完整受检构建后，在原两条线程新增8个公开已赞核验。有限已加载范围内prepared归零；10个unknown保持原intent冻结，22个无intent且原生目标缺证的selected对象明确skipped，均未当成功或preexisting。保存的六个代表恢复观察均为原完整URL、原账号、threadConfirmed=true、无告警/残缺；未由调用方重点击未知。线程仍scopeComplete=false，达到页/时间预算返回checkpoint，不声称全量隐藏评论已完成。初版真实缺口与返工证据保留；实际点赞能力仍有目标无法绑定，后续相关稳定维护再集中发布。LC1–LC3在该隔离/继续范围passed，retrospective_state=completed。
+
+复盘增量：单目标错误必须先按是否已有intent区分；有intent保持unknown，无intent只有CAS证实没有任何reaction才可明确跳过。继续其它对象须有一次新的原线程/账号/无告警证明，不能将“其它任务继续”泛化为忽略平台状态。测试与真实采用分开，部分未核验不扩大为全局停工，也不当作成功补数。
