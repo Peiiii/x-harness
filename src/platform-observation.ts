@@ -36,6 +36,8 @@ export class PlatformObservation {
     const url = xURL(target.url);
     if (!target.evidenceRef) throw new Error("目标URL缺已观察证据");
     let value = await this.handleObserved(query);
+    if (query.threadRootId && value.alerts?.length)
+      return { ...value, needsStateCheck: true };
     let atTarget = false;
     try {
       atTarget = xURL(value.page).href === url.href;

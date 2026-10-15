@@ -109,3 +109,30 @@ test("thread reads directly open the evidenced root before checking membership",
   assert.equal(result.threadRootPresent, true);
   assert.equal(result.verified, undefined);
 });
+
+test("thread root navigation does not leave an observed platform challenge", async () => {
+  let actions = 0;
+  const observation = createPlatformObservation({
+    clock: () => Date.parse("2026-10-15T01:00:00Z"),
+    browser: {
+      observe: async () => ({
+        page: "https://x.com/home",
+        accountHandle: "owner",
+        alerts: ["verification required"],
+      }),
+      act: async () => {
+        actions++;
+      },
+    },
+  });
+  const result = await observation.open(
+    {
+      url: "https://x.com/peer/status/123",
+      evidenceRef: "observed-root-proof",
+    },
+    { view: "posts", threadRootId: "123" },
+  );
+  assert.equal(actions, 0);
+  assert.equal(result.needsStateCheck, true);
+  assert.deepEqual(result.alerts, ["verification required"]);
+});
