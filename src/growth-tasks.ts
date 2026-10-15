@@ -37,6 +37,7 @@ export class GrowthTasks {
     this.searchSources = this.searchSources.bind(this);
     this.readExploreRecommendations =
       this.readExploreRecommendations.bind(this);
+    this.readHomeRecommendations = this.readHomeRecommendations.bind(this);
     this.readBookmarks = this.readBookmarks.bind(this);
     this.readPerson = this.readPerson.bind(this);
     this.readPeople = this.readPeople.bind(this);
@@ -75,6 +76,7 @@ export class GrowthTasks {
         "readBookmarks",
         "searchSources",
         "readExploreRecommendations",
+        "readHomeRecommendations",
         "readFeedback",
       ].includes(operation)
     )
@@ -159,6 +161,9 @@ export class GrowthTasks {
   }
   public readExploreRecommendations(args: any = {}) {
     return this.#readTask("readExploreRecommendations", args);
+  }
+  public readHomeRecommendations(args: any = {}) {
+    return this.#readTask("readHomeRecommendations", args);
   }
   public readFeedback(args: any) {
     return this.#readTask("readFeedback", args);

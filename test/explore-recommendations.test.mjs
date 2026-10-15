@@ -51,7 +51,11 @@ function collection({
     browser: {
       act: async (command) => {
         calls.push(command.operation);
-        if (command.operation === "openExploreRecommendations")
+        if (
+          ["openExploreRecommendations", "openHomeRecommendations"].includes(
+            command.operation,
+          )
+        )
           currentPage = page;
         if (command.operation === "waitForPosts" && navigationWaitCompletes)
           postsReady = true;
@@ -282,3 +286,124 @@ for (const completes of [true, false]) {
     }
   });
 }
+
+test("Home recommendation reader reuses bounded cards with distinct provenance", async () => {
+  const f = collection({ page: "https://x.com/home" });
+  const result = await f.api.readHomeRecommendations({ limit: 1 });
+  assert.equal(result.complete, true);
+  assert.equal(result.sourceOrigin.kind, "home-recommendations");
+  assert.equal(result.sourceOrigin.page, "https://x.com/home");
+  assert.equal(result.sourceOrigin.selectedTab, "为你推荐");
+  assert.equal(result.sources[0].id, "100");
+  assert.deepEqual(f.calls, ["openHomeRecommendations"]);
+});
+for (const config of [
+  { page: "https://x.com/explore" },
+  {
+    page: "https://x.com/home",
+    tabs: [{ role: "tab", label: "Following", selected: true }],
+  },
+]) {
+  test(`Home refuses wrong surface or Following ${JSON.stringify(config)}`, async () => {
+    const f = collection(config);
+    const result = await f.api.readHomeRecommendations({ limit: 1 });
+    assert.equal(result.complete, false);
+    assert.equal(result.sourceOrigin, undefined);
+    assert.equal(f.reads.includes("posts"), false);
+  });
+}
+test("Home result provenance cannot impersonate Explore or a different actual route", () => {
+  const raw = {
+    page: "https://x.com/home",
+    status: "observed",
+    sourceOrigin: {
+      kind: "home-recommendations",
+      page: "https://x.com/home",
+      selectedTab: "For you",
+    },
+  };
+  assert.equal(
+    readResult("readHomeRecommendations", raw, "decision").sourceOrigin.kind,
+    "home-recommendations",
+  );
+  assert.equal(
+    readResult("readExploreRecommendations", raw, "decision").sourceOrigin,
+    undefined,
+  );
+  assert.equal(
+    readResult(
+      "readHomeRecommendations",
+      { ...raw, page: "https://x.com/search?q=test" },
+      "decision",
+    ).sourceOrigin,
+    undefined,
+  );
+  assert.equal(
+    readResult(
+      "readHomeRecommendations",
+      {
+        ...raw,
+        sourceOrigin: {
+          ...raw.sourceOrigin,
+          kind: "explore-recommendations",
+          page: "https://x.com/explore",
+        },
+      },
+      "decision",
+    ).sourceOrigin,
+    undefined,
+  );
+});
+
+test("business root exposes readHomeRecommendations with source provenance", async (t) => {
+  const f = fixture(t),
+    calls = [];
+  let page = "https://x.com/home";
+  const browser = {
+    capabilities: () => [],
+    observe: async ({ view }) =>
+      view === "navigation"
+        ? {
+            page,
+            controls: [{ role: "tab", label: "For you", selected: true }],
+            headings: [],
+            needsStateCheck: false,
+            alerts: [],
+          }
+        : {
+            page,
+            accountHandle: "writer",
+            posts: [
+              {
+                id: "300",
+                author: "writer",
+                datetime: "2026-10-14T01:00:00.000Z",
+                body: "完整的真实帖子内容。",
+                metrics: [{ label: "Likes 25" }],
+              },
+            ],
+            needsStateCheck: false,
+            alerts: [],
+          },
+    act: async (command) => {
+      calls.push(command.operation);
+      if (command.operation === "openHomeRecommendations")
+        page = "https://x.com/home";
+    },
+  };
+  const api = createBusinessHarness({
+    store: f.store,
+    platform: createXPlatform(browser),
+  });
+  const result = await api.readHomeRecommendations({ mode: "decision" });
+
+  assert.equal(
+    result.sourceOrigin?.kind,
+    "home-recommendations",
+    JSON.stringify(result),
+  );
+  assert.equal(result.sources[0].id, "300");
+  assert.equal(result.sources[0].body, "完整的真实帖子内容。");
+  assert.deepEqual(result.sources[0].metrics, ["Likes 25"]);
+  assert.deepEqual(calls, ["openHomeRecommendations"]);
+});

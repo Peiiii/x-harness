@@ -1,7 +1,7 @@
 import type { PlatformDependencies } from "./platform-dependencies.js";
 import { xURL, source } from "./platform-rules.js";
 
-const exploreNavigationEvidence = (nav: any) => ({
+const recommendationNavigationEvidence = (nav: any) => ({
   page: nav.page,
   headings: (nav.headings ?? []).slice(0, 5),
   tabs: (nav.controls ?? [])
@@ -24,6 +24,9 @@ export class PlatformCollections {
   readExploreRecommendations!: (
     args?: import("./types.js").ExploreRecommendationOptions,
   ) => Promise<any>;
+  readHomeRecommendations!: (
+    args?: import("./types.js").HomeRecommendationOptions,
+  ) => Promise<any>;
   searchSources!: ({
     query,
     limit,
@@ -45,8 +48,9 @@ export class PlatformCollections {
     this.readCreator = this.handleReadCreator.bind(this);
     this.readBookmarks = this.handleReadBookmarks.bind(this);
     this.searchSources = this.handleSearchSources.bind(this);
-    this.readExploreRecommendations =
-      this.handleReadExploreRecommendations.bind(this);
+    this.readExploreRecommendations = this.handleReadRecommendations.bind(this);
+    this.readHomeRecommendations = (args = {}) =>
+      this.handleReadRecommendations(args, "home");
   }
   private async handleCollectSources({
     processedIds = [],
@@ -543,17 +547,25 @@ export class PlatformCollections {
       };
     return { ...value, query };
   }
-  private async handleReadExploreRecommendations({
-    limit = 3,
-    maxPages = 1,
-    processedIds = [],
-  }: import("./types.js").ExploreRecommendationOptions = {}): Promise<any> {
-    await this.#browser.act({ operation: "openExploreRecommendations" });
+  private async handleReadRecommendations(
+    {
+      limit = 3,
+      maxPages = 1,
+      processedIds = [],
+    }: import("./types.js").ExploreRecommendationOptions = {},
+    surface: "explore" | "home" = "explore",
+  ): Promise<any> {
+    await this.#browser.act({
+      operation:
+        surface === "home"
+          ? "openHomeRecommendations"
+          : "openExploreRecommendations",
+    });
     let nav = await this.#ready({ view: "navigation" });
     const page = (value: any) => {
       try {
         const url = xURL(value);
-        return url.pathname.replace(/\/+$/, "") === "/explore" ? url : null;
+        return url.pathname.replace(/\/+$/, "") === "/" + surface ? url : null;
       } catch {
         return null;
       }
@@ -565,9 +577,9 @@ export class PlatformCollections {
         fresh: true,
         complete: false,
         page: nav.page,
-        missing: ["explore-page-unconfirmed"],
+        missing: [`${surface}-page-unconfirmed`],
         sources: [],
-        navigationEvidence: exploreNavigationEvidence(nav),
+        navigationEvidence: recommendationNavigationEvidence(nav),
       };
     if (
       !nav.alerts?.length &&
@@ -590,7 +602,7 @@ export class PlatformCollections {
         page: nav.page,
         missing: ["platform-alert"],
         sources: [],
-        navigationEvidence: exploreNavigationEvidence(nav),
+        navigationEvidence: recommendationNavigationEvidence(nav),
       };
     if (nav.needsStateCheck) {
       const diagnosticRead = await this.handleCollectSources({
@@ -605,13 +617,15 @@ export class PlatformCollections {
         complete: false,
         missing: [
           ...new Set([
-            "explore-navigation-unconfirmed",
-            ...(!sameExplorePage ? ["explore-page-changed-during-read"] : []),
+            `${surface}-navigation-unconfirmed`,
+            ...(!sameExplorePage
+              ? [`${surface}-page-changed-during-read`]
+              : []),
             ...(diagnosticRead.missing ?? []),
           ]),
         ],
         sources: sameExplorePage ? (diagnosticRead.sources ?? []) : [],
-        navigationEvidence: exploreNavigationEvidence(nav),
+        navigationEvidence: recommendationNavigationEvidence(nav),
       };
     }
     const recommended = (nav.controls ?? []).filter(
@@ -625,9 +639,9 @@ export class PlatformCollections {
         fresh: true,
         complete: false,
         page: entryPage.href,
-        missing: ["explore-recommended-tab-unconfirmed"],
+        missing: [`${surface}-recommended-tab-unconfirmed`],
         sources: [],
-        navigationEvidence: exploreNavigationEvidence(nav),
+        navigationEvidence: recommendationNavigationEvidence(nav),
       };
     const expectedLabel = recommended[0].label.split("\n")[0] as
       "为你推荐" | "For you";
@@ -645,9 +659,9 @@ export class PlatformCollections {
         fresh: true,
         complete: false,
         page: entryPage.href,
-        missing: ["explore-recommended-tab-selection-unavailable"],
+        missing: [`${surface}-recommended-tab-selection-unavailable`],
         sources: [],
-        navigationEvidence: exploreNavigationEvidence(nav),
+        navigationEvidence: recommendationNavigationEvidence(nav),
       };
     nav = await this.#ready({ view: "navigation" });
     const selected = (nav.controls ?? []).filter(
@@ -667,9 +681,9 @@ export class PlatformCollections {
         fresh: true,
         complete: false,
         page: nav.page,
-        missing: ["explore-recommended-tab-selection-unconfirmed"],
+        missing: [`${surface}-recommended-tab-selection-unconfirmed`],
         sources: [],
-        navigationEvidence: exploreNavigationEvidence(nav),
+        navigationEvidence: recommendationNavigationEvidence(nav),
       };
     const value = await this.handleCollectSources({
       limit,
@@ -681,12 +695,15 @@ export class PlatformCollections {
         ...value,
         status: "needsDecision",
         complete: false,
-        missing: ["explore-page-changed-during-read"],
+        missing: [`${surface}-page-changed-during-read`],
       };
     return {
       ...value,
       sourceOrigin: {
-        kind: "explore-recommendations",
+        kind:
+          surface === "home"
+            ? "home-recommendations"
+            : `${surface}-recommendations`,
         page: entryPage.href,
         selectedTab: expectedLabel,
       },

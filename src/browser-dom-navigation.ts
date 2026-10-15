@@ -8,6 +8,7 @@ export class DOMNavigation {
   openQuote!: (command: any) => Promise<any>;
   searchSources!: (command: any) => Promise<void>;
   openExploreRecommendations!: (command: any) => Promise<void>;
+  openHomeRecommendations!: (command: any) => Promise<void>;
   waitForFolder!: (command: any) => Promise<void>;
   waitForThreadReplies!: (command: any) => Promise<void>;
   waitForPosts!: (command: any) => Promise<void>;
@@ -25,6 +26,10 @@ export class DOMNavigation {
     this.searchSources = this.handleSearchSources.bind(this);
     this.openExploreRecommendations =
       this.handleOpenExploreRecommendations.bind(this);
+    this.openHomeRecommendations = async () => {
+      this.#session.current = null;
+      await this.#tab.goto("https://x.com/home");
+    };
     this.waitForFolder = this.handleWaitForFolder.bind(this);
     this.waitForThreadReplies = this.handleWaitForThreadReplies.bind(this);
     this.waitForPosts = this.handleWaitForPosts.bind(this);

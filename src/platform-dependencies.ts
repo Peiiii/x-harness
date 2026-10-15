@@ -44,6 +44,9 @@ export interface PlatformDependencies {
   readExploreRecommendations: (
     args?: import("./types.js").ExploreRecommendationOptions,
   ) => Promise<any>;
+  readHomeRecommendations: (
+    args?: import("./types.js").HomeRecommendationOptions,
+  ) => Promise<any>;
   readFeedback: ({ targets, replyLimit }?: any) => Promise<any>;
   readPerson: (target: any) => Promise<any>;
   readPost: (target: any) => Promise<any>;

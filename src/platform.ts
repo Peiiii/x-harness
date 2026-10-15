@@ -141,6 +141,9 @@ export class XPlatform {
   #readExploreRecommendations!: ReturnType<
     typeof createPlatformCollections
   >["readExploreRecommendations"];
+  #readHomeRecommendations!: ReturnType<
+    typeof createPlatformCollections
+  >["readHomeRecommendations"];
   #createPlatformDiagnosticsResult!: ReturnType<
     typeof createPlatformDiagnostics
   >;
@@ -233,6 +236,9 @@ export class XPlatform {
   readExploreRecommendations!: ReturnType<
     typeof createPlatformCollections
   >["readExploreRecommendations"];
+  readHomeRecommendations!: ReturnType<
+    typeof createPlatformCollections
+  >["readHomeRecommendations"];
   readFeedback!: ({ targets, replyLimit }?: any) => Promise<any>;
   readPerson!: (target: any) => Promise<any>;
   readPost!: (target: any) => Promise<any>;
@@ -296,12 +302,14 @@ export class XPlatform {
       readBookmarks,
       searchSources,
       readExploreRecommendations,
+      readHomeRecommendations,
     } = this.#createPlatformCollectionsResult;
     this.#collectSources = collectSources;
     this.#readCreator = readCreator;
     this.#readBookmarks = readBookmarks;
     this.#searchSources = searchSources;
     this.#readExploreRecommendations = readExploreRecommendations;
+    this.#readHomeRecommendations = readHomeRecommendations;
     this.#createPlatformDiagnosticsResult = createPlatformDiagnostics({
       clock: this.#clock,
     });
@@ -336,6 +344,7 @@ export class XPlatform {
     this.readBookmarks = this.#readBookmarks;
     this.searchSources = this.#searchSources;
     this.readExploreRecommendations = this.#readExploreRecommendations;
+    this.readHomeRecommendations = this.#readHomeRecommendations;
     this.readFeedback = this.#readFeedback;
     this.readPerson = this.#readPerson;
     this.readPeople = this.#createPlatformTargetsResult.readPeople;
