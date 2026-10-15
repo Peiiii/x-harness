@@ -1,3 +1,4 @@
+import { OriginalPostCadence } from "./original-post-cadence.js";
 import { DraftSchedule } from "./draft-schedule.js";
 import type { GrowthDependencies } from "./growth-dependencies.js";
 
@@ -124,6 +125,12 @@ export class IndependentPublishing {
           throw new Error("same-action-claimed");
         const error = this.#guardInput(state, action, independentExecution);
         if (error) throw new Error(error);
+        const cadence = new OriginalPostCadence(this.#store, this.#clock).check(
+          state,
+          action,
+        );
+        if (cadence)
+          throw Object.assign(new Error(cadence.reason), { cadence });
       });
       const own = await this.#platform.readAccount();
       if (
@@ -203,6 +210,16 @@ export class IndependentPublishing {
               independentExecution,
             );
             if (error) throw new Error(error);
+            if (latest.state.execution?.originalCadence) {
+              const reservation = await new OriginalPostCadence(
+                this.#store,
+                this.#clock,
+              ).reserve(target);
+              if (reservation.need)
+                throw Object.assign(new Error(reservation.need.reason), {
+                  cadence: reservation.need,
+                });
+            }
             submissionStarted = true;
           },
         });
@@ -249,6 +266,7 @@ export class IndependentPublishing {
           state.items.find((i: any) => i.kind === "original").unknown -= 1;
           await this.#save(snapshot, state);
         });
+      if (error.cadence) return { ...error.cadence, taskId, mayEnd: false };
       if (error.message === "draft-not-before-not-reached")
         return {
           status: "waiting",

@@ -1,3 +1,4 @@
+import { OriginalPostCadence } from "./original-post-cadence.js";
 import { actionableForExecutor } from "./executor-actionability.js";
 import type { BoundaryRecord } from "./boundary.js";
 import type { RoundSnapshot } from "./store.js";
@@ -10,6 +11,7 @@ import type { GrowthDependencies } from "./growth-dependencies.js";
 
 import { operations, same } from "./growth-constants.js";
 export class GrowthExecution {
+  #cadence!: OriginalPostCadence;
   #capability!: GrowthDependencies["capability"];
   #platform!: GrowthDependencies["platform"];
   #settleProof!: GrowthDependencies["settleProof"];
@@ -67,6 +69,7 @@ export class GrowthExecution {
     this.#authorizedWindow = authorizedWindow;
     this.#stamp = stamp;
     this.#store = store;
+    this.#cadence = new OriginalPostCadence(store, clock);
     this.#executor = executor;
     this.#evidenceExists = evidenceExists;
     this.#session = session;
@@ -139,6 +142,8 @@ export class GrowthExecution {
           reason: inputError,
         },
       };
+    const cadence = this.#cadence.check(state, action);
+    if (cadence) return { snapshot, need: cadence };
     if (action.kind === "reply" && action.conversation) {
       const recent = [
         ...(state.actions ?? []).filter(
@@ -437,6 +442,20 @@ export class GrowthExecution {
             if (this.#waitBudget(check))
               throw new Error("实际提交前关注预算不再可用");
           }
+          if (
+            action.kind === "original" &&
+            latest.state.execution?.originalCadence
+          ) {
+            const reservation = await this.#cadence.reserve(
+              latest.state.actions.find((a: any) => a.id === entry.id),
+              !executor,
+            );
+            snapshot = reservation.snapshot;
+            if (reservation.need)
+              throw Object.assign(new Error(reservation.need.reason), {
+                cadence: reservation.need,
+              });
+          }
           submissionMayHaveStarted = true;
         },
       });
@@ -457,9 +476,11 @@ export class GrowthExecution {
         return {
           snapshot,
           need: {
-            status: "needsDecision",
+            ...(error.cadence ?? {
+              status: "needsDecision",
+              reason: "pre-submit-preparation-failed",
+            }),
             actionId: action.id,
-            reason: "pre-submit-preparation-failed",
             evidenceRef: proof,
           },
         };

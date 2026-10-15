@@ -462,6 +462,12 @@ export interface IndependentExecution {
     evidenceRef: EvidenceRef;
   };
 }
+export interface OriginalCadenceOptions {
+  taskId: string;
+  minGapMs: number;
+  userAuthorized: boolean;
+  evidenceRef: EvidenceRef;
+}
 export interface PublishOptions {
   taskId: string;
   draftPath: string;
@@ -682,6 +688,9 @@ export interface XGrowthHarness {
   runGrowthRound(args: RoundOptions): Promise<RoundResult>;
   followBatch(args: FollowOptions): Promise<BatchResult>;
   followOne(args: { taskId: string; handle: string }): Promise<ActionResult>;
+  configureOriginalCadence(
+    options: OriginalCadenceOptions,
+  ): Promise<Record<string, unknown>>;
   publishPost(args: PublishOptions): Promise<ActionResult>;
   replyToPost(args: ReplyOptions): Promise<ActionResult>;
   verifySubmission(args: {

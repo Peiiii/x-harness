@@ -1,3 +1,4 @@
+import { OriginalPostCadence } from "./original-post-cadence.js";
 import { FollowPriority } from "./follow-priority.js";
 import { VerifiedTargetPlanning } from "./verified-target-planning.js";
 import { ReplyDiscovery } from "./reply-discovery.js";
@@ -34,6 +35,7 @@ export interface BusinessDependencies {
 }
 
 export class BusinessHarness implements XGrowthHarness {
+  configureOriginalCadence: OriginalPostCadence["configure"];
   captureAccountScreenshot: (
     options: AccountScreenshotOptions,
   ) => Promise<AccountScreenshotResult>;
@@ -89,6 +91,11 @@ export class BusinessHarness implements XGrowthHarness {
     this.#clock = dependencies.clock ?? Date.now;
     this.#platform = platform;
     this.#store = store;
+    this.configureOriginalCadence = new OriginalPostCadence(
+      store,
+      this.#clock,
+      this.#executor,
+    ).configure;
     this.#core = createGrowthHarness(dependencies);
     this.#followbackAudit = new FollowbackAudit(
       (args) => this.#core.readPeople(args),

@@ -12,6 +12,8 @@ Action APIs return status/actionId/publicURL/evidenceRef and reason/missing/resu
 
 ## Publish
 
+Spacing: [cadence](original-cadence.md).
+
 Original action optional notBefore is an ISO timestamp with timezone. Explicit draft header notBefore or 最早发布窗口 is also enforced; the later constraint wins. Invalid metadata blocks, and before-window independent publishing returns waiting; scoped rounds report draft-not-before-not-reached. Both preserve no intent or submission. Recovery of an already submitted post is unaffected.
 
 Original actions may pass `notAfter` as the calendar window’s exclusive ISO end. It is rechecked at intent and immediately before activation; expiration submits nothing. Unknown verification remains allowed after expiry.
