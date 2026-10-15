@@ -18,6 +18,7 @@ export class PlatformCollections {
   #observed!: PlatformDependencies["observed"];
   #browser!: PlatformDependencies["browser"];
   #choose!: PlatformDependencies["choose"];
+  #sourceCursor?: { page: string; offset: number; firstRenderedId?: string };
   collectSources!: ({ processedIds, maxPages, limit }?: any) => Promise<any>;
   readCreator!: (args: import("./types.js").CreatorOptions) => Promise<any>;
   readBookmarks!: ({ folder, ...window }?: any) => Promise<any>;
@@ -56,27 +57,26 @@ export class PlatformCollections {
     processedIds = [],
     maxPages = 3,
     limit = 1,
+    resume = false,
   }: any = {}): Promise<any> {
-    if (
-      !Array.isArray(processedIds) ||
-      !Number.isInteger(maxPages) ||
-      maxPages < 1 ||
-      maxPages > 10 ||
-      !Number.isInteger(limit) ||
-      limit < 1 ||
-      limit > 5
-    )
-      throw new Error("来源窗口须为1–5，页面上限1–10及已处理ID数组");
+    this.validateSourceWindow(processedIds, maxPages, limit);
     const seen = new Set(processedIds),
       sources: any[] = [],
       missing: any[] = [];
     let last: any,
       previousIds = "",
-      offset = 0,
-      firstDOMId: any;
+      offset = resume ? (this.#sourceCursor?.offset ?? 0) : 0,
+      firstDOMId: any = resume
+        ? this.#sourceCursor?.firstRenderedId
+        : undefined;
     for (let page = 0; page < maxPages && sources.length < limit; page++) {
       last = await this.#ready({ view: "posts", offset, limit: 5 });
-      if (page === 0) firstDOMId = last.posts?.[0]?.id;
+      if (page === 0 && resume && this.#sourceCursor?.page !== last.page) {
+        offset = 0;
+        firstDOMId = undefined;
+        last = await this.#ready({ view: "posts", offset, limit: 5 });
+      }
+      firstDOMId ??= last.firstRenderedId ?? last.posts?.[0]?.id;
       if (last.needsStateCheck || last.alerts?.length)
         return {
           ...last,
@@ -184,6 +184,7 @@ export class PlatformCollections {
         }
       }
     }
+    this.rememberSourceCursor(last, offset, firstDOMId, sources.length < limit);
     return {
       page: last?.page,
       accountHandle: last?.accountHandle,
@@ -200,6 +201,38 @@ export class PlatformCollections {
           ? []
           : [...new Set([...missing, "bounded-source-window-exhausted"])],
     };
+  }
+  private validateSourceWindow(
+    processedIds: any,
+    maxPages: number,
+    limit: number,
+  ) {
+    if (
+      !Array.isArray(processedIds) ||
+      !Number.isInteger(maxPages) ||
+      maxPages < 1 ||
+      maxPages > 10 ||
+      !Number.isInteger(limit) ||
+      limit < 1 ||
+      limit > 5
+    )
+      throw new Error("来源窗口须为1–5，页面上限1–10及已处理ID数组");
+  }
+  private rememberSourceCursor(
+    last: any,
+    offset: number,
+    firstDOMId: any,
+    exhausted: boolean,
+  ) {
+    if (last?.page)
+      this.#sourceCursor = {
+        page: last.page,
+        offset:
+          exhausted && last.moreInDOM
+            ? offset + (last.posts?.length ?? 0)
+            : offset,
+        firstRenderedId: last.firstRenderedId ?? firstDOMId,
+      };
   }
   private async advanceSourceWindow(previous: any, seen: Set<any>) {
     const renderedIds = previous.renderedIds ?? [...seen];
@@ -437,7 +470,7 @@ export class PlatformCollections {
   ) {
     const selected = await this.confirmBookmarkFolder(folder);
     if (selected.status) return selected;
-    const value = await this.handleCollectSources(window);
+    const value = await this.handleCollectSources({ ...window, resume: true });
     return {
       ...value,
       folder,
