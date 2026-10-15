@@ -42,6 +42,7 @@ function scenario(t, options = {}) {
       reads++;
       if (args.reset !== false) index = 0;
       if (reads > 1 && options.recoveryNow) now = options.recoveryNow;
+      if (reads > 1 && options.onRecovery) await options.onRecovery(f);
       assert.equal(args.url, url);
       return {
         ...view(),
@@ -309,14 +310,39 @@ for (const badRecovery of [
     assert.equal(out.counts.verified, 0);
   });
 }
-test("native target failure before intent still refuses the batch without a recovery click", async (t) => {
+test("native target failure before intent skips only that original batch entry after fresh scope, without creating a reaction", async (t) => {
   const s = scenario(t, { nativeBeforeIntentIds: ["100"] });
   const out = await s.api.likePostAndComments({ url, sampleRate: 1 });
-  assert.equal(s.clicks.length, 0);
-  assert.equal(s.reads, 1);
+  assert.deepEqual(
+    s.clicks.map((c) => c.id),
+    ["101", "102", "103", "104"],
+  );
   assert.equal(out.status, "needsDecision");
+  assert.equal(out.counts.verified, 4);
   assert.equal(out.counts.unknown, 0);
+  assert.equal(out.counts.skipped, 1);
+  const state = (await s.f.store.load()).state;
+  assert.ok(!state.reactions.some((r) => r.postId === "100"));
+  assert.equal(
+    state.threadLikeBatches[0].entries["100"].reason,
+    "native-target-unconfirmed-before-intent",
+  );
+  await s.api.likePostAndComments({ url, sampleRate: 1 });
+  assert.equal(s.clicks.length, 4);
 });
+for (const badRecovery of [
+  { alerts: ["challenge"] },
+  { accountHandle: "Other" },
+  { threadConfirmed: false },
+]) {
+  test(`native pre-intent skip requires fresh valid original scope ${JSON.stringify(badRecovery)}`, async (t) => {
+    const s = scenario(t, { nativeBeforeIntentIds: ["100"], badRecovery });
+    const out = await s.api.likePostAndComments({ url, sampleRate: 1 });
+    assert.equal(s.clicks.length, 0);
+    assert.equal(out.status, "needsDecision");
+    assert.equal(out.counts.skipped, 0);
+  });
+}
 
 for (const recoveryNow of [
   NOW + 300000,
@@ -335,5 +361,34 @@ for (const recoveryNow of [
     assert.equal(s.clicks.length, 1);
     assert.equal(out.counts.unknown, 1);
     assert.equal(out.counts.verified, 0);
+  });
+}
+
+for (const change of ["reaction", "account"]) {
+  test(`native pre-intent skip CAS preserves concurrent ${change}`, async (t) => {
+    const s = scenario(t, {
+      nativeBeforeIntentIds: ["100"],
+      onRecovery: async (f) =>
+        f.store.transaction(({ state }) => {
+          if (change === "reaction")
+            state.reactions = [
+              {
+                postId: "100",
+                status: "intent",
+                intentAt: new Date(NOW).toISOString(),
+              },
+            ];
+          else state.accountHandle = "Other";
+          return state;
+        }),
+    });
+    const out = await s.api.likePostAndComments({ url, sampleRate: 1 });
+    assert.equal(s.clicks.length, 0);
+    assert.equal(out.status, "needsDecision");
+    assert.equal(out.counts.skipped, 0);
+    const state = (await s.f.store.load()).state;
+    if (change === "reaction")
+      assert.equal(state.reactions[0].status, "intent");
+    else assert.equal(state.accountHandle, "Other");
   });
 }

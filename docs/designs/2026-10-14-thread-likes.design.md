@@ -77,3 +77,7 @@ flow=bugfix，risk=L2，plan=not-required，retrospective_state=pending。两条
 方案Review(mode=design)：passed。黄金链路：原线程一次已审点击→原生回读单目标失配→原对象unknown→一次鲜读完整原线程→其它独立selected项单次提交/核验→原unknown不重点击。Required LC1：同一回归修前只处理首项，修后其它项核验且原未知冻结；LC2：intent前/transport/错页/错账号/告警/缺线程/预算及夜间不放行后续写入；LC3：完整检查及实现Review、显式本地采用并接续原真实批次。下一相关维护集中发布，不单独发npm。当前运营与全天目标仍未完成。
 
 LC1/LC2本地通过：修前同一已intent原生回读异常回归，其它已选项核验0；修后4项核验且原unknown不重点击。错页/账号/告警/残缺/缺线程、intent前错误、一般transport、预算及跨午夜均不继续写入。完整check459项、类型/格式/维护性/Skill预算通过。实现Review(mode=implementation)：no findings；仅原one异常边界增加一次鲜读判定，原intent、激活、时间/身份/线程和公开已赞接受条件未改。LC3真实本地采用待验证，未宣称剩余点赞已完成。
+
+真实LC3返工（revision 2）：原批次恢复在其它prepared目标的intent之前也复现同一精确native错误，零新提交，不能把第一修订当成整个路径已修复。新增已冻结分支：intent前同一精确错误也只在一次鲜读原线程通过后，CAS确认本batch entry仍prepared、账号未变且该post无任何全局reaction，才将该entry记skipped并写明确原因/证明；不创建reaction、不当作preexisting/已赞，继续其它selected项。账号/告警/线程缺证或CAS不通过仍停；原有intent/unknown不进入此skip分支、不重点击。最终回执若只有此类selected跳过也必须needsDecision而非成功。修订方案Review(mode=design)：passed，新增分支有实际零intent边界证据，权限与公开已赞门不变。LC1–LC3对修订范围重新验证，运营仍继续。
+
+修订2本地验证：完整check464项通过；新增intent前单项明确skip后其余4项核验，且不写全局reaction、不计preexisting，原批次再次运行不重试该skip。鲜证错误/告警仍停，CAS遇到并发reaction或账号变更不skip、不覆盖。实现Review(mode=implementation)：no findings；状态归原entry，未引入第二台账，原unknown与公共已赞门保持。真实原批次接续仍待验证，不能据此关闭运营任务。

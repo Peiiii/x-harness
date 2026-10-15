@@ -103,7 +103,9 @@ export class ThreadReactions {
           if (
             result.halt ||
             (result.status &&
-              !["verified", "preexisting", "unknown"].includes(result.status))
+              !["verified", "preexisting", "unknown", "skipped"].includes(
+                result.status,
+              ))
           )
             return this.receipt(
               batchId,
@@ -347,8 +349,7 @@ export class ThreadReactions {
         error: String(error),
       });
       if (intent) await this.settle(id, post.id, "unknown", evidenceRef);
-      const localUnknown =
-        intent &&
+      const scopedNativeFailure =
         error instanceof Error &&
         error.message === "like-native-target-unconfirmed" &&
         (await this.confirmLocalContinuation(
@@ -358,9 +359,18 @@ export class ThreadReactions {
           batch.accountHandle,
           deadline,
         ));
+      const skipped =
+        !intent &&
+        scopedNativeFailure &&
+        (await this.skipUnsubmittedNativeTarget(
+          id,
+          post.id,
+          batch.accountHandle,
+          evidenceRef,
+        ));
       return {
-        status: intent ? "unknown" : "needsDecision",
-        halt: !localUnknown,
+        status: intent ? "unknown" : skipped ? "skipped" : "needsDecision",
+        halt: !(scopedNativeFailure && (intent || skipped)),
         reason: String(error),
       };
     }
@@ -396,7 +406,8 @@ export class ThreadReactions {
       const entry = state.threadLikeBatches.find(
         (batch: any) => batch.id === id,
       )?.entries[postId];
-      if (entry?.status === "unknown") entry.recoveryEvidenceRef = evidenceRef;
+      if (entry && ["prepared", "unknown"].includes(entry.status))
+        entry.recoveryEvidenceRef = evidenceRef;
       return state;
     });
     return (
@@ -408,6 +419,35 @@ export class ThreadReactions {
       !view.alerts?.length &&
       sameHandle(view.accountHandle, accountHandle)
     );
+  }
+  private async skipUnsubmittedNativeTarget(
+    id: string,
+    postId: string,
+    accountHandle: string,
+    evidenceRef: string,
+  ) {
+    let skipped = false;
+    await this.#deps.store.transaction(({ state }) => {
+      const entry = state.threadLikeBatches.find(
+        (batch: any) => batch.id === id,
+      )?.entries[postId];
+      if (
+        entry?.status === "prepared" &&
+        sameHandle(state.accountHandle, accountHandle) &&
+        !(state.reactions ?? []).some(
+          (reaction: any) => reaction.postId === postId,
+        )
+      ) {
+        Object.assign(entry, {
+          status: "skipped",
+          reason: "native-target-unconfirmed-before-intent",
+          evidenceRef,
+        });
+        skipped = true;
+      }
+      return state;
+    });
+    return skipped;
   }
   private async settle(
     id: string,
@@ -446,6 +486,16 @@ export class ThreadReactions {
     if (status === "verified" && count(["intent", "unknown"])) {
       status = "unknown";
       reason = "thread-like-intent-unconfirmed";
+    } else if (
+      status === "verified" &&
+      entries.some(
+        (entry) =>
+          entry.selected &&
+          entry.reason === "native-target-unconfirmed-before-intent",
+      )
+    ) {
+      status = "needsDecision";
+      reason = "thread-like-selected-target-unconfirmed";
     } else if (status === "verified" && count(["prepared"])) {
       status = "checkpoint";
       reason = "thread-like-pending-not-rendered";
