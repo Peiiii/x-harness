@@ -8,6 +8,7 @@ export class DOMNavigation {
   openQuote!: (command: any) => Promise<any>;
   searchSources!: (command: any) => Promise<void>;
   openExploreRecommendations!: (command: any) => Promise<void>;
+  openHomeRecommendations!: (command: any) => Promise<void>;
   waitForFolder!: (command: any) => Promise<void>;
   waitForThreadReplies!: (command: any) => Promise<void>;
   waitForPosts!: (command: any) => Promise<void>;
@@ -25,6 +26,10 @@ export class DOMNavigation {
     this.searchSources = this.handleSearchSources.bind(this);
     this.openExploreRecommendations =
       this.handleOpenExploreRecommendations.bind(this);
+    this.openHomeRecommendations = async () => {
+      this.#session.current = null;
+      await this.#tab.goto("https://x.com/home");
+    };
     this.waitForFolder = this.handleWaitForFolder.bind(this);
     this.waitForThreadReplies = this.handleWaitForThreadReplies.bind(this);
     this.waitForPosts = this.handleWaitForPosts.bind(this);
@@ -246,9 +251,9 @@ export class DOMNavigation {
       }
     }
     const clickedLink = link && (await link.count()) === 1;
-    if (clickedLink) await link.click();
-    else await this.#tab.goto(command.url);
     try {
+      if (clickedLink) await link.click();
+      else await this.#tab.goto(command.url);
       await this.#tab.playwright.waitForURL(command.url, {
         timeoutMs: command.view === "posts" ? 15000 : 5000,
         ...(command.view === "posts" ? { waitUntil: "commit" as const } : {}),
@@ -264,11 +269,12 @@ export class DOMNavigation {
       // Some hosts time out a URL wait even after the exact route committed.
       // Fresh route evidence may continue to content readiness, never acceptance.
       if (
-        command.view === "posts" &&
+        (command.view === "posts" ||
+          (command.view === "person" && !check.needsStateCheck)) &&
         check.page === command.url &&
         !check.alerts?.length
       ) {
-        // The exact article wait below is still mandatory while UI is loading.
+        // Exact target content readiness below remains mandatory while loading.
       } else {
         if (
           !clickedLink ||
@@ -320,12 +326,17 @@ export class DOMNavigation {
       });
     } catch (error: any) {
       if (
-        command.view !== "posts" ||
+        !["posts", "person"].includes(command.view) ||
         !/Timed out waiting for URL/.test(error.message)
       )
         throw error;
       const check = await this.#observe({ view: "account", limit: 1 });
-      if (check.page !== command.url || check.alerts?.length) throw error;
+      if (
+        check.page !== command.url ||
+        check.alerts?.length ||
+        (command.view === "person" && check.needsStateCheck)
+      )
+        throw error;
       // Only a committed exact route is recovered; exact content readiness still follows.
     }
   }

@@ -68,6 +68,7 @@ export class DOMCapabilities {
         "readBookmarks",
         "searchSources",
         "readExploreRecommendations",
+        "readHomeRecommendations",
         "readFeedback",
       ].includes(operation)
     ) {

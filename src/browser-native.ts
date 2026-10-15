@@ -197,6 +197,7 @@ export class NativeXBrowser {
         "readBookmarks",
         "searchSources",
         "readExploreRecommendations",
+        "readHomeRecommendations",
         "readFeedback",
         "likePost",
         "likePostAndComments",

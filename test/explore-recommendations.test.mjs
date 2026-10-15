@@ -9,7 +9,11 @@ function collection({
   page = "https://x.com/explore",
   tabs = [{ role: "tab", label: "为你推荐", selected: false }],
   needsNavigationWait = false,
+  unflaggedNavigationWait = false,
   navigationWaitCompletes = true,
+  navigationNeedsPostRead = false,
+  postReadyPage,
+  postReadyAlerts = [],
   posts = [
     {
       id: "100",
@@ -24,30 +28,42 @@ function collection({
     reads = [];
   let currentPage = "https://x.com/home";
   let postsReady = false;
+  let postsObserved = false;
   const dependencies = {
     ready: async (query) => {
       reads.push(query.view);
       if (query.view === "navigation")
         return {
           page: currentPage,
-          controls: needsNavigationWait && !postsReady ? [] : tabs,
+          controls:
+            (needsNavigationWait || unflaggedNavigationWait) &&
+            (!postsReady || (navigationNeedsPostRead && !postsObserved))
+              ? []
+              : tabs,
           headings: [],
-          needsStateCheck: needsNavigationWait && !postsReady,
+          needsStateCheck:
+            needsNavigationWait &&
+            (!postsReady || (navigationNeedsPostRead && !postsObserved)),
           alerts: [],
         };
+      postsObserved = true;
       return {
-        page: currentPage,
+        page: postReadyPage ?? currentPage,
         accountHandle: "writer",
         posts,
         needsStateCheck: false,
-        alerts: [],
+        alerts: postReadyAlerts,
       };
     },
     observed: async () => ({ posts: [] }),
     browser: {
       act: async (command) => {
         calls.push(command.operation);
-        if (command.operation === "openExploreRecommendations")
+        if (
+          ["openExploreRecommendations", "openHomeRecommendations"].includes(
+            command.operation,
+          )
+        )
           currentPage = page;
         if (command.operation === "waitForPosts" && navigationWaitCompletes)
           postsReady = true;
@@ -261,3 +277,179 @@ test("business root exposes readExploreRecommendations with source provenance", 
   assert.deepEqual(result.sources[0].metrics, ["Likes 25"]);
   assert.deepEqual(calls, ["openExploreRecommendations"]);
 });
+
+for (const completes of [true, false]) {
+  test(`Explore waits once for empty unflagged navigation; completes=${completes}`, async () => {
+    const f = collection({
+      unflaggedNavigationWait: true,
+      navigationWaitCompletes: completes,
+    });
+    const result = await f.api.readExploreRecommendations({ limit: 1 });
+    assert.deepEqual(f.calls, ["openExploreRecommendations", "waitForPosts"]);
+    assert.equal(result.complete, completes);
+    if (completes) assert.equal(result.sourceOrigin.selectedTab, "为你推荐");
+    else {
+      assert.equal(result.sourceOrigin, undefined);
+      assert.deepEqual(result.missing, ["explore-recommended-tab-unconfirmed"]);
+    }
+  });
+}
+
+test("Home recommendation reader reuses bounded cards with distinct provenance", async () => {
+  const f = collection({ page: "https://x.com/home" });
+  const result = await f.api.readHomeRecommendations({ limit: 1 });
+  assert.equal(result.complete, true);
+  assert.equal(result.sourceOrigin.kind, "home-recommendations");
+  assert.equal(result.sourceOrigin.page, "https://x.com/home");
+  assert.equal(result.sourceOrigin.selectedTab, "为你推荐");
+  assert.equal(result.sources[0].id, "100");
+  assert.deepEqual(f.calls, ["openHomeRecommendations"]);
+});
+for (const config of [
+  { page: "https://x.com/explore" },
+  {
+    page: "https://x.com/home",
+    tabs: [{ role: "tab", label: "Following", selected: true }],
+  },
+]) {
+  test(`Home refuses wrong surface or Following ${JSON.stringify(config)}`, async () => {
+    const f = collection(config);
+    const result = await f.api.readHomeRecommendations({ limit: 1 });
+    assert.equal(result.complete, false);
+    assert.equal(result.sourceOrigin, undefined);
+    assert.equal(f.reads.includes("posts"), false);
+  });
+}
+test("Home result provenance cannot impersonate Explore or a different actual route", () => {
+  const raw = {
+    page: "https://x.com/home",
+    status: "observed",
+    sourceOrigin: {
+      kind: "home-recommendations",
+      page: "https://x.com/home",
+      selectedTab: "For you",
+    },
+  };
+  assert.equal(
+    readResult("readHomeRecommendations", raw, "decision").sourceOrigin.kind,
+    "home-recommendations",
+  );
+  assert.equal(
+    readResult("readExploreRecommendations", raw, "decision").sourceOrigin,
+    undefined,
+  );
+  assert.equal(
+    readResult(
+      "readHomeRecommendations",
+      { ...raw, page: "https://x.com/search?q=test" },
+      "decision",
+    ).sourceOrigin,
+    undefined,
+  );
+  assert.equal(
+    readResult(
+      "readHomeRecommendations",
+      {
+        ...raw,
+        sourceOrigin: {
+          ...raw.sourceOrigin,
+          kind: "explore-recommendations",
+          page: "https://x.com/explore",
+        },
+      },
+      "decision",
+    ).sourceOrigin,
+    undefined,
+  );
+});
+
+test("business root exposes readHomeRecommendations with source provenance", async (t) => {
+  const f = fixture(t),
+    calls = [];
+  let page = "https://x.com/home";
+  const browser = {
+    capabilities: () => [],
+    observe: async ({ view }) =>
+      view === "navigation"
+        ? {
+            page,
+            controls: [{ role: "tab", label: "For you", selected: true }],
+            headings: [],
+            needsStateCheck: false,
+            alerts: [],
+          }
+        : {
+            page,
+            accountHandle: "writer",
+            posts: [
+              {
+                id: "300",
+                author: "writer",
+                datetime: "2026-10-14T01:00:00.000Z",
+                body: "完整的真实帖子内容。",
+                metrics: [{ label: "Likes 25" }],
+              },
+            ],
+            needsStateCheck: false,
+            alerts: [],
+          },
+    act: async (command) => {
+      calls.push(command.operation);
+      if (command.operation === "openHomeRecommendations")
+        page = "https://x.com/home";
+    },
+  };
+  const api = createBusinessHarness({
+    store: f.store,
+    platform: createXPlatform(browser),
+  });
+  const result = await api.readHomeRecommendations({ mode: "decision" });
+
+  assert.equal(
+    result.sourceOrigin?.kind,
+    "home-recommendations",
+    JSON.stringify(result),
+  );
+  assert.equal(result.sources[0].id, "300");
+  assert.equal(result.sources[0].body, "完整的真实帖子内容。");
+  assert.deepEqual(result.sources[0].metrics, ["Likes 25"]);
+  assert.deepEqual(calls, ["openHomeRecommendations"]);
+});
+
+for (const completes of [true, false]) {
+  test(`Home navigation hydration after post readiness is bounded: ${completes}`, async () => {
+    const f = collection({
+      page: "https://x.com/home",
+      needsNavigationWait: true,
+      navigationNeedsPostRead: true,
+      navigationWaitCompletes: completes,
+    });
+    const r = await f.api.readHomeRecommendations({ limit: 1 });
+    assert.equal(r.complete, completes);
+    assert.deepEqual(f.calls, ["openHomeRecommendations", "waitForPosts"]);
+    assert.ok(f.reads.filter((v) => v === "navigation").length <= 4);
+    if (completes) {
+      assert.equal(r.sourceOrigin.kind, "home-recommendations");
+      assert.equal(r.sourceOrigin.selectedTab, "为你推荐");
+      assert.equal(f.reads.filter((v) => v === "posts").length, 2);
+    } else assert.equal(r.sourceOrigin, undefined);
+  });
+}
+
+for (const mode of ["alert", "route-change"]) {
+  test(`Home post-readiness preserves observed ${mode}`, async () => {
+    const f = collection({
+      page: "https://x.com/home",
+      needsNavigationWait: true,
+      navigationNeedsPostRead: true,
+      ...(mode === "alert"
+        ? { postReadyAlerts: ["challenge"] }
+        : { postReadyPage: "https://x.com/explore" }),
+    });
+    const r = await f.api.readHomeRecommendations({ limit: 1 });
+    assert.equal(r.complete, false);
+    assert.equal(r.sourceOrigin, undefined);
+    assert.equal(f.reads.filter((v) => v === "posts").length, 1);
+    assert.deepEqual(f.calls, ["openHomeRecommendations", "waitForPosts"]);
+  });
+}

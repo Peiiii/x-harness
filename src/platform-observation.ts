@@ -36,6 +36,8 @@ export class PlatformObservation {
     const url = xURL(target.url);
     if (!target.evidenceRef) throw new Error("目标URL缺已观察证据");
     let value = await this.handleObserved(query);
+    if (query.threadRootId && value.alerts?.length)
+      return { ...value, needsStateCheck: true };
     let atTarget = false;
     try {
       atTarget = xURL(value.page).href === url.href;
@@ -57,6 +59,11 @@ export class PlatformObservation {
           evidenceRef: target.evidenceRef,
           view: query.view,
           handle: query.handle,
+          // Thread membership is scoped to its root. An in-page permalink can
+          // leave an unrelated thread mounted; open the evidenced route once.
+          ...(query.view === "posts" && query.threadRootId
+            ? { forceNavigation: true }
+            : {}),
         });
       } catch (error: unknown) {
         // A URL wait may expire just before the committed document is observable.

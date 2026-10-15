@@ -85,6 +85,7 @@ export class BusinessHarness implements XGrowthHarness {
     this.searchSources = this.searchSources.bind(this);
     this.readExploreRecommendations =
       this.readExploreRecommendations.bind(this);
+    this.readHomeRecommendations = this.readHomeRecommendations.bind(this);
     this.readBookmarks = this.readBookmarks.bind(this);
     this.readCreator = this.readCreator.bind(this);
     const { store, platform } = dependencies;
@@ -856,6 +857,11 @@ export class BusinessHarness implements XGrowthHarness {
     args: import("./types.js").ExploreRecommendationOptions = {},
   ) {
     return this.read("readExploreRecommendations", args, args.mode);
+  }
+  public readHomeRecommendations(
+    args: import("./types.js").HomeRecommendationOptions = {},
+  ) {
+    return this.read("readHomeRecommendations", args, args.mode);
   }
   public readPost({
     target,

@@ -265,22 +265,29 @@ export function readResult(
   if (out.status !== "observed" && out.complete === undefined)
     out.complete = false;
   if (raw.ids !== undefined) out.ids = strings(raw.ids);
-  if (operation === "readExploreRecommendations") {
+  if (
+    ["readExploreRecommendations", "readHomeRecommendations"].includes(
+      operation,
+    )
+  ) {
+    const home = operation === "readHomeRecommendations";
     const origin = object(raw.sourceOrigin);
     try {
       const page = new URL(String(origin.page));
       if (
-        origin.kind === "explore-recommendations" &&
+        origin.kind ===
+          (home ? "home-recommendations" : "explore-recommendations") &&
+        (!home || raw.page === page.href) &&
         page.protocol === "https:" &&
         page.hostname === "x.com" &&
         !page.username &&
         !page.password &&
         !page.port &&
-        page.pathname.replace(/\/+$/, "") === "/explore" &&
+        page.pathname.replace(/\/+$/, "") === (home ? "/home" : "/explore") &&
         ["为你推荐", "For you"].includes(String(origin.selectedTab))
       )
         out.sourceOrigin = {
-          kind: "explore-recommendations",
+          kind: home ? "home-recommendations" : "explore-recommendations",
           page: page.href,
           selectedTab: String(origin.selectedTab) as "为你推荐" | "For you",
         };

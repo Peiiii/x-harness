@@ -87,7 +87,7 @@ export interface Diagnostic {
   evidenceRef?: EvidenceRef;
 }
 export interface SourceOriginEvidence {
-  kind: "explore-recommendations";
+  kind: "explore-recommendations" | "home-recommendations";
   page: string;
   selectedTab: "为你推荐" | "For you";
 }
@@ -288,6 +288,7 @@ export interface ReplyDiscoveryResult {
   evidenceRef?: EvidenceRef;
 }
 export interface ExploreRecommendationOptions extends WindowOptions {}
+export interface HomeRecommendationOptions extends WindowOptions {}
 export interface CreatorOptions {
   handle: string;
   target?: number;
@@ -666,6 +667,9 @@ export interface XGrowthHarness {
   searchSources(args: SearchOptions): Promise<ReadResult>;
   readExploreRecommendations(
     args?: ExploreRecommendationOptions,
+  ): Promise<ReadResult>;
+  readHomeRecommendations(
+    args?: HomeRecommendationOptions,
   ): Promise<ReadResult>;
   readIncomingReplies(args?: IncomingReplyOptions): Promise<ReadResult>;
   readIncomingConversations(
