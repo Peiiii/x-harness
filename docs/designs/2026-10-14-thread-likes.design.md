@@ -67,3 +67,13 @@ flow=bugfix，risk=L2，retrospective_state=pending。连续普通来话点赞�
 普通路径验证：修前组装边界普通点赞触发不允许的locator activation，线程原生路径通过；修后两分支均单intent/单AX click、零locator click/keyboard。完整check429项通过。真实普通来话原批次首次目标已为preexisting，未当新成功；另一条新来话公开已赞核验verified，约1秒，证明该普通激活路径，不证明所有来话点赞或总体3倍效率。既有普通/线程unknown全部保留冻结。
 
 实现Review(mode=implementation)：no findings；当前所有点赞只经过同一内部NativeLikeActivation，原精确DOM/原生唯一绑定、根平台账号/作者/线程及原反应幂等门保留。retrospective_state=completed；复盘增量：同类toggle的宿主激活应由同一owner拥有，避免普通与线程分支使用不同且已实证不可靠的激活路径。源码按维护批次提交推送，本地采用，不单独发布npm；运营继续。
+
+## 2026-10-15：单目标原生回读失败不扩大中断
+
+flow=bugfix，risk=L2，plan=not-required，retrospective_state=pending。两条真实线程均在一次intent之后抛出`like-native-target-unconfirmed`，原反应已正确保存unknown，但`one`的统一halt让其它已选prepared项中断；具体账号/对象与证明留消费者原台账。原非异常unknown已支持继续其它对象，本修复收敛到同一语义，不替换原生激活、不再试未知点击。
+
+冻结方案：仅已保存intent的上述精确错误，可做一次原`readThreadLikeWindow(reset:false)`只读恢复。必须鲜核原完整线程URL、threadConfirmed、同账号、无告警/残缺，仍在原时段/预算内，才让原unknown保持冻结并继续其它selected对象；原beforeSubmit/CAS及各对象DOM/AX/公开已赞门照旧。intent前失败、一般transport、平台拒绝或恢复缺证继续停批。原store保存恢复观察与原对象引用，无新API/状态/依赖/文件，不加外层模型循环。页面稳定尾部仍只代表有限范围，unknown不计成功。
+
+方案Review(mode=design)：passed。黄金链路：原线程一次已审点击→原生回读单目标失配→原对象unknown→一次鲜读完整原线程→其它独立selected项单次提交/核验→原unknown不重点击。Required LC1：同一回归修前只处理首项，修后其它项核验且原未知冻结；LC2：intent前/transport/错页/错账号/告警/缺线程/预算及夜间不放行后续写入；LC3：完整检查及实现Review、显式本地采用并接续原真实批次。下一相关维护集中发布，不单独发npm。当前运营与全天目标仍未完成。
+
+LC1/LC2本地通过：修前同一已intent原生回读异常回归，其它已选项核验0；修后4项核验且原unknown不重点击。错页/账号/告警/残缺/缺线程、intent前错误、一般transport、预算及跨午夜均不继续写入。完整check459项、类型/格式/维护性/Skill预算通过。实现Review(mode=implementation)：no findings；仅原one异常边界增加一次鲜读判定，原intent、激活、时间/身份/线程和公开已赞接受条件未改。LC3真实本地采用待验证，未宣称剩余点赞已完成。

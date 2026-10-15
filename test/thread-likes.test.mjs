@@ -40,9 +40,14 @@ function scenario(t, options = {}) {
     preflight: () => ({ covered: true }),
     readThreadLikeWindow: async (args) => {
       reads++;
-      index = 0;
+      if (args.reset !== false) index = 0;
+      if (reads > 1 && options.recoveryNow) now = options.recoveryNow;
       assert.equal(args.url, url);
-      return { ...view(), ...(options.badView ?? {}) };
+      return {
+        ...view(),
+        ...(options.badView ?? {}),
+        ...(reads > 1 ? (options.badRecovery ?? {}) : {}),
+      };
     },
     advanceThreadLikes: async () => {
       if (index + 1 < windows.length) {
@@ -56,10 +61,14 @@ function scenario(t, options = {}) {
       assert.ok(post);
       if (liked.has(args.postId))
         return { ...view(), posts: [post], preexisting: true };
+      if (options.nativeBeforeIntentIds?.includes(args.postId))
+        throw Error("like-native-target-unconfirmed");
       if (options.beforeIntent) await options.beforeIntent(args, f);
       await args.beforeSubmit();
       clicks.push({ id: args.postId, at: now });
       if (options.throwAfterIntent) throw Error("connection interrupted");
+      if (options.nativeUnknownIds?.includes(args.postId))
+        throw Error("like-native-target-unconfirmed");
       const unconfirmed =
         options.unknown || options.unknownIds?.includes(args.postId);
       if (!unconfirmed) liked.add(args.postId);
@@ -265,3 +274,66 @@ test("one unknown like freezes only that post; other selected comments continue 
   await s.api.likePostAndComments({ url, sampleRate: 1 });
   assert.equal(s.clicks.length, 5);
 });
+
+test("a scoped native post-click read failure freezes only that original intent and continues independent selected posts", async (t) => {
+  const s = scenario(t, { nativeUnknownIds: ["100"] });
+  const out = await s.api.likePostAndComments({ url, sampleRate: 1 });
+  assert.equal(out.status, "unknown");
+  assert.equal(out.counts.unknown, 1);
+  assert.equal(out.counts.verified, 4);
+  assert.equal(out.counts.newLikesThisCall, 4);
+  assert.deepEqual(
+    s.clicks.map((c) => c.id),
+    ["100", "101", "102", "103", "104"],
+  );
+  const state = (await s.f.store.load()).state;
+  const original = state.reactions.find((r) => r.postId === "100");
+  assert.equal(original.status, "unknown");
+  const entry = state.threadLikeBatches[0].entries["100"];
+  assert.ok(entry.recoveryEvidenceRef);
+  await s.api.likePostAndComments({ url, sampleRate: 1 });
+  assert.equal(s.clicks.length, 5);
+});
+for (const badRecovery of [
+  { page: "https://x.com/home" },
+  { accountHandle: "Other" },
+  { alerts: ["challenge"] },
+  { needsStateCheck: true },
+  { threadConfirmed: false },
+]) {
+  test(`native unknown recovery keeps the batch stopped on ${JSON.stringify(badRecovery)}`, async (t) => {
+    const s = scenario(t, { nativeUnknownIds: ["100"], badRecovery });
+    const out = await s.api.likePostAndComments({ url, sampleRate: 1 });
+    assert.equal(s.clicks.length, 1);
+    assert.equal(out.counts.unknown, 1);
+    assert.equal(out.counts.verified, 0);
+  });
+}
+test("native target failure before intent still refuses the batch without a recovery click", async (t) => {
+  const s = scenario(t, { nativeBeforeIntentIds: ["100"] });
+  const out = await s.api.likePostAndComments({ url, sampleRate: 1 });
+  assert.equal(s.clicks.length, 0);
+  assert.equal(s.reads, 1);
+  assert.equal(out.status, "needsDecision");
+  assert.equal(out.counts.unknown, 0);
+});
+
+for (const recoveryNow of [
+  NOW + 300000,
+  Date.parse("2026-10-12T00:00:00+08:00"),
+]) {
+  test(`local native unknown recovery cannot cross budget or night: ${recoveryNow}`, async (t) => {
+    const s = scenario(t, {
+      now:
+        recoveryNow === NOW + 300000
+          ? NOW
+          : Date.parse("2026-10-11T23:59:58+08:00"),
+      nativeUnknownIds: ["100"],
+      recoveryNow,
+    });
+    const out = await s.api.likePostAndComments({ url, sampleRate: 1 });
+    assert.equal(s.clicks.length, 1);
+    assert.equal(out.counts.unknown, 1);
+    assert.equal(out.counts.verified, 0);
+  });
+}

@@ -347,12 +347,67 @@ export class ThreadReactions {
         error: String(error),
       });
       if (intent) await this.settle(id, post.id, "unknown", evidenceRef);
+      const localUnknown =
+        intent &&
+        error instanceof Error &&
+        error.message === "like-native-target-unconfirmed" &&
+        (await this.confirmLocalContinuation(
+          id,
+          post.id,
+          request,
+          batch.accountHandle,
+          deadline,
+        ));
       return {
         status: intent ? "unknown" : "needsDecision",
-        halt: true,
+        halt: !localUnknown,
         reason: String(error),
       };
     }
+  }
+  private async confirmLocalContinuation(
+    id: string,
+    postId: string,
+    request: any,
+    accountHandle: string,
+    deadline: number,
+  ) {
+    if (!this.inWindow() || this.#clock() >= deadline) return false;
+    let view: any;
+    try {
+      view = await this.#deps.platform.readThreadLikeWindow({
+        ...request,
+        reset: false,
+      });
+    } catch (error) {
+      await this.#deps.store.recordProof({
+        operation: "thread-like-local-unknown-recovery",
+        postId,
+        error: String(error),
+      });
+      return false;
+    }
+    const evidenceRef = await this.#deps.store.recordProof({
+      operation: "thread-like-local-unknown-recovery",
+      postId,
+      observation: view,
+    });
+    await this.#deps.store.transaction(({ state }) => {
+      const entry = state.threadLikeBatches.find(
+        (batch: any) => batch.id === id,
+      )?.entries[postId];
+      if (entry?.status === "unknown") entry.recoveryEvidenceRef = evidenceRef;
+      return state;
+    });
+    return (
+      this.inWindow() &&
+      this.#clock() < deadline &&
+      view.page === request.url &&
+      view.threadConfirmed === true &&
+      !view.needsStateCheck &&
+      !view.alerts?.length &&
+      sameHandle(view.accountHandle, accountHandle)
+    );
   }
   private async settle(
     id: string,
