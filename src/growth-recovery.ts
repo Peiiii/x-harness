@@ -60,6 +60,80 @@ export class GrowthRecovery {
     this.#round = round;
     this.#readTask = readTask;
   }
+  private async recoverSourceCardObservation(
+    observation: any,
+    action: any,
+    postId: string,
+    sourceLink: any,
+    sourceURL: string | null,
+    trailing: RegExpMatchArray | null,
+  ): Promise<any> {
+    const candidates = (observation.posts ?? []).filter(
+      (p: any) =>
+        p.id === postId &&
+        same(p.author, action.accountHandle) &&
+        !p.needsExpansion &&
+        trailing &&
+        p.body === action.text.slice(0, -trailing[0].length),
+    );
+    if (
+      !observation.loading ||
+      observation.needsStateCheck ||
+      observation.alerts?.length ||
+      action.quoteTarget ||
+      !sourceLink ||
+      !sourceURL ||
+      sourceLink.resolvedURL !== sourceURL ||
+      !this.#evidenceExists(sourceLink.evidenceRef) ||
+      candidates.length !== 1 ||
+      candidates[0].links?.includes(sourceLink.href) ||
+      typeof this.#platform.readCreator !== "function"
+    )
+      return observation;
+    const startedAt = this.#clock();
+    const profile = await this.#platform.readCreator({
+      handle: action.accountHandle,
+      target: 10,
+      maxScrolls: 2,
+      expand: true,
+    });
+    const observedAt = Date.parse(profile.observedAt ?? "");
+    let correctRoute = false;
+    try {
+      correctRoute =
+        xURL(profile.page).pathname.toLowerCase() ===
+        `/${action.accountHandle}`.toLowerCase();
+    } catch {
+      /* An unconfirmed route cannot supply publication evidence. */
+    }
+    if (
+      !correctRoute ||
+      !profile.complete ||
+      profile.missing?.length ||
+      profile.needsStateCheck ||
+      profile.alerts?.length ||
+      profile.profile?.alerts?.length ||
+      !same(profile.profile?.handle, action.accountHandle) ||
+      !Number.isFinite(observedAt) ||
+      observedAt < startedAt - 5000 ||
+      observedAt > this.#clock() + 5000
+    )
+      return observation;
+    const posts = (profile.posts ?? []).filter(
+      (p: any) =>
+        p.id === postId &&
+        same(p.author, action.accountHandle) &&
+        p.links?.includes(sourceLink.href),
+    );
+    if (posts.length !== 1) return observation;
+    return {
+      ...observation,
+      page: profile.page,
+      posts,
+      sourceCardPermalinkRead: observation,
+      sourceCardProfileRead: profile,
+    };
+  }
   public async verifyPublishedPost({
     taskId,
     draftPath,
@@ -99,7 +173,7 @@ export class GrowthRecovery {
     const quoteCaps = this.#capability("read", { resolveQuote });
     if (!quoteCaps.covered)
       return { status: "needsCapability", missing: quoteCaps.missing };
-    const observation = await this.#platform.readPost({
+    let observation = await this.#platform.readPost({
       postId,
       url: publicURL,
       evidenceRef,
@@ -120,6 +194,14 @@ export class GrowthRecovery {
         /* Invalid source text cannot authorize link normalization. */
       }
     }
+    observation = await this.recoverSourceCardObservation(
+      observation,
+      action,
+      postId,
+      sourceLink,
+      sourceURL,
+      trailing,
+    );
     const matches = (observation.posts ?? []).filter((p: any) => {
       const exact = p.body === action.text;
       const quote =

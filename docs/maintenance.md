@@ -69,3 +69,10 @@
 | INCOMING-NATIVE-LIKE / 2026-10-15 | Ordinary incoming likes retained locator.click despite that activation failing durable acknowledgement in the thread trial. Owner: common like activation | Repeated normal incoming unknowns now impair current task, upgrading the deferred reaction issue to necessary repair | Unify both paths in NativeLikeActivation; 429 full checks, ordinary/thread single-native-click boundary, existing unknown/no-toggle regression and one new incoming durable verified receipt. A preexisting first target was not counted as a new success | implemented/local in this commit; original unknowns frozen. No standalone npm release; consolidate with the current navigation/native maintenance bundle |
 
 | OWN-REPLY-RECEIPTS / 2026-10-15 | Empty own-reply search misses public receipts; creator reader lacked an observed Replies surface. Original recovery/creator owners | Current repeated receipt uncertainty affects task; retain original IDs and all verification gates | 447 full checks; real root selected exact observed Replies tab and returned ten complete own posts after explicit local adoption | implemented/local, source 20796f9; next related consolidated receipt/navigation release, no per-fix npm publication. Actual unknowns remain unknown without exact-parent verification |
+## 2026-10-15 收藏夹有界续读恢复
+
+已复现：DOM保留超过50张卡时，每次maxPages=10均从offset=0重扫，resume无法越过同一批。PlatformCollections现在保留页面、DOM首ID及下一语义窗口，resume只在原已确认文件夹继续；路由或虚拟列表首ID变化重置窗口。只读内存游标，不持久化平台数据，也不声称全夹读取完成。回归含65卡越界继续及列表替换，原相邻分页/收藏夹测试和全套429项通过；当前消费者允许采用受检本地构建，npm未发布。补充实际采用证据由消费者原台账拥有。
+
+## 2026-10-15 原帖来源卡异步读取恢复
+
+同一已提交原帖在详情页来源卡持续加载、本人公开时间线可见短链时，单次有界重读相同作者时间线，核唯一ID、归属、鲜度及真实短链后仍由既有完整正文/时间/防重/媒体校验结算。保留双观察，无新提交。build、类型检查、维护性与432测试通过，23项为相关恢复边界；真实根API成功恢复原帖时详情页已加载完成，未将该结果冒充新增fallback分支的实证。当前使用受检本地构建，不单独发布npm。
