@@ -76,3 +76,5 @@
 ## 2026-10-15 原帖来源卡异步读取恢复
 
 同一已提交原帖在详情页来源卡持续加载、本人公开时间线可见短链时，单次有界重读相同作者时间线，核唯一ID、归属、鲜度及真实短链后仍由既有完整正文/时间/防重/媒体校验结算。保留双观察，无新提交。build、类型检查、维护性与432测试通过，23项为相关恢复边界；真实根API成功恢复原帖时详情页已加载完成，未将该结果冒充新增fallback分支的实证。当前使用受检本地构建，不单独发布npm。
+
+| DISCOVERY-EMPTY-WINDOW / 2026-10-15 | Reply discovery can spend the remaining bounded search budget on an unchanged empty window with the same incomplete-source IDs; owner reply-discovery | Current alternate source readers work, so record this nonblocking repeated read cost rather than interrupt operations or publish another patch | Next related discovery maintenance: stop only that unchanged query window, preserve collected candidates and continue independent sources; regression with repeated empty windows and distinct next pages | deferred; private live evidence stays in consumer ledger, no runtime/package change |
