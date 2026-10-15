@@ -251,9 +251,9 @@ export class DOMNavigation {
       }
     }
     const clickedLink = link && (await link.count()) === 1;
-    if (clickedLink) await link.click();
-    else await this.#tab.goto(command.url);
     try {
+      if (clickedLink) await link.click();
+      else await this.#tab.goto(command.url);
       await this.#tab.playwright.waitForURL(command.url, {
         timeoutMs: command.view === "posts" ? 15000 : 5000,
         ...(command.view === "posts" ? { waitUntil: "commit" as const } : {}),

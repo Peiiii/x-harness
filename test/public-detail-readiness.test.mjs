@@ -50,7 +50,7 @@ async function open(t, fault) {
       calls.push(["observe"]);
       return {
         page: fault === "changed-route" ? "https://x.com/home" : page,
-        alerts: fault === "alert" ? ["challenge"] : [],
+        alerts: ["alert", "goto-alert"].includes(fault) ? ["challenge"] : [],
         needsStateCheck: true,
       };
     },
@@ -58,7 +58,10 @@ async function open(t, fault) {
       url: async () => page,
       goto: async (destination) => {
         calls.push(["goto", destination]);
-        if (fault !== "url-timeout") page = destination;
+        if (!["url-timeout", "goto-wrong-route"].includes(fault))
+          page = destination;
+        if (fault?.startsWith("goto-"))
+          throw Error(`Timed out waiting for URL ${destination}`);
       },
       playwright: {
         locator: () => permalink,
@@ -122,4 +125,17 @@ for (const fault of [
     if (fault === "article-timeout") assert.equal(r.waits, 3);
     if (["alert", "changed-route", "interrupted-article"].includes(fault))
       assert.equal(r.waits, 1);
+  });
+
+for (const fault of ["goto-committed", "goto-wrong-route", "goto-alert"])
+  test(`host goto timeout retains strict detail boundary: ${fault}`, async (t) => {
+    const r = await open(t, fault);
+    assert.equal(r.calls.filter((x) => x[0] === "goto").length, 1);
+    if (fault === "goto-committed") {
+      assert.equal(r.error, undefined);
+      assert.equal(r.waits, 1);
+    } else {
+      assert.ok(r.error);
+      assert.equal(r.waits, 0);
+    }
   });
