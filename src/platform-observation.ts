@@ -50,13 +50,44 @@ export class PlatformObservation {
         (value.blue === null && value.blueEvidenceSupported !== false) ||
         value.relationship === "unknown");
     if (!atTarget || incompletePerson) {
-      await this.#browser.act({
-        operation: "openObserved",
-        url: url.href,
-        evidenceRef: target.evidenceRef,
-        view: query.view,
-        handle: query.handle,
-      });
+      try {
+        await this.#browser.act({
+          operation: "openObserved",
+          url: url.href,
+          evidenceRef: target.evidenceRef,
+          view: query.view,
+          handle: query.handle,
+        });
+      } catch (error: unknown) {
+        // A URL wait may expire just before the committed document is observable.
+        // Observe once; an inert unchanged page may navigate the same evidenced
+        // URL directly once. Never repeat a submission. Exact post and
+        // account/content/parent verification remain owned by the caller.
+        if (
+          query.view !== "posts" ||
+          !/Timed out waiting for URL/.test(
+            error instanceof Error ? error.message : "",
+          )
+        )
+          throw error;
+        const committed = await this.handleObserved(query);
+        if (committed.needsStateCheck || committed.alerts?.length) throw error;
+        if (committed.page !== url.href) {
+          if (
+            committed.page !== value.page ||
+            !value.accountHandle ||
+            committed.accountHandle !== value.accountHandle
+          )
+            throw error;
+          await this.#browser.act({
+            operation: "openObserved",
+            url: url.href,
+            evidenceRef: target.evidenceRef,
+            view: "posts",
+            forceNavigation: true,
+          });
+        }
+      }
       value = await this.handleReady(query);
     }
     if (!value.page || xURL(value.page).href !== url.href)
