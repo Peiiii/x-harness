@@ -392,3 +392,71 @@ for (const change of ["reaction", "account"]) {
     else assert.equal(state.accountHandle, "Other");
   });
 }
+// The thread member list can contain replies only, while the exact root is visible.
+test("root like settles from exact root proof when reply IDs exclude the root", async (t) => {
+  const s = scenario(t, { afterClick: { threadIds: ["101"] } });
+  const result = await s.api.likePostAndComments({ url, sampleRate: 0 });
+  assert.equal(result.status, "verified");
+  assert.equal(result.counts.newLikesThisCall, 1);
+  assert.equal((await s.f.store.load()).state.reactions[0].status, "verified");
+  const resumed = await s.api.likePostAndComments({ url, sampleRate: 0 });
+  assert.equal(resumed.counts.newLikesThisCall, 0);
+  assert.equal(s.clicks.length, 1);
+});
+
+for (const afterClick of [
+  { threadIds: [], threadRootPresent: false },
+  { threadIds: [], threadConfirmed: false },
+  { threadIds: [], page: "https://x.com/Other/status/999" },
+  { threadIds: [], accountHandle: "Other" },
+]) {
+  test(`root like with incomplete or changed root proof stays unknown: ${JSON.stringify(afterClick)}`, async (t) => {
+    const s = scenario(t, { afterClick });
+    const result = await s.api.likePostAndComments({ url, sampleRate: 0 });
+    assert.equal(result.status, "unknown");
+    assert.equal((await s.f.store.load()).state.reactions[0].status, "unknown");
+    assert.equal(s.clicks.length, 1);
+  });
+}
+
+test("reply outside the thread IDs does not inherit the root exception", async (t) => {
+  const s = scenario(t, {
+    windows: [["100", "101"]],
+    preexisting: ["100"],
+    afterClick: { threadIds: [] },
+  });
+  const result = await s.api.likePostAndComments({
+    url,
+    sampleRate: 1,
+    maxPages: 1,
+  });
+  assert.equal(result.counts.unknown, 1);
+  assert.equal(
+    (await s.f.store.load()).state.reactions.find((r) => r.postId === "101")
+      .status,
+    "unknown",
+  );
+});
+
+test("root like boolean without the exact liked button stays unknown", async (t) => {
+  const s = scenario(t, {
+    afterClick: {
+      threadIds: [],
+      posts: [
+        {
+          id: "100",
+          author: "Author",
+          primary: "/Author/status/100",
+          buttons: [{ label: "0 Likes. Like" }],
+        },
+      ],
+    },
+  });
+  const result = await s.api.likePostAndComments({
+    url,
+    sampleRate: 0,
+    maxPages: 1,
+  });
+  assert.equal(result.counts.unknown, 1);
+  assert.equal((await s.f.store.load()).state.reactions[0].status, "unknown");
+});

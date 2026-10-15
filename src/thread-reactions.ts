@@ -320,7 +320,11 @@ export class ThreadReactions {
         : observation.liked &&
             observation.page === request.url &&
             observation.posts?.[0]?.id === post.id &&
-            observation.threadIds?.includes(post.id) &&
+            (observation.threadIds?.includes(post.id) ||
+              (post.id === request.rootId &&
+                observation.threadRootPresent &&
+                observation.threadConfirmed &&
+                likeState(observation.posts[0]) === "liked")) &&
             !observation.needsStateCheck &&
             !observation.alerts?.length &&
             sameHandle(observation.accountHandle, batch.accountHandle)
