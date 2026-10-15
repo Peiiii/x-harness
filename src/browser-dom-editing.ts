@@ -1,9 +1,9 @@
-import { ThreadLikeActivation } from "./thread-like-activation.js";
+import { NativeLikeActivation } from "./like-activation.js";
 import { attachImage } from "./readers-actions.js";
 
 import type { DOMDependencies } from "./browser-dom-dependencies.js";
 export class DOMEditing {
-  #threadLikeActivation?: ThreadLikeActivation;
+  #likeActivation?: NativeLikeActivation;
   #session!: DOMDependencies["session"];
   #unique!: DOMDependencies["unique"];
   #locator!: DOMDependencies["locator"];
@@ -611,22 +611,17 @@ export class DOMEditing {
         visible: true,
       }),
     );
-    const button = await this.#unique(
+    await this.#unique(
       article.getByRole("button", { name: buttons[0].label, exact: true }),
     );
-    if (query.threadRootId) {
-      this.#threadLikeActivation ??= new ThreadLikeActivation(this.#tab);
-      const activation = await this.#threadLikeActivation.submit({
-        post,
-        page: result.page,
-        beforeSubmit: command.beforeSubmit,
-      });
-      if (activation.preexisting)
-        return { completed: true, value: { ...result, preexisting: true } };
-    } else {
-      await command.beforeSubmit?.();
-      await button.click();
-    }
+    this.#likeActivation ??= new NativeLikeActivation(this.#tab);
+    const activation = await this.#likeActivation.submit({
+      post,
+      page: result.page,
+      beforeSubmit: command.beforeSubmit,
+    });
+    if (activation.preexisting)
+      return { completed: true, value: { ...result, preexisting: true } };
     this.#session.current = null;
     // Observe the actual rendered acknowledgement; a click receipt is not a like.
     try {

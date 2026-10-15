@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ThreadLikeActivation } from "../dist/thread-like-activation.js";
+import { NativeLikeActivation } from "../dist/like-activation.js";
 
 function state(liked = false, id = "101") {
   return `Window: "Post", App: Google Chrome.
@@ -17,7 +17,7 @@ test("thread activation uses a single exact AX click with intent once, never a f
   let clicked = 0,
     intents = 0,
     liked = false;
-  const activation = new ThreadLikeActivation({
+  const activation = new NativeLikeActivation({
     getAXState: async () => state(liked),
     click: async (index) => {
       assert.equal(index, 5);
@@ -54,7 +54,7 @@ test("changed thread, author or target cannot reach intent or click", async () =
     { page: "https://x.com/Author/status/999", author: "Author" },
     { page: "https://x.com/Author/status/100", author: "Other" },
   ]) {
-    const activation = new ThreadLikeActivation({
+    const activation = new NativeLikeActivation({
       getAXState: async () => state(),
       click: async () => {
         throw Error("unexpected click");
@@ -93,7 +93,7 @@ function clipped({
 test("clipped native link binds one fresh full DOM body/author/ID prefix without inventing an AX ID", async () => {
   let clicks = 0,
     intents = 0;
-  const activation = new ThreadLikeActivation({
+  const activation = new NativeLikeActivation({
     getAXState: async () => clipped(),
     click: async (index) => {
       assert.equal(index, 5);
@@ -129,7 +129,7 @@ test("clipped link ambiguity, body/author/prefix mismatch, wrong route and alert
     [clipped() + "\n9 文本 rate limit", {}],
     [clipped(), { body: undefined }],
   ]) {
-    const activation = new ThreadLikeActivation({
+    const activation = new NativeLikeActivation({
       getAXState: async () => raw,
       click: async () => {
         throw Error("unexpected click");

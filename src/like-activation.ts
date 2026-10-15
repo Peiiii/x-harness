@@ -2,7 +2,7 @@ import { readAX } from "./readers-ax-parser.js";
 import { sameHandle, sameText, xURL } from "./platform-rules.js";
 
 /** Like toggles require one native activation, never locator keyboard focus. */
-export class ThreadLikeActivation {
+export class NativeLikeActivation {
   readonly #tab: any;
   constructor(tab: any) {
     this.#tab = tab;
@@ -14,7 +14,7 @@ export class ThreadLikeActivation {
       raw.alerts?.length ||
       xURL(raw.page).href !== args.page
     )
-      throw Error("thread-like-native-target-unconfirmed");
+      throw Error("like-native-target-unconfirmed");
     // Page the same immutable full snapshot in memory, not repeated UI reads.
     const posts = [...raw.posts];
     for (let offset = 5; offset < raw.renderedArticles; offset += 5)
@@ -50,7 +50,7 @@ export class ThreadLikeActivation {
               }),
           );
     if (exact.length > 1 || candidates.length !== 1)
-      throw Error("thread-like-native-target-unconfirmed");
+      throw Error("like-native-target-unconfirmed");
     return { ...raw, posts: candidates };
   }
   public async submit(args: any) {
@@ -62,7 +62,7 @@ export class ThreadLikeActivation {
       /^(?:按钮|切换按钮) .*?(?:喜欢|Likes?|Unlike)/i.test(e.label),
     );
     if (controls.length !== 1 || /disabled/.test(controls[0].label))
-      throw Error("thread-like-native-control-unconfirmed");
+      throw Error("like-native-control-unconfirmed");
     if (/喜欢了|取消喜欢|Unlike|Liked/i.test(controls[0].label))
       return { preexisting: true };
     await args.beforeSubmit?.();

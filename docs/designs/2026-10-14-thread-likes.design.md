@@ -49,9 +49,21 @@ flow=bugfix，risk=L2，retrospective_state=pending。现有 DOM 观察拥有完
 
 真实验证返工：DOM click 方案未通过。原批次新点击后的公开已赞状态未持久确认，新增12个unknown，保持原ID冻结，不再点击；不将单元测试通过当真实激活成功。撤回DOM路径改动，先恢复原单次AX激活，原根任务继续用最后受检构建。原方案Review/采用结论对该路径撤销，retrospective_state=pending。
 
-修订方案Review(mode=design)：passed，范围仅原ThreadLikeActivation。保留新鲜DOM的完整ID/作者/正文作为目标输入；一次完整新鲜AX观察在内存按既有parser分页，完整ID路径照旧。仅在native URL明确被省略且ID不可解析时，用同一原始container内的完整正文、准确作者URL和至少12位观察到的ID前缀联合绑定，必须在整份AX中唯一；不补造完整AX ID。直接对该新鲜快照中的唯一like按钮执行一次AX click，随后观察状态，仍由原DOM/反应owner核持久已赞。前缀相同/正文相同多候选、正文缺失、错作者/路由、告警/残缺快照一律不达intent；原完整ID出现但不符不得fallback。原根平台ID/账号/线程检查不变。验证首先限制1个新点赞，真实通过再扩大，避免把未通过的激活试验扩成批量。
+修订方案Review(mode=design)：passed，范围仅原NativeLikeActivation。保留新鲜DOM的完整ID/作者/正文作为目标输入；一次完整新鲜AX观察在内存按既有parser分页，完整ID路径照旧。仅在native URL明确被省略且ID不可解析时，用同一原始container内的完整正文、准确作者URL和至少12位观察到的ID前缀联合绑定，必须在整份AX中唯一；不补造完整AX ID。直接对该新鲜快照中的唯一like按钮执行一次AX click，随后观察状态，仍由原DOM/反应owner核持久已赞。前缀相同/正文相同多候选、正文缺失、错作者/路由、告警/残缺快照一律不达intent；原完整ID出现但不符不得fallback。原根平台ID/账号/线程检查不变。验证首先限制1个新点赞，真实通过再扩大，避免把未通过的激活试验扩成批量。
 
 
 修订验证：完整check419项通过，含截断/完整链接、重复候选、正文/作者/前缀/路由/告警拒绝及原未知冻结。保存的真实失败快照与原完整DOM对象在消费者侧离线回放：唯一绑定一次模拟intent/AX index，native帖子ID仍为null，没有伪造ID、没有平台写入。真实原批次恢复取得新已赞核验，另一批次单成功上限验证新增1个已赞且无新未知；同时真实运行另有1个点击后未确认，保留未知，不声称普遍消除了点赞未知。原截断绑定故障已有回归与边界回放覆盖；先前DOM试验12个未知也全部冻结，不重发/重点击。
 
 实现Review(mode=implementation)：no findings；复用原parser、原平台身份/线程门和反应store，完整ID路径不转前缀fallback，只有准确作者+完整正文+至少12位省略前缀且整份AX唯一才绑定；不改变样例为合成源的事实或未知结果。项目完整维护性/类型/格式/合同与测试通过。retrospective_state=completed；复盘增量：原生UI字符串会截断而DOM完整，跨表面应绑定已有完整对象与唯一可见控件，不用截断值冒充完整ID；激活替换必须先限制真实试验，单元click计数不能证明宿主的持久切换。当前消费者采用受检本地构建，公开npm版本未变；运营全天目标仍归原合同，不因修复完成关闭。
+
+
+## 2026-10-15：普通来话点赞复用同一原生激活
+
+flow=bugfix，risk=L2，retrospective_state=pending。连续普通来话点赞公开状态未确认；普通分支仍使用已在真实线程试验失败的locator.click，而线程原生单次激活已有真实持久已赞证明。具体宿主为何未确认尚不泛化为双击根因；所有旧unknown冻结，不用修复重点击。
+
+修订方案Review(mode=design)：passed。DOMEditing.likePost统一使用当前原生单次激活类；平台层和DOM精确文章/按钮、账号、作者、原intent、fresh已赞门不变。将现有内部thread-like-activation模块/测试改名为like-activation（NativeLikeActivation），对应当前两种实际调用，删除普通分支单独locator点击；不新增第二入口、公共API、状态字段或依赖。现有src/test组织允许同级职责名调整，无单独planned-path脚本。Required：普通与线程同一单intent/单原生click、零locator click/键盘，已赞不提交、错目标/作者/路由/告警和模糊截断仍拒绝；完整check；不同新来话真实原批次持久已赞及恢复不取消，旧未知不重试。
+
+
+普通路径验证：修前组装边界普通点赞触发不允许的locator activation，线程原生路径通过；修后两分支均单intent/单AX click、零locator click/keyboard。完整check429项通过。真实普通来话原批次首次目标已为preexisting，未当新成功；另一条新来话公开已赞核验verified，约1秒，证明该普通激活路径，不证明所有来话点赞或总体3倍效率。既有普通/线程unknown全部保留冻结。
+
+实现Review(mode=implementation)：no findings；当前所有点赞只经过同一内部NativeLikeActivation，原精确DOM/原生唯一绑定、根平台账号/作者/线程及原反应幂等门保留。retrospective_state=completed；复盘增量：同类toggle的宿主激活应由同一owner拥有，避免普通与线程分支使用不同且已实证不可靠的激活路径。源码按维护批次提交推送，本地采用，不单独发布npm；运营继续。
