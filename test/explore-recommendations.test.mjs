@@ -9,6 +9,7 @@ function collection({
   page = "https://x.com/explore",
   tabs = [{ role: "tab", label: "为你推荐", selected: false }],
   needsNavigationWait = false,
+  unflaggedNavigationWait = false,
   navigationWaitCompletes = true,
   posts = [
     {
@@ -30,7 +31,10 @@ function collection({
       if (query.view === "navigation")
         return {
           page: currentPage,
-          controls: needsNavigationWait && !postsReady ? [] : tabs,
+          controls:
+            (needsNavigationWait || unflaggedNavigationWait) && !postsReady
+              ? []
+              : tabs,
           headings: [],
           needsStateCheck: needsNavigationWait && !postsReady,
           alerts: [],
@@ -261,3 +265,20 @@ test("business root exposes readExploreRecommendations with source provenance", 
   assert.deepEqual(result.sources[0].metrics, ["Likes 25"]);
   assert.deepEqual(calls, ["openExploreRecommendations"]);
 });
+
+for (const completes of [true, false]) {
+  test(`Explore waits once for empty unflagged navigation; completes=${completes}`, async () => {
+    const f = collection({
+      unflaggedNavigationWait: true,
+      navigationWaitCompletes: completes,
+    });
+    const result = await f.api.readExploreRecommendations({ limit: 1 });
+    assert.deepEqual(f.calls, ["openExploreRecommendations", "waitForPosts"]);
+    assert.equal(result.complete, completes);
+    if (completes) assert.equal(result.sourceOrigin.selectedTab, "为你推荐");
+    else {
+      assert.equal(result.sourceOrigin, undefined);
+      assert.deepEqual(result.missing, ["explore-recommended-tab-unconfirmed"]);
+    }
+  });
+}

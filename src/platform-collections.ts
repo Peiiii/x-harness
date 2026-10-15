@@ -569,7 +569,12 @@ export class PlatformCollections {
         sources: [],
         navigationEvidence: exploreNavigationEvidence(nav),
       };
-    if (!nav.alerts?.length && nav.needsStateCheck) {
+    if (
+      !nav.alerts?.length &&
+      (nav.needsStateCheck ||
+        (!(nav.controls ?? []).some((c: any) => c.role === "tab") &&
+          !nav.headings?.length))
+    ) {
       try {
         await this.#browser.act({ operation: "waitForPosts" });
       } catch (error: any) {
