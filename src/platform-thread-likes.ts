@@ -169,6 +169,7 @@ export class PlatformThreadLikes {
     let value: any,
       pages = 0,
       kind = "page-limit",
+      diagnostic: any,
       missing: string[] = [],
       stagnant = 0,
       previousIds = "";
@@ -187,7 +188,18 @@ export class PlatformThreadLikes {
               });
       } catch (error: any) {
         kind = "read-unconfirmed";
-        missing = [String(error.message ?? error)];
+        const message = String(error.message ?? error);
+        const connection =
+          /not part of browser session|connection|transport|interrupted|extension/i.test(
+            message,
+          );
+        diagnostic = {
+          operation: "readPostComments",
+          category: connection ? "browser-connection" : "ui-not-confirmed",
+          code: connection ? "connection-failed" : "observation-unconfirmed",
+        };
+        missing = [diagnostic.code];
+        windows.push({ readError: message });
         break;
       }
       pages++;
@@ -227,6 +239,7 @@ export class PlatformThreadLikes {
       page: args.url,
       sources,
       windows,
+      diagnostic,
       complete: !missing.length,
       pageComplete: false,
       needsStateCheck: !!missing.length,

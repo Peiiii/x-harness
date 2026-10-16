@@ -191,3 +191,44 @@ test("time bound returns checkpoint without advancing or claiming full coverage"
     Date.now = dateNow;
   }
 });
+
+test("root comment reader preserves connection category and stops before any advance", async (t) => {
+  for (const message of [
+    "Tab 999 is not part of browser session synthetic-session",
+    "browser transport interrupted",
+  ]) {
+    const f = fixture(t);
+    let reads = 0;
+    const reader = new PlatformThreadLikes({
+      open: async () => {
+        reads++;
+        throw Error(message);
+      },
+      observed: async () => {
+        throw Error("must not retry");
+      },
+      ready: async () => {
+        throw Error("must not retry");
+      },
+      browser: {},
+    });
+    const api = createBusinessHarness({
+      store: f.store,
+      clock: () => NOW,
+      platform: {
+        preflight: () => ({ covered: true }),
+        readPostComments: reader.readPostComments.bind(reader),
+        captureProof: ({ observation }) => ({ observation }),
+      },
+    });
+    const out = await api.readPostComments({
+      target: { postId: "100", url, evidenceRef: f.proof },
+      mode: "decision",
+    });
+    assert.equal(out.status, "needsDecision");
+    assert.equal(out.diagnostic?.category, "browser-connection");
+    assert.equal(out.diagnostic?.code, "connection-failed");
+    assert.deepEqual(out.missing, ["connection-failed"]);
+    assert.equal(reads, 1);
+  }
+});
