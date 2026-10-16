@@ -19,6 +19,10 @@ export async function readXNetworkDiagnostics(
       "Network.loadingFailed",
     ],
   });
+  const isXAPI = (u: URL) =>
+    (u.hostname === "x.com" && u.pathname.startsWith("/i/api/")) ||
+    u.hostname === "api.x.com";
+  const requestLocations = new Map<string, string>();
   const traffic = new Map<string, any>();
   const times: number[] = [];
   for (const event of result.events) {
@@ -29,12 +33,9 @@ export async function readXNetworkDiagnostics(
     } catch {
       continue;
     }
-    if (!(
-      (u.hostname === "x.com" && u.pathname.startsWith("/i/api/")) ||
-      u.hostname === "api.x.com"
-    ))
-      continue;
+    if (!isXAPI(u)) continue;
     const location = u.origin + u.pathname;
+    if (p.requestId) requestLocations.set(p.requestId, location);
     const row = traffic.get(location) ?? {
       location,
       requests: 0,
@@ -102,11 +103,12 @@ export async function readXNetworkDiagnostics(
         let location: any;
         try {
           const u = new URL(response.url ?? p.request?.url);
-          location = ["http:", "https:"].includes(u.protocol)
-            ? u.origin + u.pathname
-            : null;
+          location =
+            ["http:", "https:"].includes(u.protocol) && isXAPI(u)
+              ? u.origin + u.pathname
+              : null;
         } catch {
-          location = null;
+          location = requestLocations.get(p.requestId) ?? null;
         }
         return {
           method: e.method,
@@ -117,16 +119,17 @@ export async function readXNetworkDiagnostics(
           errorText: p.errorText,
           canceled: p.canceled,
           timestamp: Number.isFinite(p.timestamp) ? p.timestamp : undefined,
+          wallTime: Number.isFinite(p.wallTime) ? p.wallTime : undefined,
           rateLimit: rates(response.headers),
         };
       })
       .filter(
         (e: any) =>
-          e.method === "Network.loadingFailed" ||
-          (e.location &&
-            (e.status >= 400 ||
-              e.requestMethod === "POST" ||
-              /\/(EditTweet|CreateTweet)$/.test(e.location))),
+          e.location &&
+          (e.method === "Network.loadingFailed" ||
+            e.status >= 400 ||
+            e.requestMethod === "POST" ||
+            /\/(EditTweet|CreateTweet)[A-Za-z0-9_]*$/.test(e.location)),
       ),
   };
 }

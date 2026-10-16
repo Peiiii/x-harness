@@ -1,3 +1,4 @@
+import { readXNetworkDiagnostics } from "./browser-dom-network.js";
 import { xURL, sameHandle, sameText } from "./platform-rules.js";
 
 import { valueOf } from "./browser-common.js";
@@ -74,6 +75,7 @@ export class DOMSubmission {
     if (["submitPost", "submitReply"].includes(command.operation))
       await command.beforeSubmit?.();
     this.#session.current = null;
+    const activationStartedAt = Date.now();
     if (nativeSubmitIndex !== undefined)
       await this.#submitAX.act({
         index: nativeSubmitIndex,
@@ -122,7 +124,11 @@ export class DOMSubmission {
     // Inline replies keep the editor mounted. Wait for this submitted text to clear before
     // receipt navigation/reload can interrupt the actual submission request.
     if (submittedEditor)
-      await this.waitSubmittedEditor(submittedEditor, result);
+      await this.waitSubmittedEditor(
+        submittedEditor,
+        result,
+        activationStartedAt,
+      );
     if (["submitPost", "submitReply"].includes(command.operation)) {
       try {
         await this.#tab.playwright.waitForLoadState({
@@ -140,7 +146,11 @@ export class DOMSubmission {
   private async waitSubmittedEditor(
     editor: any,
     submitted: any,
+    activationStartedAt: number,
   ): Promise<void> {
+    let cursor = 0;
+    const requests = new Set<string>(),
+      transportEvents: any[] = [];
     const deadline = Date.now() + 10000;
     for (let attempt = 0; attempt < 4; attempt++) {
       const remaining = deadline - Date.now();
@@ -168,7 +178,7 @@ export class DOMSubmission {
                   ? "retained"
                   : "changed",
         };
-        if (
+        const contextChanged =
           current.needsStateCheck ||
           current.alerts?.length ||
           !current.accountHandle ||
@@ -178,16 +188,49 @@ export class DOMSubmission {
           (typeof current.editorText === "string" &&
             current.editorText.trim() &&
             (!sameText(current.editorText, submitted.editorText) ||
-              current.replyToId !== submitted.replyToId))
-        )
-          throw error;
+              current.replyToId !== submitted.replyToId));
         // Clearing is only a readiness signal. The caller still verifies exact public content/parent.
         if (
-          current.editorText === "" &&
+          !contextChanged &&
+          typeof current.editorText === "string" &&
+          current.editorText.trim() === "" &&
           current.editors?.length === 1 &&
           current.replyToId === submitted.replyToId
         )
           return;
+        // Optional read-only diagnostics on failure only. No headers/body or new X request.
+        if (typeof this.#tab.capabilities?.get === "function") {
+          try {
+            const trace = await readXNetworkDiagnostics(this.#tab, {
+              afterSequence: cursor,
+            });
+            cursor = trace.cursor;
+            for (const event of trace.events) {
+              if (
+                event.requestMethod === "POST" &&
+                /\/(?:CreateTweet|EditTweet)[A-Za-z0-9_]*$/.test(
+                  event.location ?? "",
+                ) &&
+                typeof event.wallTime === "number" &&
+                event.wallTime * 1000 >= activationStartedAt
+              )
+                requests.add(event.requestId);
+              if (requests.has(event.requestId)) transportEvents.push(event);
+            }
+            if (transportEvents.length)
+              error.submissionDiagnostic.transport = {
+                activationStartedAt: new Date(
+                  activationStartedAt,
+                ).toISOString(),
+                events: transportEvents,
+                scope: "matching-submission-requests-only",
+                truncated: trace.truncated,
+              };
+          } catch {
+            /* Optional capability unavailable; original unknown remains unchanged. */
+          }
+        }
+        if (contextChanged) throw error;
         if (attempt === 3 || Date.now() >= deadline) throw error;
       }
     }

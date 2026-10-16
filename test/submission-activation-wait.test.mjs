@@ -9,7 +9,12 @@ const submitted = {
 };
 async function run(
   t,
-  { activation = "keyboard", fault = "late", native = false } = {},
+  {
+    activation = "keyboard",
+    fault = "late",
+    native = false,
+    trace = false,
+  } = {},
 ) {
   let time = 0,
     waits = 0,
@@ -19,7 +24,8 @@ async function run(
     nativeReads = 0,
     nativeClicks = 0,
     reads = 0,
-    idle = 0;
+    idle = 0,
+    traceReads = 0;
   t.mock.method(Date, "now", () => time);
   const finish = createDOMSubmission({
     session: {},
@@ -43,6 +49,57 @@ async function run(
         }
       : null,
     tab: {
+      capabilities: trace
+        ? {
+            get: async () => ({
+              readEvents: async ({ afterSequence }) => {
+                traceReads++;
+                const req = (id, url, wallTime) => ({
+                  method: "Network.requestWillBeSent",
+                  params: {
+                    requestId: id,
+                    wallTime,
+                    request: { url, method: "POST" },
+                  },
+                });
+                const res = (id, url) => ({
+                  method: "Network.responseReceived",
+                  params: {
+                    requestId: id,
+                    response: {
+                      url,
+                      status: 429,
+                      headers: { "retry-after": "90" },
+                    },
+                  },
+                });
+                const url = "https://x.com/i/api/graphql/test/CreateTweet";
+                return {
+                  cursor: 10,
+                  truncated: false,
+                  hasMore: false,
+                  events: afterSequence
+                    ? []
+                    : [
+                        req("old", url, -1),
+                        res("old", url),
+                        req(
+                          "background",
+                          "https://x.com/i/api/graphql/test/ViewerBadgeCounts",
+                          1,
+                        ),
+                        res(
+                          "background",
+                          "https://x.com/i/api/graphql/test/ViewerBadgeCounts",
+                        ),
+                        req("current", url, 0.001),
+                        res("current", url),
+                      ],
+                };
+              },
+            }),
+          }
+        : undefined,
       playwright: {
         waitForLoadState: async () => {
           idle++;
@@ -120,6 +177,7 @@ async function run(
   }
   return {
     error,
+    traceReads,
     waits,
     gates,
     presses,
@@ -190,4 +248,24 @@ test("a deadline timeout retains the original platform alert without retrying su
   assert.equal(r.idle, 0);
   assert.equal(r.error.submissionDiagnostic.editorState, "retained");
   assert.deepEqual(r.error.submissionDiagnostic.alerts, ["challenge"]);
+});
+
+test("failure captures only this activation's submission transport before recovery navigation", async (t) => {
+  const r = await run(t, { fault: "exhausted", trace: true });
+  assert.ok(r.error);
+  assert.equal(r.presses, 1);
+  assert.equal(r.gates, 1);
+  const trace = r.error.submissionDiagnostic.transport;
+  assert.equal(trace.scope, "matching-submission-requests-only");
+  assert.deepEqual(
+    trace.events.map((e) => e.requestId),
+    ["current", "current"],
+  );
+  assert.equal(trace.events[1].status, 429);
+  assert.equal(trace.events[1].rateLimit.retryAfterSeconds, 90);
+});
+test("normal successful submission does not read optional transport diagnostics", async (t) => {
+  const r = await run(t, { fault: "none", trace: true });
+  assert.equal(r.error, undefined);
+  assert.equal(r.traceReads, 0);
 });
