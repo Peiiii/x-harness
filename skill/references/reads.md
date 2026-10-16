@@ -7,14 +7,14 @@
 | readBookmarks | folder (observed name), or discoverOnly:true | processedIds, limit (1–5), maxPages (1–10), resume, mode |
 | searchSources | query | resume, processedIds, limit (1–5), maxPages (1–10), mode |
 | readExploreRecommendations / readHomeRecommendations | none | processedIds, limit (1–5), maxPages (1–10), mode |
-| readPost / [readPostComments](post-comments.md) | target: {postId,url,evidenceRef} | includeContext, resolveQuote, mode |
+| readPost / [comments](post-comments.md) | target: {postId,url,evidenceRef} | includeContext, resolveQuote, mode |
 | readPerson | target: {handle,url,evidenceRef} | mode |
 | readPeople | target: {url,evidenceRef} | offset, limit (1–5), advance, mode |
 | readFeedback | targets: [{postId,url,evidenceRef}] | replyLimit (0–3), mode |
 | inspectAccount | none | mode |
 | inspectRound | taskId (original batch ID) | none |
 
-Targets need proof. Native creator: selected profile, navigate:false; unknown relative time. Stop on route changes.
+Targets need proof. Native: selected profile, navigate:false; unknown relative time. Stop on route changes.
 
 Bookmarks resume:true: same folder, tail ≠ full proof.
 
