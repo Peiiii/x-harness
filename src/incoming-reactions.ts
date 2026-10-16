@@ -63,6 +63,11 @@ export class IncomingReactions {
         status: result.status,
         ...(result.evidenceRef ? { evidenceRef: result.evidenceRef } : {}),
       });
+      if (result.reason === "incoming-like-context-unconfirmed") {
+        out.status = "needsDecision";
+        out.reason = result.reason;
+        continue;
+      }
       if (
         ["waiting", "needsDecision"].includes(result.status) ||
         result.reason === "like-platform-alert"
@@ -74,7 +79,11 @@ export class IncomingReactions {
           ...(result.reason ? { reason: result.reason } : {}),
         };
     }
-    if (out.results.some((r) => r.status === "unknown")) out.status = "unknown";
+    if (
+      out.status === "verified" &&
+      out.results.some((r) => r.status === "unknown")
+    )
+      out.status = "unknown";
     return out;
   }
   private async one(
@@ -132,6 +141,7 @@ export class IncomingReactions {
       includeContext: true,
     });
     if (
+      context.alerts?.length ||
       !context.complete ||
       !context.context?.some(
         (p: BoundaryRecord) =>
@@ -141,7 +151,14 @@ export class IncomingReactions {
     )
       return {
         status: "needsDecision",
-        reason: "incoming-like-context-unconfirmed",
+        reason: context.alerts?.length
+          ? "like-platform-alert"
+          : "incoming-like-context-unconfirmed",
+        evidenceRef: await store.recordProof({
+          operation: "likeIncomingBatch",
+          postId: target.postId,
+          observation: context,
+        }),
       };
     const latest = latestNormalInteractionTime(snapshot.state);
     if (latest && now - latest < 30000)

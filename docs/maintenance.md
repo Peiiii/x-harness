@@ -84,3 +84,5 @@
 | THREAD-LIKE-DUPLICATE-CONTROL / 2026-10-16 | 原线程检查点恢复出现“DOM语义控件不唯一”；owner: thread reactions 的已观察目标控件定位 | 该线程已核验13个赞、保留6个未提交选择；其它独立评论及点赞仍核验成功。暂跳过这个对象，不把局部歧义当全平台失败，不逐项发版 | 下次相关定位维护或重复歧义影响更多可用线程时集中处理；验证精确目标唯一性、quoted/重复卡片拒绝、unknown不重点击及原稳定抽样恢复 | deferred；真实证据留消费者原批次。实际429退避结束并换到已验证的新标签后，原批次又核验10个新赞；控件歧义原因仍未定位，未为此修改运行代码 |
 
 | REPLY-REACTION-WINDOW-AND-PACING / 2026-10-16 | 获准06点窗口未覆盖线程点赞/收到互动点赞/评论发现；线程反应又被计入普通回复30秒锚而造成持续延后。owner: growth-policy、growth-execution、incoming-reactions及原发现/线程窗口门 | 已阻碍当前职责，完成必要修复并采用受检本地构建；没有要求消费者先等npm或逐项升版 | 原窗口修复65项、独立计时修复77项针对检查通过，161源码文件可维护性无finding；真实原prepared回复及后续新回复/点赞核验成功。普通30秒、线程1–2秒、unknown冻结与授权证据门保留 | implemented/local-adopted；源码main dd15ec2、1afff19。下次相关根API/反应模块集中发布纳入并完成发布检查；本轮无注册表更新需求，不单独发npm |
+
+| INCOMING-CONTEXT-ISOLATION / 2026-10-16 | 普通收到互动点赞批次遇到单对象上下文缺失即提前退出，后面的独立合格目标无法执行；owner: IncomingReactions.run/one | 已真实阻碍原批次的独立目标，升级为必要修复；不放宽缺证目标，不新建批次或重抽 | 局部context缺证保留needsDecision与原观察证明并继续其它选择；平台告警仍停整批，普通30秒/unknown冻结/原抽样不变。4个回归先红后绿，15收到互动及59相邻测试、TypeScript编译、161文件维护性和diff Review通过；采用原批次后第二目标新点赞核验成功，首项仍缺证 | implemented/local-adopted；源码6e4cbdc，下一相关反应/根API稳定批次集中发布；不单独发npm，不宣称所有上下文已恢复 |
