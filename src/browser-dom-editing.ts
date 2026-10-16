@@ -385,7 +385,10 @@ export class DOMEditing {
     let loc: any, submittedEditor: any;
     if (query.view !== "posts" || result.needsStateCheck)
       throw new Error("翻页须先观察原列表");
-    const primary = result.posts?.at(-1)?.primary;
+    // A placeholder tail does not invalidate an earlier observed timestamp anchor.
+    const primary = [...(result.posts ?? [])]
+      .reverse()
+      .find((post: any) => post.primary)?.primary;
     if (!primary) throw new Error("翻页须有已观察原帖链接");
     const anchor = await this.#unique(
       this.#tab.playwright

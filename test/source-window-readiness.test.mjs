@@ -470,3 +470,95 @@ test("stable rendered tail is exposed as a boundary, never full-folder completio
   assert.equal(result.paginationBoundary.lastId, "2");
   assert.ok(result.missing.includes("stable-rendered-tail"));
 });
+
+for (const validAnchor of [true, false])
+  test(`incomplete tail keeps observed anchor requirement: ${validAnchor}`, async () => {
+    let pressed = 0;
+    const anchor = { filter: () => anchor };
+    const session = {
+      current: {
+        query: { view: "posts" },
+        result: {
+          posts: [
+            ...(validAnchor ? [post(5)] : []),
+            { id: "placeholder", primary: null },
+          ],
+        },
+      },
+    };
+    const editing = new DOMEditing({
+      session,
+      unique: async (x) => x,
+      locator: () => anchor,
+      observe: async () => ({}),
+      tab: {
+        pressKey: async () => {
+          pressed++;
+        },
+        playwright: {
+          locator: (s) => {
+            assert.ok(s === "time" || s === 'a[href="/example_user/status/5"]');
+            return anchor;
+          },
+        },
+      },
+    });
+    if (validAnchor) {
+      await editing.nextPosts({});
+      assert.equal(pressed, 1);
+      assert.equal(session.current, null);
+    } else {
+      await assert.rejects(editing.nextPosts({}), /已观察原帖链接/);
+      assert.equal(pressed, 0);
+    }
+  });
+
+test("placeholder-only tail restores a fresh same-page observed window before scrolling", async () => {
+  let rows = [1, 2, 3, 4, 5].map(post).concat({ id: null, primary: null }),
+    last = [],
+    scrolls = 0;
+  const browser = {
+    observe: async ({ offset = 0, limit = 5 }) => {
+      last = rows.slice(offset, offset + limit);
+      return {
+        page: "https://x.com/home",
+        accountHandle: "example_owner",
+        posts: last,
+        renderedIds: rows.map((p) => p.id),
+        renderedArticles: rows.length,
+        firstRenderedId: rows[0]?.id,
+        moreInDOM: offset + last.length < rows.length,
+        needsStateCheck: false,
+        alerts: [],
+      };
+    },
+    act: async ({ operation }) => {
+      if (operation === "nextPosts") {
+        assert.ok(
+          last.some((p) => p.primary),
+          "must have a fresh observed real source anchor",
+        );
+        scrolls++;
+        rows = [6, 7, 8, 9, 10].map(post);
+      }
+    },
+  };
+  const observation = new PlatformObservation({ browser, clock: () => 0 });
+  const collections = new PlatformCollections({
+    browser,
+    ready: observation.ready,
+    observed: observation.observed,
+    choose: observation.choose,
+  });
+  const r = await collections.collectSources({
+    processedIds: ["1", "2", "3", "4", "5"],
+    limit: 1,
+    maxPages: 3,
+  });
+  assert.equal(scrolls, 1);
+  assert.equal(r.complete, true);
+  assert.deepEqual(
+    r.sources.map((p) => p.id),
+    ["6"],
+  );
+});

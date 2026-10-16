@@ -238,13 +238,13 @@ export class PlatformCollections {
     const renderedIds = previous.renderedIds ?? [...seen];
     let advanced: any;
     for (let step = 0; step < 10; step++) {
-      if (!(advanced ?? previous).posts?.length) {
+      if (!(advanced ?? previous).posts?.some((post: any) => post.id)) {
         const anchor = await this.#observed({ view: "posts", limit: 5 });
         if (
           anchor.needsStateCheck ||
           anchor.alerts?.length ||
           anchor.page !== previous.page ||
-          !anchor.posts?.length
+          !anchor.posts?.some((post: any) => post.id)
         )
           return {
             ...anchor,
