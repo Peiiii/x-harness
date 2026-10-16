@@ -65,6 +65,31 @@ export function readCreatorPostExtras() {
       };
     });
 }
+function readCreatorHasVisiblePosts() {
+  return Array.from(document.querySelectorAll("main article")).some(
+    (article) => article.getClientRects().length > 0,
+  );
+}
+async function waitForCreatorPosts(tab: BoundaryRecord, page: string) {
+  try {
+    await tab.playwright
+      .locator("article")
+      .first()
+      .waitFor({ state: "visible", timeoutMs: 15000 });
+  } catch (error: unknown) {
+    if (
+      !(error instanceof Error) ||
+      !/timed out|timeout|deadline exceeded/i.test(error.message)
+    )
+      throw error;
+    await tab.getAXState({ emit: false });
+    if (
+      (await tab.url()) !== page ||
+      !(await tab.playwright.evaluate(readCreatorHasVisiblePosts))
+    )
+      throw error;
+  }
+}
 export async function collectCreatorDOM(
   tab: BoundaryRecord,
   handle: string,
@@ -103,10 +128,7 @@ export async function collectCreatorDOM(
   )
     throw Error("creator-url-mismatch");
   await tab.getAXState({ emit: false });
-  await tab.playwright
-    .locator("article")
-    .first()
-    .waitFor({ state: "visible", timeoutMs: 15000 });
+  await waitForCreatorPosts(tab, current.href);
   const profile = await tab.playwright.evaluate(readProfile, { handle });
   const meta = await tab.playwright.evaluate(readCreatorMeta);
   const posts = new Map<string, BoundaryRecord>();

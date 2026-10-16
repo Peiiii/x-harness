@@ -335,3 +335,69 @@ test("creator DOM accepts only exact already selected Replies route and preserve
     }),
   );
 });
+
+for (const scenario of [
+  "late-post",
+  "still-empty",
+  "route-change",
+  "connection",
+  "alert",
+]) {
+  test(`creator first-post timeout recovery is bounded: ${scenario}`, async () => {
+    const { collectCreatorDOM } = await import("../dist/creator.js");
+    const v = tabFixture({
+      alerts: scenario === "alert" ? ["请验证身份"] : [],
+    });
+    let ax = 0,
+      waits = 0,
+      current = "https://x.com/creator";
+    const originalEvaluate = v.tab.playwright.evaluate;
+    const failure = Error(
+      scenario === "connection"
+        ? "browser disconnected"
+        : "locator.waitFor visible timed out",
+    );
+    v.tab.url = async () => current;
+    v.tab.getAXState = async () => {
+      ax++;
+      if (ax === 2 && scenario === "route-change")
+        current = "https://x.com/other";
+      return {};
+    };
+    v.tab.playwright.locator = () => ({
+      first() {
+        return this;
+      },
+      waitFor: async () => {
+        waits++;
+        throw failure;
+      },
+      getByRole: () => ({ all: async () => [] }),
+    });
+    v.tab.playwright.evaluate = async (fn, args) =>
+      fn.name === "readCreatorHasVisiblePosts"
+        ? scenario !== "still-empty"
+        : originalEvaluate(fn, args);
+    const run = () =>
+      collectCreatorDOM(v.tab, "creator", {
+        navigate: false,
+        target: 1,
+        maxScrolls: 0,
+      });
+    if (["late-post", "alert"].includes(scenario)) {
+      const r = await run();
+      assert.equal(r.complete, scenario === "late-post");
+      if (scenario === "alert") assert.deepEqual(r.alerts, ["请验证身份"]);
+      assert.equal(ax, 2);
+    } else {
+      await assert.rejects(run, (e) => e === failure);
+      assert.equal(ax, scenario === "connection" ? 1 : 2);
+    }
+    assert.equal(
+      waits,
+      1,
+      "never repeat navigation or waiting in the recovery",
+    );
+    assert.ok(!v.calls.includes("goto") && !v.calls.includes("reload"));
+  });
+}
