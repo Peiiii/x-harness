@@ -199,6 +199,7 @@ export class NativeXBrowser {
         "readExploreRecommendations",
         "readHomeRecommendations",
         "readFeedback",
+        "readPostComments",
         "likePost",
         "likePostAndComments",
       ].includes(operation)

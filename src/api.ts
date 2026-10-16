@@ -70,6 +70,7 @@ export class BusinessHarness implements XGrowthHarness {
     this.runGrowthRound = this.runGrowthRound.bind(this);
     this.inspectRound = this.inspectRound.bind(this);
     this.inspectAccount = this.inspectAccount.bind(this);
+    this.readPostComments = this.readPostComments.bind(this);
     this.readFeedback = this.readFeedback.bind(this);
     this.readPerson = this.readPerson.bind(this);
     this.readPeople = this.readPeople.bind(this);
@@ -796,6 +797,9 @@ export class BusinessHarness implements XGrowthHarness {
     mode?: ReadMode;
   }) {
     return this.read("readPerson", target, mode);
+  }
+  public readPostComments(args: import("./types.js").PostCommentsOptions) {
+    return this.read("readPostComments", args, args.mode);
   }
   public readFeedback(args: import("./types.js").FeedbackOptions) {
     return this.read("readFeedback", args, args.mode);

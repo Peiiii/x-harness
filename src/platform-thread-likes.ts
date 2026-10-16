@@ -1,5 +1,5 @@
 import type { PlatformDependencies } from "./platform-dependencies.js";
-import { xURL } from "./platform-rules.js";
+import { source, xURL } from "./platform-rules.js";
 
 /** One thread stays open; exact-target checks never navigate to each commenter. */
 export class PlatformThreadLikes {
@@ -129,6 +129,118 @@ export class PlatformThreadLikes {
       value = await this.#deps.ready(query);
     }
     return this.checked(value, args);
+  }
+  public async readPostComments({
+    target,
+    maxPages = 10,
+    timeBudgetMs = 60000,
+    processedIds = [],
+  }: any) {
+    const url = xURL(target?.url);
+    if (
+      !target?.evidenceRef ||
+      !/^\d+$/.test(target?.postId ?? "") ||
+      !new RegExp(`^/[A-Za-z0-9_]{1,15}/status/${target.postId}/?$`).test(
+        url.pathname,
+      ) ||
+      url.search ||
+      url.hash ||
+      !Number.isInteger(maxPages) ||
+      maxPages < 1 ||
+      maxPages > 100 ||
+      !Number.isInteger(timeBudgetMs) ||
+      timeBudgetMs < 1 ||
+      timeBudgetMs > 120000 ||
+      !Array.isArray(processedIds) ||
+      processedIds.some(
+        (id: any) => typeof id !== "string" || !/^\d+$/.test(id),
+      )
+    )
+      throw Error("post-comments-input-invalid");
+    const args = {
+      rootId: target.postId,
+      url: url.href,
+      evidenceRef: target.evidenceRef,
+    };
+    const started = Date.now(),
+      seen = new Set<string>(processedIds),
+      sources: any[] = [],
+      windows: any[] = [];
+    let value: any,
+      pages = 0,
+      kind = "page-limit",
+      missing: string[] = [],
+      stagnant = 0,
+      previousIds = "";
+    while (pages < maxPages) {
+      if (Date.now() - started >= timeBudgetMs) {
+        kind = "time-limit";
+        break;
+      }
+      try {
+        value =
+          pages === 0
+            ? await this.readThreadLikeWindow({ ...args, reset: true })
+            : await this.advanceThreadLikes({
+                ...args,
+                remainingMs: timeBudgetMs - (Date.now() - started),
+              });
+      } catch (error: any) {
+        kind = "read-unconfirmed";
+        missing = [String(error.message ?? error)];
+        break;
+      }
+      pages++;
+      windows.push(value);
+      if (
+        value.alerts?.length ||
+        value.needsStateCheck ||
+        !value.threadConfirmed ||
+        value.page !== args.url
+      ) {
+        kind = value.alerts?.length
+          ? "platform-alert"
+          : "thread-scope-unconfirmed";
+        missing = value.missing?.length ? value.missing : [kind];
+        break;
+      }
+      for (const post of value.posts ?? []) {
+        if (post.id === target.postId || seen.has(post.id)) continue;
+        seen.add(post.id);
+        sources.push(source(post, value.page));
+      }
+      const ids = JSON.stringify(value.threadIds ?? []);
+      stagnant = ids === previousIds ? stagnant + 1 : 0;
+      previousIds = ids;
+      if (
+        value.stableTail ||
+        (value.threadBoundary && !value.threadExpandControls?.length) ||
+        (value.atRenderedTail &&
+          stagnant >= 2 &&
+          !value.threadExpandControls?.length)
+      ) {
+        kind = "rendered-tail";
+        break;
+      }
+    }
+    return {
+      page: args.url,
+      sources,
+      windows,
+      complete: !missing.length,
+      pageComplete: false,
+      needsStateCheck: !!missing.length,
+      missing,
+      alerts: value?.alerts ?? [],
+      paginationBoundary: {
+        kind,
+        rootId: target.postId,
+        pages,
+        lastId: sources.at(-1)?.id,
+        scopeComplete: false,
+        hiddenOrUnavailable: "unknown",
+      },
+    };
   }
   public async likeThreadPost(args: any) {
     const query = {

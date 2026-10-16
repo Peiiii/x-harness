@@ -11,7 +11,7 @@ export class DOMCapabilities {
   }
   public capabilities(operation: any): any {
     const base = missingMethods(this.#tab?.playwright, ["evaluate"]);
-    if (operation === "likePostAndComments")
+    if (["likePostAndComments", "readPostComments"].includes(operation))
       return this.threadLikeCapabilities(base);
     if (operation === "resetPeople")
       return [

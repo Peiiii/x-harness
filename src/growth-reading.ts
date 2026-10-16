@@ -132,6 +132,10 @@ export class GrowthReading {
           : {}),
         ...(value.missing?.length ? { missing: value.missing } : {}),
       };
+      if (operation === "readPostComments") {
+        receipt.pageComplete = false;
+        receipt.paginationBoundary = value.paginationBoundary;
+      }
       if (mode === "receipt") return receipt;
       const collection = value.sources
         ? "sources"
