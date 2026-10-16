@@ -218,6 +218,7 @@ export class XPlatform {
     typeof createPlatformCapabilities
   >;
   #preflight!: { preflight: ({ operation, input }: any) => any }["preflight"];
+  readPostComments!: (args: any) => Promise<any>;
   readThreadLikeWindow!: (args: any) => Promise<any>;
   advanceThreadLikes!: (args: any) => Promise<any>;
   likeThreadPost!: (args: any) => Promise<any>;
@@ -275,6 +276,7 @@ export class XPlatform {
     });
     this.readThreadLikeWindow =
       threadLikes.readThreadLikeWindow.bind(threadLikes);
+    this.readPostComments = threadLikes.readPostComments.bind(threadLikes);
     this.advanceThreadLikes = threadLikes.advanceThreadLikes.bind(threadLikes);
     this.likeThreadPost = threadLikes.likeThreadPost.bind(threadLikes);
     this.#createPlatformTargetsResult = createPlatformTargets({

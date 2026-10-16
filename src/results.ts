@@ -241,6 +241,15 @@ export function readResult(
       "renderedPeople",
       "moreInDOM",
     ]) as unknown as ReadResult;
+  if (operation === "readPostComments" && raw.paginationBoundary)
+    out.paginationBoundary = pick(raw.paginationBoundary, [
+      "kind",
+      "rootId",
+      "pages",
+      "lastId",
+      "scopeComplete",
+      "hiddenOrUnavailable",
+    ]);
   if (operation === "readBookmarks") {
     if (raw.paginationBoundary)
       out.paginationBoundary = pick(raw.paginationBoundary, [

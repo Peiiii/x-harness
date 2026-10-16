@@ -69,6 +69,7 @@ export class GrowthHarness {
   searchSources!: (args: any) => Promise<any>;
   readExploreRecommendations!: (args?: any) => Promise<any>;
   readHomeRecommendations!: (args?: any) => Promise<any>;
+  readPostComments!: (args: any) => Promise<any>;
   readFeedback!: (args: any) => Promise<any>;
   runGrowthRound!: (args: any) => Promise<any>;
   resumeGrowthRound!: (args: any) => Promise<any>;

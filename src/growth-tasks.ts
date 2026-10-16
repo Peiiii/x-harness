@@ -33,6 +33,7 @@ export class GrowthTasks {
     this.inspectRound = this.inspectRound.bind(this);
     this.resumeGrowthRound = this.resumeGrowthRound.bind(this);
     this.runGrowthRound = this.runGrowthRound.bind(this);
+    this.readPostComments = this.readPostComments.bind(this);
     this.readFeedback = this.readFeedback.bind(this);
     this.searchSources = this.searchSources.bind(this);
     this.readExploreRecommendations =
@@ -78,6 +79,7 @@ export class GrowthTasks {
         "readExploreRecommendations",
         "readHomeRecommendations",
         "readFeedback",
+        "readPostComments",
       ].includes(operation)
     )
       return this.#platform.preflight({ operation, input });
@@ -164,6 +166,9 @@ export class GrowthTasks {
   }
   public readHomeRecommendations(args: any = {}) {
     return this.#readTask("readHomeRecommendations", args);
+  }
+  public readPostComments(args: any) {
+    return this.#readTask("readPostComments", args);
   }
   public readFeedback(args: any) {
     return this.#readTask("readFeedback", args);

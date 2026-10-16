@@ -2,6 +2,13 @@
 export type OperationKind = "follow" | "original" | "reply";
 export type ReadMode = "receipt" | "decision" | "delta";
 export type EvidenceRef = string;
+export interface PostCommentsOptions {
+  target: PostTarget;
+  maxPages?: number;
+  timeBudgetMs?: number;
+  processedIds?: string[];
+  mode?: ReadMode;
+}
 export interface PostTarget {
   postId: string;
   url: string;
@@ -116,6 +123,9 @@ export interface ReadResult {
     renderedCount?: number;
     waitMs?: number;
     scopeComplete?: boolean;
+    rootId?: string;
+    pages?: number;
+    hiddenOrUnavailable?: "unknown";
   };
   sources?: PostEvidence[];
   sourceOrigin?: SourceOriginEvidence;
@@ -692,6 +702,7 @@ export interface XGrowthHarness {
     target: PersonTarget;
     mode?: ReadMode;
   }): Promise<ReadResult>;
+  readPostComments(args: PostCommentsOptions): Promise<ReadResult>;
   readFeedback(args: FeedbackOptions): Promise<ReadResult>;
   inspectAccount(args?: { mode?: ReadMode }): Promise<ReadResult>;
   inspectRound(args: { taskId: string }): Promise<RoundResult>;
