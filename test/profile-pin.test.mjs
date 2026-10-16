@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { ProfilePin } from "../dist/profile-pin.js";
-function fixture({ author = "owner", prior, pinned = false } = {}) {
+function fixture({
+  author = "owner",
+  prior,
+  pinned = false,
+  pending = false,
+} = {}) {
   const state = { profilePins: prior ? { job: prior } : {} };
   const calls = [];
   let at = "https://x.com/owner/status/123";
@@ -22,8 +27,12 @@ function fixture({ author = "owner", prior, pinned = false } = {}) {
     getByRole() {
       return this;
     },
-    allTextContents: async () => [],
-    click: async () => calls.push(["click"]),
+    allTextContents: async () =>
+      pending ? ["将帖子置顶到个人资料？置顶取消"] : [],
+    click: async () => {
+      calls.push(["click"]);
+      pinned = true;
+    },
   };
   const tab = {
     url: async () => at,
@@ -108,4 +117,15 @@ test("stable task cannot be redirected to another post", async () => {
     f.calls.some((x) => x[0] === "click" || x[0] === "goto"),
     false,
   );
+});
+
+test("resume a visible owned-post confirmation and verify the final pinned ID", async () => {
+  const f = fixture({
+    prior: { postId: "123", status: "unknown", evidenceRef: "proof" },
+    pending: true,
+  });
+  const r = await f.pin.pin(f.options);
+  assert.equal(r.status, "verified");
+  assert.equal(r.publicId, "123");
+  assert.equal(f.calls.filter((x) => x[0] === "click").length, 1);
 });
