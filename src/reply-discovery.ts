@@ -109,6 +109,7 @@ export class ReplyDiscovery {
     const exhausted = new Set<string>();
     let reason: string | undefined;
     let lastQuery: string | undefined;
+    let unchangedWindows = 0;
     for (let i = 0; i < maxWindows && candidates.length < target; i++) {
       const now = this.clock(),
         hour = new Date(now + 8 * 3600000).getUTCHours();
@@ -126,6 +127,7 @@ export class ReplyDiscovery {
       const available = args.queries.filter((q) => !exhausted.has(q));
       if (!available.length) break;
       const query = available[0];
+      if (query !== lastQuery) unchangedWindows = 0;
       const request = {
         query,
         resume: lastQuery === query,
@@ -169,6 +171,7 @@ export class ReplyDiscovery {
         )
       )
         exhausted.add(query);
+      const examinedBeforeWindow = examined.size;
       for (const post of read.sources ?? []) {
         if (post.id && examined.has(post.id)) continue;
         if (post.id) examined.add(post.id);
@@ -193,6 +196,9 @@ export class ReplyDiscovery {
         authors.add(author!);
         if (candidates.length === target) break;
       }
+      unchangedWindows =
+        examined.size === examinedBeforeWindow ? unchangedWindows + 1 : 0;
+      if (unchangedWindows >= 2) exhausted.add(query);
     }
     const result: ReplyDiscoveryResult = {
       status: candidates.length >= target ? "observed" : "needsDecision",

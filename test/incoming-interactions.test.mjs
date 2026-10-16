@@ -3,6 +3,83 @@ import assert from "node:assert/strict";
 import { createBusinessHarness, createXPlatform } from "../dist/diagnostics.js";
 import { fixture, NOW } from "./fixtures.mjs";
 
+for (const mode of ["verified", "unknown", "alert", "pacing"]) {
+  test(`incoming batch isolates missing context without bypassing ${mode}`, async (t) => {
+    const f = fixture(t);
+    const clicks = [];
+    if (mode === "pacing")
+      await f.store.transaction(({ state }) => {
+        state.reactions = [
+          {
+            postId: "9",
+            status: "unknown",
+            intentAt: new Date(NOW - 1000).toISOString(),
+          },
+        ];
+        return state;
+      });
+    const api = createBusinessHarness({
+      store: f.store,
+      clock: () => NOW,
+      platform: {
+        preflight: () => ({ covered: true }),
+        captureProof: ({ observation }) => ({ observation }),
+        readPost: async ({ postId }) => ({
+          complete: postId !== "2",
+          context: postId === "2" ? [] : [{ author: "Pei" }],
+          alerts: postId === "2" && mode === "alert" ? ["HTTP429"] : [],
+        }),
+        likePost: async (args) => {
+          await args.beforeSubmit();
+          clicks.push(args.postId);
+          return { liked: mode !== "unknown" };
+        },
+      },
+    });
+    const args = {
+      batchId: "context-isolation",
+      sampleRate: 1,
+      targets: ["2", "3"].map((postId) => ({
+        postId,
+        author: "Reader",
+        url: `https://x.com/Reader/status/${postId}`,
+        evidenceRef: f.proof,
+        incomingEvidenceRef: f.proof,
+      })),
+    };
+    const out = await api.likeIncomingBatch(args);
+    if (mode === "alert") {
+      assert.equal(out.reason, "like-platform-alert");
+      assert.equal(out.results.length, 1);
+      assert.deepEqual(clicks, []);
+    } else if (mode === "pacing") {
+      assert.equal(out.status, "waiting");
+      assert.equal(out.resumeAt, new Date(NOW + 29000).toISOString());
+      assert.deepEqual(clicks, []);
+    } else {
+      assert.equal(out.status, "needsDecision");
+      assert.equal(out.reason, "incoming-like-context-unconfirmed");
+      assert.deepEqual(
+        out.results.map((r) => r.status),
+        ["needsDecision", mode],
+      );
+      assert.deepEqual(clicks, ["3"]);
+      if (mode === "verified") {
+        const resumed = await api.likeIncomingBatch(args);
+        assert.equal(resumed.results[1].status, "preexisting");
+        assert.deepEqual(clicks, ["3"]);
+      }
+    }
+    assert.equal(f.store.evidenceExists(out.results[0].evidenceRef), true);
+    const state = (await f.store.load()).state;
+    assert.deepEqual(state.reactionSamples[0].selectedIds, ["2", "3"]);
+    assert.equal(
+      (state.reactions ?? []).some((r) => r.postId === "2"),
+      false,
+    );
+  });
+}
+
 test("cold incoming page reobserves once and never approves a target-only conversation", async (t) => {
   for (const recover of [true, false]) {
     const f = fixture(t);

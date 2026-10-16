@@ -238,6 +238,20 @@ export class PlatformCollections {
     const renderedIds = previous.renderedIds ?? [...seen];
     let advanced: any;
     for (let step = 0; step < 10; step++) {
+      if (!(advanced ?? previous).posts?.length) {
+        const anchor = await this.#observed({ view: "posts", limit: 5 });
+        if (
+          anchor.needsStateCheck ||
+          anchor.alerts?.length ||
+          anchor.page !== previous.page ||
+          !anchor.posts?.length
+        )
+          return {
+            ...anchor,
+            needsStateCheck: true,
+            missing: ["source-scroll-anchor-unconfirmed"],
+          };
+      }
       await this.#browser.act({ operation: "nextPosts" });
       advanced = await this.#ready({ view: "posts", limit: 5 });
       if (advanced.needsStateCheck || advanced.alerts?.length) return advanced;
