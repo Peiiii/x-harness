@@ -20,7 +20,7 @@ Original actions may pass `notAfter` as the calendar window’s exclusive ISO en
 
 Real quotes: pass `quoteTarget:{postId,url,evidenceRef}`; composer and public card must bind that ID. See [quotes](quotes.md).
 
-Additional fields: kind:'original', draftPath (existing .post.md), text (complete approved text), composeURL, composeEvidenceRef; optional assets:[{path,alt}], activation:'click'|'keyboard'. Every media path must exist and be reviewed. The DOM uploader supports one absolute PNG/JPEG/WebP image with required ALT, or one absolute MP4 video. Video uploads wait for a visible preview and public settlement requires a video on the exact fresh post; image ALT controls are not applied to videos.
+Additional fields: kind:'original', draftPath (existing .post.md), text (complete approved text), composeURL, composeEvidenceRef; optional assets:[{path,alt}], activation:'click'|'keyboard'. Every media path must exist and be reviewed. The DOM uploader supports 1–4 absolute PNG/JPEG/WebP images with separately verified ALT in upload order, or one absolute MP4 video; mixed media batches are rejected before upload. Video uploads wait for a visible preview and public settlement requires a video on the exact fresh post; image ALT controls are not applied to videos.
 
 ```js
 var result = await x.publishPost({
