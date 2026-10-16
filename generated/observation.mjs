@@ -16,7 +16,7 @@ export const readXObservation = (query) => {
     const id = (article) => [...article.querySelectorAll("time")]
         .filter(visible)
         .map((el) => el.closest("a")?.getAttribute("href"))
-        .find((href) => /^\/\w+\/status\/\d+$/.test(href ?? ""))
+        .find((href) => /^\/\w+\/status\/\d+(?:\/history)?$/.test(href ?? ""))
         ?.match(/\/status\/(\d+)/)?.[1];
     const rootIndex = rows.findIndex((el) => isArticle(el) && id(el) === threadRootId);
     const boundaryIndex = rows.findIndex((el) => isHeading(el) &&
