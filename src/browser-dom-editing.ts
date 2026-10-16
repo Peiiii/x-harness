@@ -482,6 +482,33 @@ export class DOMEditing {
     return { completed: false, loc, submittedEditor };
   }
   private async handleAttachAssets(command: any) {
+    const assets = command.assets;
+    if (!Array.isArray(assets) || assets.length < 1 || assets.length > 4)
+      throw new Error("仅支持1至4张图片或一个MP4视频");
+    if (assets.length === 1) return this.handleAttachSingleAsset(command);
+    if (
+      assets.some(
+        (asset: any) =>
+          !/\.(png|jpe?g|webp)$/i.test(asset.path ?? "") || !asset.alt?.trim(),
+      )
+    )
+      throw new Error("多图须全部为带完整ALT的图片");
+    const mediaEvidence = [];
+    let attached: any;
+    for (let imageIndex = 0; imageIndex < assets.length; imageIndex++) {
+      attached = await this.handleAttachSingleAsset({
+        ...command,
+        assets: [assets[imageIndex]],
+        imageIndex,
+      });
+      mediaEvidence.push(attached.value.mediaEvidence);
+    }
+    return {
+      completed: true,
+      value: { assets, mediaEvidence, composer: attached.value.composer },
+    };
+  }
+  private async handleAttachSingleAsset(command: any) {
     const { query, result } = this.#session.current;
     let loc: any, submittedEditor: any;
     if (
@@ -512,6 +539,7 @@ export class DOMEditing {
       .getByRole("button", {
         name: /^(?:编辑|Edit)(?:图片|照片|媒体| image| photo| media)?(?: \d+)?$/i,
       })
+      .nth(command.imageIndex ?? 0)
       .waitFor({ state: "visible", timeoutMs: 5000 });
     const composer = await this.#observe({ view: "composer" });
     const edits = composer.buttons.filter(
@@ -520,8 +548,15 @@ export class DOMEditing {
           b.label,
         ) && !b.disabled,
     );
-    if (edits.length !== 1) throw new Error("图片编辑入口未唯一观察");
-    await (await this.#unique(this.#locator("button", edits[0].label))).click();
+    const imageIndex = command.imageIndex ?? 0;
+    if (edits.length !== imageIndex + 1)
+      throw new Error("图片编辑入口数量与上传顺序不匹配");
+    const editLocator = this.#tab.playwright.getByRole("button", {
+      name: /^(?:编辑|Edit)(?:图片|照片|媒体| image| photo| media)?(?: \d+)?$/i,
+    });
+    if ((await editLocator.count()) !== edits.length)
+      throw new Error("图片编辑入口已变化");
+    await editLocator.nth(imageIndex).click();
     await this.#tab.playwright
       .getByRole("tab", {
         name: /^(编辑图片描述|Edit image description)$/i,

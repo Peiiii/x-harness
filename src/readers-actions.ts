@@ -16,7 +16,9 @@ export async function attachImage(tab: any, { path }: any = {}): Promise<any> {
     throw new Error("图片上传前编辑器未确认");
   const buttons = before.buttons.filter(
     (b: any) =>
-      /^(添加照片或视频|Add photos or video)$/i.test(b.label) && !b.disabled,
+      /^(添加照片或视频|添加媒体|Add photos or video|Add media)$/i.test(
+        b.label,
+      ) && !b.disabled,
   );
   if (buttons.length !== 1) throw new Error("图片按钮未唯一观察");
   const button = tab.playwright.getByRole("button", {
