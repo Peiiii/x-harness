@@ -81,10 +81,11 @@ export class ProfilePin {
               a.querySelector('[data-testid="socialContext"]')?.textContent ||
                 "",
             ) &&
-            [...a.querySelectorAll("a[href]")].some(
-              (l) =>
-                l.getAttribute("href")?.match(/\/status\/(\d+)/)?.[1] === id,
-            ),
+            a
+              .querySelector("time[datetime]")
+              ?.closest("a")
+              ?.getAttribute("href")
+              ?.match(/\/status\/(\d+)$/)?.[1] === id,
         ),
       options.target.postId,
     );
