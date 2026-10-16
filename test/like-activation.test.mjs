@@ -152,3 +152,38 @@ test("clipped link ambiguity, body/author/prefix mismatch, wrong route and alert
     );
   }
 });
+
+test("post-click AX gap requests fresh DOM proof without success or another click; connection still fails", async () => {
+  for (const connection of [false, true]) {
+    let clicked = 0,
+      intents = 0;
+    const lost = Error("browser disconnected after activation");
+    const activation = new NativeLikeActivation({
+      getAXState: async () => {
+        if (!clicked) return state();
+        if (connection) throw lost;
+        return 'Window: "Post", App: Google Chrome.\n0 标准窗口 Post, URL: x.com/Author/status/100\n';
+      },
+      click: async () => {
+        clicked++;
+      },
+    });
+    const run = () =>
+      activation.submit({
+        post: { id: "101", author: "Author" },
+        page: "https://x.com/Author/status/100",
+        beforeSubmit: async () => {
+          intents++;
+        },
+      });
+    if (connection) await assert.rejects(run, (e) => e === lost);
+    else {
+      const out = await run();
+      assert.equal(out.requiresFreshDOM, true);
+      assert.equal(out.observation, undefined);
+      assert.equal(out.verified, undefined);
+    }
+    assert.equal(clicked, 1);
+    assert.equal(intents, 1);
+  }
+});

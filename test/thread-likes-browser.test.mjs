@@ -151,84 +151,104 @@ test("platform reuses thread page for exact child like; expand and pagination pr
   );
 });
 
-for (const thread of [false, true]) {
-  test(`like uses one native activation with exact DOM verification: thread=${thread}`, async () => {
-    const query = {
-      view: "posts",
-      targetId: "101",
-      ...(thread ? { threadRootId: "100" } : {}),
-    };
-    const result = {
-      page: "https://x.com/Author/status/100",
-      posts: [
-        {
-          id: "101",
-          author: "Author",
-          body: "comment",
-          primary: "/Author/status/101",
-          buttons: [{ label: "0 Likes. Like" }],
+for (const thread of [false, true])
+  for (const [postAX, finalLiked] of [
+    ["bound", true],
+    ["missing", true],
+    ["missing", false],
+    ["route-change", false],
+    ["alert", false],
+  ]) {
+    test(`like uses one native activation with exact DOM verification: thread=${thread} after=${postAX} liked=${finalLiked}`, async () => {
+      const query = {
+        view: "posts",
+        targetId: "101",
+        ...(thread ? { threadRootId: "100" } : {}),
+      };
+      const result = {
+        page: "https://x.com/Author/status/100",
+        posts: [
+          {
+            id: "101",
+            author: "Author",
+            body: "comment",
+            primary: "/Author/status/101",
+            buttons: [{ label: "0 Likes. Like" }],
+          },
+        ],
+        alerts: [],
+        accountHandle: "Pei",
+      };
+      let clicks = 0,
+        intents = 0,
+        verification,
+        liked = false;
+      const button = {
+        waitFor: async () => {},
+        count: async () => 1,
+        click: async () => {
+          throw Error("unexpected locator activation");
         },
-      ],
-      alerts: [],
-      accountHandle: "Pei",
-    };
-    let clicks = 0,
-      intents = 0,
-      verification,
-      liked = false;
-    const button = {
-      waitFor: async () => {},
-      count: async () => 1,
-      click: async () => {
-        throw Error("unexpected locator activation");
-      },
-    };
-    const article = {
-      count: async () => 1,
-      getByRole: () => button,
-      filter: () => article,
-    };
-    const editing = new DOMEditing({
-      session: { current: { query, result } },
-      unique: async (l) => {
-        assert.equal(await l.count(), 1);
-        return l;
-      },
-      locator: () => article,
-      tab: {
-        playwright: { locator: () => ({}) },
-        getAXState: async () =>
-          `Window: "Post", App: Google Chrome.\n0 标准窗口 Post, URL: x.com/Author/status/100\n\t1 container 主页时间线\n\t\t2 container Author @Author comment\n\t\t\t3 link 下午9:00 · 2026年10月14日, Value: x.com/Author/status/101\n\t\t\t4 文本 comment\n\t\t\t5 按钮 ${liked ? "1 喜欢次数。喜欢了" : "0 喜欢次数。喜欢"}\n`,
-        click: async (index) => {
-          assert.equal(index, 5);
-          clicks++;
-          liked = true;
+      };
+      const article = {
+        count: async () => 1,
+        getByRole: () => button,
+        filter: () => article,
+      };
+      const editing = new DOMEditing({
+        session: { current: { query, result } },
+        unique: async (l) => {
+          assert.equal(await l.count(), 1);
+          return l;
         },
-        pressKey: async () => {
-          throw Error("unexpected keyboard");
+        locator: () => article,
+        tab: {
+          playwright: { locator: () => ({}) },
+          getAXState: async () =>
+            liked && postAX !== "bound"
+              ? postAX === "route-change"
+                ? `Window: "Other", App: Google Chrome.\n0 标准窗口 Other, URL: x.com/Other/status/999\n`
+                : postAX === "alert"
+                  ? `Window: "Post", App: Google Chrome.\n0 标准窗口 Post, URL: x.com/Author/status/100\n9 文本 rate limit\n`
+                  : `Window: "Post", App: Google Chrome.\n0 标准窗口 Post, URL: x.com/Author/status/100\n`
+              : `Window: "Post", App: Google Chrome.\n0 标准窗口 Post, URL: x.com/Author/status/100\n\t1 container 主页时间线\n\t\t2 container Author @Author comment\n\t\t\t3 link 下午9:00 · 2026年10月14日, Value: x.com/Author/status/101\n\t\t\t4 文本 comment\n\t\t\t5 按钮 ${liked ? "1 喜欢次数。喜欢了" : "0 喜欢次数。喜欢"}\n`,
+          click: async (index) => {
+            assert.equal(index, 5);
+            clicks++;
+            liked = true;
+          },
+          pressKey: async () => {
+            throw Error("unexpected keyboard");
+          },
         },
-      },
-      observe: async (q) => {
-        verification = q;
-        return {
-          posts: [{ id: "101", buttons: [{ label: "1 Likes. Liked" }] }],
-          alerts: [],
-        };
-      },
+        observe: async (q) => {
+          verification = q;
+          return {
+            posts: [
+              {
+                id: "101",
+                buttons: [
+                  { label: finalLiked ? "1 Likes. Liked" : "0 Likes. Like" },
+                ],
+              },
+            ],
+            alerts: postAX === "alert" ? ["challenge"] : [],
+          };
+        },
+      });
+      const out = await editing.likePost({
+        postId: "101",
+        beforeSubmit: async () => {
+          intents++;
+        },
+      });
+      assert.equal(clicks, 1);
+      assert.equal(intents, 1);
+      assert.equal(out.value.liked, finalLiked);
+      assert.equal(verification.targetId, "101");
+      assert.equal(verification.threadRootId, thread ? "100" : undefined);
     });
-    const out = await editing.likePost({
-      postId: "101",
-      beforeSubmit: async () => {
-        intents++;
-      },
-    });
-    assert.equal(clicks, 1);
-    assert.equal(intents, 1);
-    assert.equal(out.value.liked, true);
-    assert.equal(verification.targetId, "101");
-    assert.equal(verification.threadRootId, thread ? "100" : undefined);
-  });
-}
+  }
 
 test("DOM preexisting like never invokes intent or button click", async () => {
   const editing = new DOMEditing({

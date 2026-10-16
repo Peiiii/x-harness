@@ -67,11 +67,21 @@ export class NativeLikeActivation {
       return { preexisting: true };
     await args.beforeSubmit?.();
     await this.#tab.click(controls[0].index);
-    return {
-      observation: this.target(
-        await this.#tab.getAXState({ emit: false, disableDiffing: true }),
-        args,
-      ),
-    };
+    const after = await this.#tab.getAXState({
+      emit: false,
+      disableDiffing: true,
+    });
+    try {
+      return { observation: this.target(after, args) };
+    } catch (error: unknown) {
+      if (
+        !(error instanceof Error) ||
+        error.message !== "like-native-target-unconfirmed"
+      )
+        throw error;
+      // Activation is already complete. Let the original fresh DOM/identity/
+      // thread checks settle it; missing AX evidence is neither success nor retry.
+      return { requiresFreshDOM: true };
+    }
   }
 }
