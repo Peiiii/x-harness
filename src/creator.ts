@@ -171,7 +171,14 @@ export async function collectCreatorDOM(
     }
     if (posts.size >= target || scrolls >= maxScrolls || stagnant >= 6) break;
     stagnant = posts.size === before ? stagnant + 1 : 0;
-    await tab.scroll([780, 690], "down", 4);
+    const scrollPoint = await tab.playwright.evaluate(
+      function readCreatorScrollPoint() {
+        if (innerWidth <= 0 || innerHeight <= 0)
+          throw Error("creator-viewport-unavailable");
+        return [Math.floor(innerWidth / 2), Math.floor(innerHeight * 0.75)];
+      },
+    );
+    await tab.scroll(scrollPoint, "down", 4);
     await tab.getAXState({ emit: false });
     scrolls++;
   }
