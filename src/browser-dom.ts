@@ -153,7 +153,8 @@ export class DOMXBrowser {
     );
   }
   private async unique(loc: any) {
-    if ((await loc.count()) !== 1) throw new Error("DOM语义控件不唯一");
+    const count = await loc.count();
+    if (count !== 1) throw new Error(`DOM语义控件不唯一 count=${count}`);
     return loc;
   }
   public async collectCreator({
@@ -186,7 +187,19 @@ export class DOMXBrowser {
         )[command.operation]
       : undefined;
     if (!handler) throw new Error("未封装的DOM动作");
-    const prepared = await handler(command);
+    let prepared;
+    try {
+      prepared = await handler(command);
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.startsWith("DOM语义控件不唯一")
+      )
+        throw new Error(`${command.operation}: ${error.message}`, {
+          cause: error,
+        });
+      throw error;
+    }
     if (prepared.completed) return prepared.value;
     return this.#finishDOMAction(command, prepared, query, result);
   }

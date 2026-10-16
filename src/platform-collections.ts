@@ -116,32 +116,19 @@ export class PlatformCollections {
         seen.add(candidate.id);
         let post = candidate;
         if (candidate.needsExpansion) {
-          const target = await this.#observed({
-            view: "posts",
-            targetId: candidate.id,
-            limit: 1,
-          });
-          if (target.posts?.length !== 1) {
-            missing.push("expansion-target-unconfirmed");
-            continue;
-          }
-          await this.#browser.act({
-            operation: "expandPost",
-            postId: candidate.id,
-          });
-          const expanded = await this.#ready({
-            view: "posts",
-            targetId: candidate.id,
-            limit: 1,
-          });
-          if (expanded.needsStateCheck || expanded.alerts?.length)
+          const expanded = await this.expandSource(candidate, last, offset);
+          if (expanded.blocked)
             return {
-              ...expanded,
+              ...expanded.observation,
               sources,
               complete: false,
-              missing: ["expanded-source-unconfirmed"],
+              missing: expanded.missing,
             };
-          post = expanded.posts?.[0];
+          if (expanded.missing) {
+            missing.push(...expanded.missing);
+            continue;
+          }
+          post = expanded.post;
         }
         if (
           !post ||
@@ -161,7 +148,14 @@ export class PlatformCollections {
         last = await this.#observed({ view: "posts", offset, limit: 5 });
         if (last.moreInDOM) offset += 5;
         else {
-          const advanced = await this.advanceSourceWindow(last, seen);
+          let advanced;
+          try {
+            advanced = await this.advanceSourceWindow(last, seen);
+          } catch (error) {
+            if (!this.isSourceControlFailure(error)) throw error;
+            missing.push("pagination-control-unconfirmed");
+            break;
+          }
           if (advanced.needsStateCheck || advanced.alerts?.length)
             return {
               ...advanced,
@@ -201,6 +195,61 @@ export class PlatformCollections {
           ? []
           : [...new Set([...missing, "bounded-source-window-exhausted"])],
     };
+  }
+  private isSourceControlFailure(error: unknown) {
+    if (!(error instanceof Error)) return false;
+    return (
+      /^(?:(?:expandPost|nextPosts): )?DOM语义控件不唯一(?: count=\d+)?$/.test(
+        error.message,
+      ) ||
+      /^(?:Error: )?Playwright selector deadline exceeded(?:\n|$)/.test(
+        error.message,
+      )
+    );
+  }
+  private async expandSource(candidate: any, frame: any, offset: number) {
+    const target = await this.#observed({
+      view: "posts",
+      targetId: candidate.id,
+      limit: 1,
+    });
+    if (target.posts?.length !== 1)
+      return { missing: ["expansion-target-unconfirmed"] };
+    try {
+      await this.#browser.act({
+        operation: "expandPost",
+        postId: candidate.id,
+      });
+    } catch (error) {
+      if (!this.isSourceControlFailure(error)) throw error;
+      const fresh = await this.#observed({ view: "posts", offset, limit: 5 });
+      if (
+        !frame.page ||
+        !frame.accountHandle ||
+        fresh.page !== frame.page ||
+        fresh.accountHandle !== frame.accountHandle ||
+        fresh.needsStateCheck ||
+        fresh.alerts?.length
+      )
+        return {
+          blocked: true,
+          observation: fresh,
+          missing: ["source-expansion-page-unconfirmed"],
+        };
+      return { missing: [`expansion-control-unconfirmed:${candidate.id}`] };
+    }
+    const expanded = await this.#ready({
+      view: "posts",
+      targetId: candidate.id,
+      limit: 1,
+    });
+    if (expanded.needsStateCheck || expanded.alerts?.length)
+      return {
+        blocked: true,
+        observation: expanded,
+        missing: ["expanded-source-unconfirmed"],
+      };
+    return { post: expanded.posts?.[0] };
   }
   private validateSourceWindow(
     processedIds: any,

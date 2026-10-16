@@ -562,3 +562,183 @@ test("placeholder-only tail restores a fresh same-page observed window before sc
     ["6"],
   );
 });
+
+for (const operation of ["expandPost", "nextPosts"]) {
+  for (const count of [0, 2]) {
+    test(`DOM source diagnostic identifies ${operation} with ${count} matches without acting`, async () => {
+      const { createDOMXBrowser } = await import("../dist/browser-dom.js");
+      const actions = [];
+      const loc = {
+        filter: () => loc,
+        getByText: () => loc,
+        count: async () => count,
+        click: async () => actions.push("click"),
+        press: async () => actions.push("press"),
+      };
+      const browser = createDOMXBrowser({
+        pressKey: async () => actions.push("key"),
+        playwright: {
+          evaluate: async () => ({
+            page: "https://x.com/home",
+            accountHandle: "example_owner",
+            posts: [post(5)],
+            alerts: [],
+            needsStateCheck: false,
+          }),
+          getByRole: () => loc,
+          locator: () => loc,
+        },
+      });
+      await browser.observe({ view: "posts" });
+      await assert.rejects(
+        browser.act({ operation, postId: "5" }),
+        (error) =>
+          error.message.includes(operation) &&
+          error.message.includes(`count=${count}`),
+      );
+      assert.deepEqual(actions, []);
+    });
+  }
+}
+
+for (const failure of [
+  "DOM语义控件不唯一 count=0",
+  "expandPost: DOM语义控件不唯一 count=2",
+  "Playwright selector deadline exceeded",
+]) {
+  test(`one failed expansion preserves independent sources: ${failure}`, async () => {
+    const frame = {
+      page: "https://x.com/home",
+      accountHandle: "example_owner",
+      needsStateCheck: false,
+      alerts: [],
+      posts: [post(1), { ...post(2), needsExpansion: true }, post(3)],
+    };
+    let checks = 0,
+      clicks = 0;
+    const collection = new PlatformCollections({
+      ready: async () => frame,
+      observed: async (q) => {
+        checks++;
+        return q.targetId ? { ...frame, posts: [frame.posts[1]] } : frame;
+      },
+      browser: {
+        act: async () => {
+          clicks++;
+          throw Error(failure);
+        },
+      },
+      choose: () => {},
+    });
+    const result = await collection.collectSources({ limit: 2, maxPages: 1 });
+    assert.deepEqual(
+      result.sources.map((p) => p.id),
+      ["1", "3"],
+    );
+    assert.equal(result.complete, true);
+    assert.equal(result.pageComplete, false);
+    assert.equal(checks, 2);
+    assert.equal(clicks, 1);
+  });
+}
+for (const change of [
+  { page: "https://x.com/elsewhere" },
+  { accountHandle: "other_owner" },
+  { accountHandle: null },
+  { alerts: ["请验证身份"] },
+  { needsStateCheck: true },
+]) {
+  test(`failed expansion stops on unsafe fresh frame ${JSON.stringify(change)}`, async () => {
+    const frame = {
+      page: "https://x.com/home",
+      accountHandle: "example_owner",
+      needsStateCheck: false,
+      alerts: [],
+      posts: [post(1), { ...post(2), needsExpansion: true }, post(3)],
+    };
+    const collection = new PlatformCollections({
+      ready: async () => frame,
+      observed: async (q) =>
+        q.targetId
+          ? { ...frame, posts: [frame.posts[1]] }
+          : { ...frame, ...change },
+      browser: {
+        act: async () => {
+          throw Error("DOM语义控件不唯一 count=0");
+        },
+      },
+      choose: () => {},
+    });
+    const result = await collection.collectSources({ limit: 2, maxPages: 1 });
+    assert.deepEqual(
+      result.sources.map((p) => p.id),
+      ["1"],
+    );
+    assert.equal(result.complete, false);
+    assert.deepEqual(result.missing, ["source-expansion-page-unconfirmed"]);
+  });
+}
+for (const failure of [
+  "nextPosts: DOM语义控件不唯一 count=0",
+  "Playwright selector deadline exceeded",
+]) {
+  test(`pagination control failure retains complete partial sources: ${failure}`, async () => {
+    const frame = {
+      page: "https://x.com/home",
+      accountHandle: "example_owner",
+      needsStateCheck: false,
+      alerts: [],
+      posts: [post(1)],
+    };
+    let actions = 0;
+    const collection = new PlatformCollections({
+      ready: async () => frame,
+      observed: async () => frame,
+      browser: {
+        act: async () => {
+          actions++;
+          throw Error(failure);
+        },
+      },
+      choose: () => {},
+    });
+    const result = await collection.collectSources({ limit: 2, maxPages: 2 });
+    assert.deepEqual(
+      result.sources.map((p) => p.id),
+      ["1"],
+    );
+    assert.equal(result.complete, false);
+    assert.equal(result.pageComplete, false);
+    assert(result.missing.includes("pagination-control-unconfirmed"));
+    assert.equal(actions, 1);
+  });
+}
+for (const expanding of [true, false]) {
+  test(`source control isolation never swallows a connection failure: expanding=${expanding}`, async () => {
+    const frame = {
+      page: "https://x.com/home",
+      accountHandle: "example_owner",
+      needsStateCheck: false,
+      alerts: [],
+      posts: [
+        post(1),
+        ...(expanding ? [{ ...post(2), needsExpansion: true }] : []),
+      ],
+    };
+    const collection = new PlatformCollections({
+      ready: async () => frame,
+      observed: async (q) =>
+        q.targetId ? { ...frame, posts: [frame.posts[1]] } : frame,
+      browser: {
+        act: async () => {
+          throw Error("host disconnected");
+        },
+      },
+      choose: () => {},
+    });
+    await assert.rejects(
+      collection.collectSources({ limit: 3, maxPages: 2 }),
+      /host disconnected/,
+    );
+  });
+}
