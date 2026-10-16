@@ -95,6 +95,51 @@ const make = (t, options) => {
     }),
   };
 };
+for (const widths of [
+  [310, 310],
+  [1440, 310],
+]) {
+  test(`creator collects across viewport widths ${widths.join(" -> ")}`, async (t) => {
+    const f = make(t);
+    const { runInNewContext } = await import("node:vm");
+    const original = f.tab.playwright.evaluate;
+    let page = 0;
+    f.tab.playwright.evaluate = async (fn, args) => {
+      if (fn.name === "readCreatorScrollPoint")
+        return runInNewContext(`(${fn.toString()})()`, {
+          innerWidth: widths[Math.min(page, widths.length - 1)],
+          innerHeight: 715,
+        });
+      const result = await original(fn, args);
+      if (fn.name === "readXObservation")
+        result.posts = result.posts.map((post) => ({
+          ...post,
+          id: String(123 + page),
+          primary: `/creator/status/${123 + page}`,
+        }));
+      return result;
+    };
+    f.tab.scroll = async ([x, y]) => {
+      assert.ok(x >= 0 && x < widths[Math.min(page, widths.length - 1)]);
+      assert.ok(y >= 0 && y < 715);
+      page++;
+    };
+    const result = await f.api.readCreator({
+      handle: "creator",
+      target: 3,
+      maxScrolls: 2,
+      mode: "decision",
+    });
+    assert.equal(result.status, "observed");
+    assert.equal(result.complete, true);
+    assert.deepEqual(result.sources.map((post) => post.id).sort(), [
+      "123",
+      "124",
+      "125",
+    ]);
+    assert.equal(page, 2);
+  });
+}
 test("creator root collects once, preserves exact evidence and local raw proof, whitelists metadata and seeds delta", async (t) => {
   const f = make(t);
   const result = await f.api.readCreator({
