@@ -91,3 +91,4 @@
 | DISCOVERY-NO-PROGRESS / 2026-10-16 | reply-discovery 当前查询缺证/重复卡片可连续零新增并占满读取预算 | 已明显消耗当前业务读取，及时修复；两次连续无新ID结束当前有界查询，单次空窗保留，新ID重置 | 13定向测试；两条回归先红后绿；完整TS编译、格式、161文件维护性与实现Review通过；真实根API已切换第二查询并完成合格评论核验 | source 19c2156；验证本地构建已采用；随下一相关稳定维护集中发布，不单项发npm；无进展不等于全平台来源耗尽 |
 
 | REPLY-COMPOSER-CONTEXT-PENDING / 2026-10-16 | 部分长帖或文章进入回复后，空编辑器的精确父帖绑定未确认；owner: PlatformWriting.handleCompose / DOMSubmission 的回复上下文观察 | 多次现场回执明确 submissionStarted:false，短帖及其它独立对象仍成功；当前跳过低效对象，根因未定位，不放宽绑定或将未知重发 | 下次回复导航/编辑器相关维护集中复现；覆盖长正文截断、文章、过渡页面、唯一编辑器和精确父帖，保持拒绝错目标/非空草稿；若影响必办对象或普通短帖则即时升级 | deferred；匿名现场证据留消费者原动作，本条不代表已修复，不修改运行代码或单独发npm |
+| REPLY-AUTHOR-HISTORY-CATEGORY-PENDING / 2026-10-16 | 原作者已有3条明确标为incoming的历史回复，首次主动评论仍返回reply-author-limit；owner: 作者限次准入与跨日history携带 | 当前对象在intent前拒绝，已按原ID跳过且保留历史，其它独立对象继续；仅一个边界样本，尚未核清计数语义，不为补量放宽现有门 | 下次作者限次/history相关维护对照原合同核语义；用合成同作者3条incoming与3条external、缺分类旧记录、跨日及unknown对照复现；分类不明保守处理，不清历史或重发 | deferred；匿名事实留本行，现场细节归consumer原动作，不改运行代码或单独发npm |
