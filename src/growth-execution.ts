@@ -478,6 +478,9 @@ export class GrowthExecution {
       observation = {
         verified: false,
         missing: ["submission-or-verification-failed"],
+        ...(error.submissionDiagnostic
+          ? { submissionDiagnostic: error.submissionDiagnostic }
+          : {}),
         error: error.message.slice(0, 240),
       };
     }

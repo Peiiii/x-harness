@@ -53,12 +53,19 @@ async function run(
       reads++;
       return {
         ...submitted,
-        alerts: fault === "alert" ? ["challenge"] : [],
+        alerts: ["alert", "deadline-alert"].includes(fault)
+          ? ["challenge"]
+          : [],
         page: fault === "route" ? "https://x.com/home" : submitted.page,
         accountHandle: fault === "account" ? "other" : submitted.accountHandle,
         editorText:
-          fault === "draft" ? "different draft" : submitted.editorText,
+          fault === "draft"
+            ? "different draft"
+            : fault === "cleared"
+              ? ""
+              : submitted.editorText,
         replyToId: fault === "parent" ? "99" : submitted.replyToId,
+        editors: [{}],
       };
     },
     unique: () => {
@@ -92,7 +99,10 @@ async function run(
           waitFor: async ({ state, timeoutMs }) => {
             assert.equal(state, "hidden");
             waits++;
-            time += Math.min(3000, timeoutMs);
+            time +=
+              fault === "cleared" || fault === "deadline-alert"
+                ? timeoutMs
+                : Math.min(3000, timeoutMs);
             if (fault === "none" || (fault === "late" && waits === 3)) return;
             throw Error(
               fault === "interrupted"
@@ -163,3 +173,21 @@ for (const fault of [
     assert.ok(r.time <= 10000);
   });
 }
+
+test("a deadline timeout still observes the original cleared editor before receipt verification", async (t) => {
+  const r = await run(t, { fault: "cleared" });
+  assert.equal(r.error, undefined);
+  assert.equal(r.reads, 1);
+  assert.equal(r.presses, 1);
+  assert.equal(r.waits, 1);
+  assert.equal(r.idle, 1);
+});
+test("a deadline timeout retains the original platform alert without retrying submit", async (t) => {
+  const r = await run(t, { fault: "deadline-alert" });
+  assert.ok(r.error);
+  assert.equal(r.reads, 1);
+  assert.equal(r.presses, 1);
+  assert.equal(r.idle, 0);
+  assert.equal(r.error.submissionDiagnostic.editorState, "retained");
+  assert.deepEqual(r.error.submissionDiagnostic.alerts, ["challenge"]);
+});

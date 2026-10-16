@@ -149,15 +149,27 @@ export class DOMSubmission {
         await editor.waitFor({ state: "hidden", timeoutMs: remaining });
         return;
       } catch (error: any) {
-        if (
-          !/timed out|timeout|deadline exceeded/i.test(error.message) ||
-          attempt === 3 ||
-          Date.now() >= deadline
-        )
+        if (!/timed out|timeout|deadline exceeded/i.test(error.message))
           throw error;
-        // Resume only the wait, never the submission or a navigation that could interrupt it.
+        // Capture this original page before receipt recovery can navigate away.
         const current = await this.#observe({ view: "composer" });
+        error.submissionDiagnostic = {
+          code: "submitted-editor-clear-unconfirmed",
+          page: current.page,
+          accountHandle: current.accountHandle,
+          alerts: current.alerts ?? [],
+          needsStateCheck: current.needsStateCheck === true,
+          editorState:
+            typeof current.editorText !== "string"
+              ? "missing"
+              : current.editorText.trim() === ""
+                ? "empty"
+                : sameText(current.editorText, submitted.editorText)
+                  ? "retained"
+                  : "changed",
+        };
         if (
+          current.needsStateCheck ||
           current.alerts?.length ||
           !current.accountHandle ||
           !submitted.accountHandle ||
@@ -169,6 +181,14 @@ export class DOMSubmission {
               current.replyToId !== submitted.replyToId))
         )
           throw error;
+        // Clearing is only a readiness signal. The caller still verifies exact public content/parent.
+        if (
+          current.editorText === "" &&
+          current.editors?.length === 1 &&
+          current.replyToId === submitted.replyToId
+        )
+          return;
+        if (attempt === 3 || Date.now() >= deadline) throw error;
       }
     }
   }
