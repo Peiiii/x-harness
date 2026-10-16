@@ -208,6 +208,88 @@ test("finite empty windows are continued and never mistaken for query exhaustion
   assert.equal(calls, 2);
 });
 
+test("repeated empty incomplete windows yield to the next query", async (t) => {
+  const f = fixture(t),
+    requests = [];
+  const d = new ReplyDiscovery(
+    async (q) => {
+      requests.push({ query: q.query, resume: q.resume });
+      return q.query === "first"
+        ? {
+            status: "needsDecision",
+            missing: [
+              "incomplete-source:blocked",
+              "bounded-source-window-exhausted",
+            ],
+            sources: [],
+          }
+        : { status: "observed", evidenceRef: f.proof, sources: [post(1)] };
+    },
+    f.store,
+    () => NOW,
+  );
+  const r = await d.run({ queries: ["first", "second"], target: 1 });
+  assert.deepEqual(requests, [
+    { query: "first", resume: false },
+    { query: "first", resume: true },
+    { query: "second", resume: false },
+  ]);
+  assert.equal(r.targetReached, true);
+  assert.equal(r.pageComplete, false);
+});
+
+test("repeated already examined cards cannot consume every query window", async (t) => {
+  const f = fixture(t),
+    queries = [];
+  const d = new ReplyDiscovery(
+    async (q) => {
+      queries.push(q.query);
+      return {
+        status: "observed",
+        evidenceRef: f.proof,
+        sources: [post(q.query === "first" ? 1 : 2)],
+      };
+    },
+    f.store,
+    () => NOW,
+  );
+  const r = await d.run({ queries: ["first", "second"], target: 2 });
+  assert.deepEqual(queries, ["first", "first", "first", "second"]);
+  assert.deepEqual(
+    r.candidates.map((c) => c.post.id),
+    ["1", "2"],
+  );
+});
+
+test("new examined cards reset the empty-window allowance even if rejected", async (t) => {
+  const f = fixture(t);
+  let calls = 0;
+  const d = new ReplyDiscovery(
+    async (q) => {
+      assert.equal(q.query, "first");
+      calls++;
+      return {
+        status: "observed",
+        evidenceRef: f.proof,
+        sources:
+          calls % 2
+            ? []
+            : [
+                post(
+                  calls,
+                  calls === 2 ? { metrics: ["1 喜欢次数。喜欢"] } : {},
+                ),
+              ],
+      };
+    },
+    f.store,
+    () => NOW,
+  );
+  const r = await d.run({ queries: ["first", "second"], target: 1 });
+  assert.equal(calls, 4);
+  assert.equal(r.targetReached, true);
+});
+
 test("06h discovery uses only its own valid reply permit and stops at midnight", async (t) => {
   const f = fixture(t);
   let calls = 0,
