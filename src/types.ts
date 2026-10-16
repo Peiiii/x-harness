@@ -637,6 +637,9 @@ export interface FollowPriorityResult {
   };
 }
 export interface XGrowthHarness {
+  pinPost?(
+    args: import("./profile-pin.js").PinOptions,
+  ): Promise<import("./profile-pin.js").PinResult>;
   captureAccountScreenshot(
     options: AccountScreenshotOptions,
   ): Promise<AccountScreenshotResult>;

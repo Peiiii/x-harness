@@ -130,3 +130,7 @@ var result = await x.likePostAndComments({
 ```
 
 Executor-scoped early windows: incoming likes and thread likes use the same evidenced `windowAuthorization` as their reply/follow executor. The matching kind, executor ID, actual start/exclusive expiry and existing proof are required; missing or expired permits retain the default gate. Recheck before each intent and continuation. This permit does not schedule work, clear refusals or authorize another executor.
+
+## Pin an owned public post
+
+`await x.pinPost({taskId,target:{postId,url,evidenceRef},userAuthorized:true,authorizationEvidenceRef})` requires explicit pin authorization and a DOM tab. The root checks current account and exact owned main post, records intent, selects the observed pin menu and confirmation, then checks the profile pinned ID. A navigation checkpoint requires the same call after the target renders. For unknown use `pinPost({...sameArguments,verifyOnly:true})` first; it never republishes content. A visible pending pin confirmation can resume the same task; target changes are rejected. Only `verified` means the target is currently pinned.

@@ -1,3 +1,5 @@
+import { ProfilePin, type PinTab } from "./profile-pin.js";
+export type { PinOptions, PinResult } from "./profile-pin.js";
 import { bindXGrowthHarness } from "./binding.js";
 import { HostConnection } from "./host-connection.js";
 import type {
