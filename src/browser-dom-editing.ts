@@ -641,7 +641,10 @@ export class DOMEditing {
     if (/喜欢了|取消喜欢|Unlike|Liked/i.test(buttons[0].label))
       return { completed: true, value: { ...result, preexisting: true } };
     const primary = post.primary;
-    if (!primary || primary.match(/\/status\/(\d+)$/)?.[1] !== command.postId)
+    if (
+      !primary ||
+      primary.match(/\/status\/(\d+)(?:\/history)?$/)?.[1] !== command.postId
+    )
       throw Error("like-permalink-unconfirmed");
     const article = await this.#unique(
       this.#locator("article").filter({

@@ -6,7 +6,12 @@ import { readThreadLikeSurface } from "../dist/readers-thread-likes.js";
 import { PlatformThreadLikes } from "../dist/platform-thread-likes.js";
 import { DOMEditing } from "../dist/browser-dom-editing.js";
 
-function surface({ root = true, seen = false, wrongRoute = false } = {}) {
+function surface({
+  root = true,
+  seen = false,
+  wrongRoute = false,
+  timePaths = {},
+} = {}) {
   const node = (order, text = "") => ({
     order,
     tagName: "BUTTON",
@@ -26,7 +31,9 @@ function surface({ root = true, seen = false, wrongRoute = false } = {}) {
         ? [
             {
               ...node(order),
-              closest: () => ({ getAttribute: () => `/Author/status/${id}` }),
+              closest: () => ({
+                getAttribute: () => timePaths[id] ?? `/Author/status/${id}`,
+              }),
             },
           ]
         : [],
@@ -76,6 +83,43 @@ test("thread DOM scope excludes ancestors, ads, recommendation rows and hidden-s
   assert.deepEqual(surface({ root: false }).threadIds, []);
   assert.equal(surface({ root: false, seen: true }).threadConfirmed, true);
 });
+
+test("edited timestamp root retains exact thread identity and boundaries", () => {
+  const s = surface({ timePaths: { 100: "/Author/status/100/history" } });
+  assert.equal(s.threadRootPresent, true);
+  assert.equal(s.threadConfirmed, true);
+  assert.deepEqual(s.threadIds, ["100", "101"]);
+});
+
+test("edited timestamp reply remains in its confirmed original thread", () => {
+  const s = surface({ timePaths: { 101: "/Author/status/101/history" } });
+  assert.deepEqual(s.threadIds, ["100", "101"]);
+  assert.deepEqual(
+    surface({
+      wrongRoute: true,
+      timePaths: { 100: "/Author/status/100/history" },
+    }).threadIds,
+    [],
+  );
+  assert.equal(
+    surface({ timePaths: { 100: "/Author/status/999/history" } })
+      .threadConfirmed,
+    false,
+  );
+});
+
+for (const suffix of [
+  "/photo/1",
+  "/video/1",
+  "/history/other",
+  "/history?other=1",
+])
+  test(`non-thread timestamp suffix cannot establish the root: ${suffix}`, () => {
+    const s = surface({ timePaths: { 100: `/Author/status/100${suffix}` } });
+    assert.equal(s.threadRootPresent, false);
+    assert.equal(s.threadConfirmed, false);
+    assert.deepEqual(s.threadIds, []);
+  });
 
 test("platform reuses thread page for exact child like; expand and pagination preserve scope", async () => {
   const url = "https://x.com/Author/status/100",
@@ -152,14 +196,16 @@ test("platform reuses thread page for exact child like; expand and pagination pr
 });
 
 for (const thread of [false, true])
-  for (const [postAX, finalLiked] of [
+  for (const [postAX, finalLiked, primarySuffix] of [
     ["bound", true],
     ["missing", true],
     ["missing", false],
     ["route-change", false],
     ["alert", false],
-  ]) {
-    test(`like uses one native activation with exact DOM verification: thread=${thread} after=${postAX} liked=${finalLiked}`, async () => {
+  ].flatMap(([postAX, finalLiked]) =>
+    ["", "/history"].map((suffix) => [postAX, finalLiked, suffix]),
+  )) {
+    test(`like uses one native activation with exact DOM verification: thread=${thread} permalink=${primarySuffix} after=${postAX} liked=${finalLiked}`, async () => {
       const query = {
         view: "posts",
         targetId: "101",
@@ -172,7 +218,7 @@ for (const thread of [false, true])
             id: "101",
             author: "Author",
             body: "comment",
-            primary: "/Author/status/101",
+            primary: `/Author/status/101${primarySuffix}`,
             buttons: [{ label: "0 Likes. Like" }],
           },
         ],
@@ -211,7 +257,7 @@ for (const thread of [false, true])
                 : postAX === "alert"
                   ? `Window: "Post", App: Google Chrome.\n0 标准窗口 Post, URL: x.com/Author/status/100\n9 文本 rate limit\n`
                   : `Window: "Post", App: Google Chrome.\n0 标准窗口 Post, URL: x.com/Author/status/100\n`
-              : `Window: "Post", App: Google Chrome.\n0 标准窗口 Post, URL: x.com/Author/status/100\n\t1 container 主页时间线\n\t\t2 container Author @Author comment\n\t\t\t3 link 下午9:00 · 2026年10月14日, Value: x.com/Author/status/101\n\t\t\t4 文本 comment\n\t\t\t5 按钮 ${liked ? "1 喜欢次数。喜欢了" : "0 喜欢次数。喜欢"}\n`,
+              : `Window: "Post", App: Google Chrome.\n0 标准窗口 Post, URL: x.com/Author/status/100\n\t1 container 主页时间线\n\t\t2 container Author @Author comment\n\t\t\t3 link ${primarySuffix ? "这是该帖子的最新版本。 上次编辑 " : ""}下午9:00 · 2026年10月14日, Value: x.com/Author/status/101${primarySuffix}\n\t\t\t4 文本 comment\n\t\t\t5 按钮 ${liked ? "1 喜欢次数。喜欢了" : "0 喜欢次数。喜欢"}\n`,
           click: async (index) => {
             assert.equal(index, 5);
             clicks++;
@@ -279,6 +325,42 @@ test("DOM preexisting like never invokes intent or button click", async () => {
   });
   assert.equal(out.value.preexisting, true);
 });
+
+for (const primary of [
+  "/Author/status/999/history",
+  "/Author/status/101/photo/1",
+  "/Author/status/101/history/other",
+  "/Author/status/101/history?other=1",
+])
+  test(`like rejects unsupported or mismatched permalink before intent: ${primary}`, async () => {
+    let intents = 0;
+    const editing = new DOMEditing({
+      session: {
+        current: {
+          query: { view: "posts", targetId: "101" },
+          result: {
+            posts: [
+              { id: "101", primary, buttons: [{ label: "0 Likes. Like" }] },
+            ],
+          },
+        },
+      },
+      locator: () => {
+        throw Error("unexpected locator");
+      },
+      tab: {},
+    });
+    await assert.rejects(
+      editing.likePost({
+        postId: "101",
+        beforeSubmit: async () => {
+          intents++;
+        },
+      }),
+      /like-permalink-unconfirmed/,
+    );
+    assert.equal(intents, 0);
+  });
 
 // Execute the actual reader boundary rather than a preconstructed platform view.
 test("actual DOM reader supports thread bulk windows while ordinary reads keep the 5-card bound", () => {

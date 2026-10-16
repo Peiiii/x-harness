@@ -24,7 +24,9 @@ export function readThreadLikeSurface({
     [...article.querySelectorAll("time")]
       .filter(visible)
       .map((el: any) => el.closest("a")?.getAttribute("href"))
-      .find((href: any) => /^\/\w+\/status\/\d+$/.test(href ?? ""))
+      .find((href: any) =>
+        /^\/\w+\/status\/\d+(?:\/history)?$/.test(href ?? ""),
+      )
       ?.match(/\/status\/(\d+)/)?.[1];
   const rootIndex = rows.findIndex(
     (el) => isArticle(el) && id(el) === threadRootId,
