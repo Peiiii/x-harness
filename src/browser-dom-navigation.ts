@@ -28,7 +28,9 @@ export class DOMNavigation {
       this.handleOpenExploreRecommendations.bind(this);
     this.openHomeRecommendations = async () => {
       this.#session.current = null;
-      await this.#tab.goto("https://x.com/home");
+      // Keep the current feed position; the task still freshly checks route/tab.
+      if ((await this.#tab.url()) !== "https://x.com/home")
+        await this.#tab.goto("https://x.com/home");
     };
     this.waitForFolder = this.handleWaitForFolder.bind(this);
     this.waitForThreadReplies = this.handleWaitForThreadReplies.bind(this);
