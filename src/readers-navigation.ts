@@ -35,6 +35,10 @@ export function readNavigation({
   const primary =
     document.querySelector('[data-testid="primaryColumn"]') ??
     document.querySelector("main");
+  // Feed cards outside articles are content, not navigation evidence.
+  const scopedNavigation =
+    bookmarkNavigation ||
+    /^\/(?:home|explore)\/?$/.test(new URL(location.href).pathname);
   const nodes = [
     ...new Set([
       ...Array.from<any>(
@@ -55,7 +59,7 @@ export function readNavigation({
     (el: any) =>
       visible(el) &&
       !el.closest("article") &&
-      (!bookmarkNavigation ||
+      (!scopedNavigation ||
         (el.closest("nav") && !el.closest("main")) ||
         el.getAttribute("role") === "tab" ||
         el.closest('[role="menu"],[role="dialog"],[data-testid="Dropdown"]')),

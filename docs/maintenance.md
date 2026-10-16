@@ -92,3 +92,4 @@
 
 | REPLY-COMPOSER-CONTEXT-PENDING / 2026-10-16 | 部分长帖或文章进入回复后，空编辑器的精确父帖绑定未确认；owner: PlatformWriting.handleCompose / DOMSubmission 的回复上下文观察 | 多次现场回执明确 submissionStarted:false，短帖及其它独立对象仍成功；当前跳过低效对象，根因未定位，不放宽绑定或将未知重发 | 下次回复导航/编辑器相关维护集中复现；覆盖长正文截断、文章、过渡页面、唯一编辑器和精确父帖，保持拒绝错目标/非空草稿；若影响必办对象或普通短帖则即时升级 | deferred；匿名现场证据留消费者原动作，本条不代表已修复，不修改运行代码或单独发npm |
 | REPLY-AUTHOR-HISTORY-CATEGORY-PENDING / 2026-10-16 | 原作者已有3条明确标为incoming的历史回复，首次主动评论仍返回reply-author-limit；owner: 作者限次准入与跨日history携带 | 当前对象在intent前拒绝，已按原ID跳过且保留历史，其它独立对象继续；仅一个边界样本，尚未核清计数语义，不为补量放宽现有门 | 下次作者限次/history相关维护对照原合同核语义；用合成同作者3条incoming与3条external、缺分类旧记录、跨日及unknown对照复现；分类不明保守处理，不清历史或重发 | deferred；匿名事实留本行，现场细节归consumer原动作，不改运行代码或单独发npm |
+| FEED-NAV-WINDOW / 2026-10-16 | 首页/探索的非导航卡片链接触发40控件导航窗口溢出，真实推荐标签已选却拒绝读取；owner: readNavigation | 当前推荐找源阻断，按必要修复处理，非逐项npm发布 | 仅home/explore缩小到外围nav、tab及菜单；其它页面溢出、来源与告警门保持。类型/构建及22项定向检查通过，真实根入口连续有界读取已恢复；修前失败与账号证据留消费者 | 本地采用，待下一同模块集中发布；不宣称npm已更新 |

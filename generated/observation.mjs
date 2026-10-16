@@ -558,6 +558,9 @@ export const readXObservation = (query) => {
     const visible = (el) => el.getClientRects().length > 0 && !el.closest('[aria-hidden="true"]');
     const primary = document.querySelector('[data-testid="primaryColumn"]') ??
         document.querySelector("main");
+    // Feed cards outside articles are content, not navigation evidence.
+    const scopedNavigation = bookmarkNavigation ||
+        /^\/(?:home|explore)\/?$/.test(new URL(location.href).pathname);
     const nodes = [
         ...new Set([
             ...Array.from(document.querySelectorAll("nav a[href],nav button")).filter((el) => !el.closest("main")),
@@ -566,7 +569,7 @@ export const readXObservation = (query) => {
         ]),
     ].filter((el) => visible(el) &&
         !el.closest("article") &&
-        (!bookmarkNavigation ||
+        (!scopedNavigation ||
             (el.closest("nav") && !el.closest("main")) ||
             el.getAttribute("role") === "tab" ||
             el.closest('[role="menu"],[role="dialog"],[data-testid="Dropdown"]')));
