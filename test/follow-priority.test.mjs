@@ -286,3 +286,62 @@ test("due recovery settles only original unknown IDs through read-only recovery 
   assert.equal(batches, 1);
   assert.equal((await q.f.store.load()).state.actions[0].status, "unknown");
 });
+
+test("early follow priority honors the original scoped permit without widening night defaults", async (t) => {
+  const q = await setup(t);
+  const start = Date.parse("2026-10-12T06:00:00+08:00");
+  const end = Date.parse("2026-10-13T00:00:00+08:00");
+  await q.f.store.transaction(({ state }) => {
+    state.items[0].actionable = true;
+    delete state.items[0].resumeAt;
+    delete state.executions.follow.followBackoff;
+    state.executions.follow.id = "follow";
+    return state;
+  });
+  q.setClock(start);
+  assert.equal(
+    (await q.priority.inspect("round-1", "follow")).reason,
+    "night-platform-window",
+  );
+  const permit = {
+    kind: "follow",
+    executorId: "follow",
+    userAuthorized: true,
+    evidenceRef: q.f.proof,
+    startsAt: new Date(start).toISOString(),
+    expiresAt: new Date(end).toISOString(),
+  };
+  async function setPermit(value) {
+    await q.f.store.transaction(({ state }) => {
+      state.executions.follow.windowAuthorization = value;
+      return state;
+    });
+  }
+  await setPermit(permit);
+  assert.equal((await q.priority.inspect("round-1", "follow")).ready, true);
+  q.setClock(start - 1);
+  assert.equal(
+    (await q.priority.inspect("round-1", "follow")).reason,
+    "night-platform-window",
+  );
+  q.setClock(end);
+  assert.equal(
+    (await q.priority.inspect("round-1", "follow")).reason,
+    "night-platform-window",
+  );
+  q.setClock(start);
+  for (const patch of [
+    { userAuthorized: false },
+    { executorId: "foreign" },
+    { kind: "reply" },
+    { evidenceRef: "missing-permit-proof" },
+    { startsAt: "invalid" },
+    { expiresAt: "invalid" },
+  ]) {
+    await setPermit({ ...permit, ...patch });
+    assert.equal(
+      (await q.priority.inspect("round-1", "follow")).reason,
+      "night-platform-window",
+    );
+  }
+});

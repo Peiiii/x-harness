@@ -16,5 +16,5 @@ await store.transaction(({ state }) => {
 });
 ```
 
-Keep all other executor fields/actions. The permit only opens the time gate: identity, quality, rolling budgets, backoff and same-ID unknown verification still apply. Resume through `followOne`/`followBatch`; do not create another ledger or submit an unknown again. Use the host automation tool to update an existing schedule only when authorized; the permit does not schedule a wakeup.
+An explicitly authorized earlier start is also honored by follow priority selection through the same scoped permit check; default night denial and exclusive expiration remain. Keep all other executor fields/actions. The permit only opens the time gate: identity, quality, rolling budgets, backoff and same-ID unknown verification still apply. Resume through `followOne`/`followBatch`; do not create another ledger or submit an unknown again. Use the host automation tool to update an existing schedule only when authorized; the permit does not schedule a wakeup.
 

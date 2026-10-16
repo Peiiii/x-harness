@@ -1,4 +1,4 @@
-import { GrowthPolicy } from "./growth-policy.js";
+import { GrowthPolicy, executorWindowAllowed } from "./growth-policy.js";
 import { sameHandle } from "./platform-rules.js";
 import type {
   FollowPriorityOptions,
@@ -18,9 +18,14 @@ export class FollowPriority {
   private evaluate(state: BoundaryRecord, taskId: string, executorId: string) {
     const now = this.clock();
     const hour = new Date(now + 8 * 3600000).getUTCHours();
-    if (hour < 7)
-      return { ready: false, blocked: true, reason: "night-platform-window" };
     const executor = state.executions?.[executorId];
+    if (
+      hour < 7 &&
+      !executorWindowAllowed(state, executor, "follow", now, (ref) =>
+        this.store.evidenceExists(ref),
+      )
+    )
+      return { ready: false, blocked: true, reason: "night-platform-window" };
     if (
       state.batchId !== taskId ||
       !executor?.scopeKinds?.includes("follow") ||
