@@ -27,6 +27,28 @@ export const readXObservation = (query) => {
         (boundaryIndex < 0 || index < boundaryIndex);
     const ads = (article) => article.querySelector('[data-testid="placementTracking"]') ||
         [...article.querySelectorAll("span")].some((el) => visible(el) && /^(Ad|Promoted|广告|推广)$/.test(el.innerText.trim()));
+    const anchor = (el) => {
+        const cell = el.closest('[data-testid="cellInnerDiv"]');
+        const previous = cell?.previousElementSibling;
+        if (!cell ||
+            cell.querySelectorAll("article").length ||
+            previous?.getAttribute("data-testid") !== "cellInnerDiv")
+            return undefined;
+        const articles = [...previous.querySelectorAll("article")].filter(visible);
+        if (articles.length !== 1)
+            return undefined;
+        const article = articles[0];
+        if (!inThread(rows.indexOf(article)) ||
+            !rows.includes(article) ||
+            ads(article))
+            return undefined;
+        const primary = [...article.querySelectorAll("time")]
+            .filter(visible)
+            .map((time) => time.closest("a")?.getAttribute("href"))
+            .find((href) => /^\/\w+\/status\/\d+(?:\/history)?$/.test(href ?? ""));
+        const postId = id(article);
+        return primary && postId ? { postId, primary } : undefined;
+    };
     const controls = rows
         .filter((el, index) => inThread(index) &&
         (el.tagName === "BUTTON" || el.getAttribute("role") === "button") &&
@@ -34,6 +56,7 @@ export const readXObservation = (query) => {
         .map((el) => ({
         label: el.getAttribute("aria-label") || el.innerText.trim(),
         disabled: el.hasAttribute("disabled"),
+        ...(anchor(el) ? { anchor: anchor(el) } : {}),
     }))
         .filter((control) => !control.disabled &&
         /^(?:显示回复|显示更多回复|查看回复|查看其他回复|Show replies|Show more replies|View replies|Show additional replies)$/i.test(control.label));
