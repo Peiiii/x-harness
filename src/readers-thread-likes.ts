@@ -49,6 +49,33 @@ export function readThreadLikeSurface({
       (el: any) =>
         visible(el) && /^(Ad|Promoted|广告|推广)$/.test(el.innerText.trim()),
     );
+  const anchor = (el: any) => {
+    const cell = el.closest('[data-testid="cellInnerDiv"]');
+    const previous = cell?.previousElementSibling;
+    if (
+      !cell ||
+      cell.querySelectorAll("article").length ||
+      previous?.getAttribute("data-testid") !== "cellInnerDiv"
+    )
+      return undefined;
+    const articles = [...previous.querySelectorAll("article")].filter(visible);
+    if (articles.length !== 1) return undefined;
+    const article = articles[0];
+    if (
+      !inThread(rows.indexOf(article)) ||
+      !rows.includes(article) ||
+      ads(article)
+    )
+      return undefined;
+    const primary = [...article.querySelectorAll("time")]
+      .filter(visible)
+      .map((time: any) => time.closest("a")?.getAttribute("href"))
+      .find((href: any) =>
+        /^\/\w+\/status\/\d+(?:\/history)?$/.test(href ?? ""),
+      );
+    const postId = id(article);
+    return primary && postId ? { postId, primary } : undefined;
+  };
   const controls = rows
     .filter(
       (el: any, index) =>
@@ -59,6 +86,7 @@ export function readThreadLikeSurface({
     .map((el: any) => ({
       label: el.getAttribute("aria-label") || el.innerText.trim(),
       disabled: el.hasAttribute("disabled"),
+      ...(anchor(el) ? { anchor: anchor(el) } : {}),
     }))
     .filter(
       (control) =>

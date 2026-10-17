@@ -364,18 +364,47 @@ export class DOMEditing {
   }
   private async handleExpandThreadReplies(command: any) {
     const { query, result } = this.#session.current;
+    const controls = result.threadExpandControls ?? [];
+    const matches = controls.filter(
+      (c: any) =>
+        c.label === command.label &&
+        (command.anchor
+          ? c.anchor?.postId === command.anchor.postId &&
+            c.anchor?.primary === command.anchor.primary
+          : !c.anchor),
+    );
+    const anchor = command.anchor;
+    const validAnchor =
+      !anchor ||
+      (command.accountHandle &&
+        /^\d+$/.test(anchor.postId ?? "") &&
+        new RegExp(`^/\\w+/status/${anchor.postId}(?:/history)?$`).test(
+          anchor.primary ?? "",
+        ) &&
+        result.threadIds?.includes(anchor.postId));
     if (
       query.threadRootId !== command.rootId ||
       !result.threadConfirmed ||
       result.needsStateCheck ||
       result.alerts?.length ||
-      result.threadExpandControls?.filter((c: any) => c.label === command.label)
-        .length !== 1
+      (command.accountHandle &&
+        result.accountHandle !== command.accountHandle) ||
+      !validAnchor ||
+      matches.length !== 1 ||
+      (!anchor &&
+        controls.filter((c: any) => c.label === command.label).length !== 1)
     )
       throw Error("thread-expand-unconfirmed");
-    const control = this.#tab.playwright
-      .locator('main [data-testid="primaryColumn"]')
-      .getByRole("button", { name: command.label, exact: true });
+    const selector = anchor
+      ? `main [data-testid="primaryColumn"] [data-testid="cellInnerDiv"]:has(a[href=${JSON.stringify(anchor.primary)}] time) + [data-testid="cellInnerDiv"]`
+      : 'main [data-testid="primaryColumn"]';
+    const container = await this.#unique(
+      this.#tab.playwright.locator(selector),
+    );
+    const control = container.getByRole("button", {
+      name: command.label,
+      exact: true,
+    });
     await (await this.#unique(control)).click();
     this.#session.current = null;
     return { completed: true };

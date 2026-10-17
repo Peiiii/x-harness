@@ -6,6 +6,7 @@ export class PlatformThreadLikes {
   #deps: Pick<PlatformDependencies, "browser" | "open" | "ready" | "observed">;
   #rootSeen = false;
   #url = "";
+  #account = "";
   constructor(
     deps: Pick<PlatformDependencies, "browser" | "open" | "ready" | "observed">,
   ) {
@@ -14,6 +15,7 @@ export class PlatformThreadLikes {
   public async readThreadLikeWindow(args: any) {
     if (args.reset || this.#url !== args.url) {
       this.#rootSeen = false;
+      this.#account = "";
       this.#url = args.url;
     }
     const query = {
@@ -48,13 +50,17 @@ export class PlatformThreadLikes {
       });
       value = await this.#deps.ready(query);
     }
-    if (value.threadRootPresent) this.#rootSeen = true;
+    if (value.threadRootPresent) {
+      this.#rootSeen = true;
+      if (!this.#account) this.#account = value.accountHandle ?? "";
+    }
     return this.checked(value, args);
   }
   private checked(value: any, args: any) {
     const safe =
       this.#rootSeen &&
       value.threadConfirmed &&
+      (!this.#account || value.accountHandle === this.#account) &&
       xURL(value.page).href === args.url;
     return {
       ...value,
@@ -78,18 +84,38 @@ export class PlatformThreadLikes {
     if (
       value.alerts?.length ||
       value.needsStateCheck ||
+      (this.#account && value.accountHandle !== this.#account) ||
       !value.threadConfirmed ||
       value.page !== args.url
     )
       return this.checked(value, args);
     const previous = value;
     if (value.threadExpandControls?.length) {
-      const control = value.threadExpandControls.find(
-        (c: any) =>
-          value.threadExpandControls.filter(
-            (other: any) => other.label === c.label,
-          ).length === 1,
-      );
+      const controls = value.threadExpandControls;
+      const validAnchor = (c: any) =>
+        this.#account &&
+        /^\d+$/.test(c.anchor?.postId ?? "") &&
+        new RegExp(`^/\\w+/status/${c.anchor.postId}(?:/history)?$`).test(
+          c.anchor.primary ?? "",
+        ) &&
+        value.threadIds?.includes(c.anchor.postId);
+      const control =
+        controls.find(
+          (c: any) =>
+            validAnchor(c) &&
+            controls.filter(
+              (other: any) =>
+                other.label === c.label &&
+                other.anchor?.postId === c.anchor.postId &&
+                other.anchor?.primary === c.anchor.primary,
+            ).length === 1,
+        ) ??
+        controls.find(
+          (c: any) =>
+            !c.anchor &&
+            controls.filter((other: any) => other.label === c.label).length ===
+              1,
+        );
       if (!control)
         return {
           ...this.checked(value, args),
@@ -100,6 +126,8 @@ export class PlatformThreadLikes {
         operation: "expandThreadReplies",
         label: control.label,
         rootId: args.rootId,
+        accountHandle: this.#account || undefined,
+        ...(control.anchor ? { anchor: control.anchor } : {}),
       });
     } else {
       if (value.threadBoundary)
