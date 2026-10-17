@@ -50,6 +50,7 @@ export class ThreadReactions {
     const start = this.#clock(),
       deadline = start + config.timeBudgetMs;
     let newLikes = 0,
+      newAttempts = 0,
       pages = 0,
       stable = 0;
     try {
@@ -92,7 +93,7 @@ export class ThreadReactions {
             ),
         );
         for (const post of candidates) {
-          if (newLikes >= config.maxLikes || this.#clock() >= deadline)
+          if (newAttempts >= config.maxLikes || this.#clock() >= deadline)
             return this.receipt(
               batchId,
               newLikes,
@@ -100,6 +101,7 @@ export class ThreadReactions {
               "thread-like-call-budget",
             );
           const result = await this.one(batchId, post, request, deadline);
+          if (result.newAttempt) newAttempts++;
           if (result.newLike) newLikes++;
           if (
             result.halt ||
@@ -347,6 +349,7 @@ export class ThreadReactions {
           : state === "unknown"
             ? "thread-like-public-state-unconfirmed"
             : undefined,
+        newAttempt: intent,
         newLike: intent && state === "verified",
         halt: Boolean(
           observation.alerts?.length ||
@@ -383,6 +386,7 @@ export class ThreadReactions {
         ));
       return {
         status: intent ? "unknown" : skipped ? "skipped" : "needsDecision",
+        newAttempt: intent,
         halt: !(scopedNativeFailure && (intent || skipped)),
         reason: String(error),
       };

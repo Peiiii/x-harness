@@ -533,3 +533,101 @@ test("early thread permit rejects wrong owner, kind, missing evidence and future
     assert.equal(s.clicks.length, 0);
   }
 });
+
+for (const failure of ["unknown-result", "scoped-native-read-failure"]) {
+  test(`attempt budget counts ${failure} before trying another selected post`, async (t) => {
+    const s = scenario(t, {
+      windows: [["100", "101", "102"]],
+      ...(failure === "unknown-result"
+        ? { unknownIds: ["100", "101"] }
+        : { nativeUnknownIds: ["100", "101"] }),
+    });
+    const args = { url, sampleRate: 1, maxLikes: 1 };
+    const first = await s.api.likePostAndComments(args);
+    assert.deepEqual(
+      s.clicks.map((c) => c.id),
+      ["100"],
+    );
+    assert.equal(first.status, "checkpoint");
+    assert.equal(first.reason, "thread-like-call-budget");
+    assert.equal(first.counts.newLikesThisCall, 0);
+    assert.equal(first.counts.unknown, 1);
+    const saved = (await s.f.store.load()).state;
+    const seed = saved.threadLikeBatches[0].seed;
+    const rootIntent = saved.reactions.find((r) => r.postId === "100").intentAt;
+    const second = await s.api.likePostAndComments(args);
+    assert.deepEqual(
+      s.clicks.map((c) => c.id),
+      ["100", "101"],
+    );
+    assert.equal(second.counts.unknown, 2);
+    assert.equal(second.counts.newLikesThisCall, 0);
+    await s.api.likePostAndComments(args);
+    assert.deepEqual(
+      s.clicks.map((c) => c.id),
+      ["100", "101", "102"],
+    );
+    const resumed = (await s.f.store.load()).state;
+    assert.equal(resumed.threadLikeBatches[0].seed, seed);
+    assert.equal(
+      resumed.reactions.find((r) => r.postId === "100").intentAt,
+      rootIntent,
+    );
+    assert.equal(
+      resumed.reactions.find((r) => r.postId === "100").status,
+      "unknown",
+    );
+  });
+}
+
+test("attempt budget leaves room after visible old unknown recovery and preexisting likes", async (t) => {
+  const s = scenario(t, {
+    windows: [["100", "101", "102", "103"]],
+    preexisting: ["100", "101"],
+  });
+  await s.f.store.transaction((snapshot) => {
+    snapshot.state.reactions = [
+      {
+        postId: "100",
+        status: "unknown",
+        intentAt: new Date(NOW - 3000).toISOString(),
+      },
+    ];
+    return snapshot.state;
+  });
+  const result = await s.api.likePostAndComments({
+    url,
+    sampleRate: 1,
+    maxLikes: 1,
+  });
+  assert.deepEqual(
+    s.clicks.map((c) => c.id),
+    ["102"],
+  );
+  assert.equal(result.counts.newLikesThisCall, 1);
+  assert.equal(result.counts.unknown, 0);
+  assert.equal(result.counts.verified, 2);
+  assert.equal(result.counts.preexisting, 1);
+});
+
+test("attempt budget is not spent by a scoped native skip before intent", async (t) => {
+  const s = scenario(t, {
+    windows: [["100", "101", "102"]],
+    nativeBeforeIntentIds: ["100"],
+  });
+  const result = await s.api.likePostAndComments({
+    url,
+    sampleRate: 1,
+    maxLikes: 1,
+  });
+  assert.deepEqual(
+    s.clicks.map((c) => c.id),
+    ["101"],
+  );
+  assert.equal(result.counts.skipped, 1);
+  assert.equal(result.counts.newLikesThisCall, 1);
+  assert.equal(
+    (await s.f.store.load()).state.reactions.some((r) => r.postId === "100"),
+    false,
+  );
+});

@@ -1,6 +1,6 @@
 # Writes and rounds
 
-Load common review plus only the operation heading needed. Existing project contract owns authorization, identity, budgets, policy and original ledger plan. Independent initialization has zero planned writes; set only authorized counts in that ledger before executing. Current runtime window is 07:00–24:00 Asia/Shanghai for replies and 07:00–22:00 for other writes; follow gates require reviewed Chinese-language blue-check candidates. Do not expand scope. Examples below use existing real observations/proof; they are not executable authorization.
+Load common review and only the matching operation heading. The project owns authorization, identity, budgets, policy and the original ledger plan. Independent initialization plans zero writes; record authorized counts before execution. Default Asia/Shanghai windows: replies 07–24, other writes 07–22. Follow needs reviewed Chinese blue-check candidates. Never expand scope. Examples require real observations/proof and grant no authorization.
 
 ## Common review
 
@@ -118,7 +118,7 @@ An unconfirmed individual reply parent baseline submits nothing and does not sto
 
 Thread clicks use one fresh, exact Chrome AX button activation, avoiding locator keyboard focus that itself clicks. The thread page remains open; exact card ID, author, account and fresh public liked state are checked without visiting commenter profiles. Ancestors, ads, sidebar and Discover more recommendations are excluded; only unambiguous observed Show replies/Show more replies controls expand. Hidden/unavailable replies are outside verified coverage. DOM Chrome tab required; native app binding returns capability-required.
 
-Serial fresh submissions are 1–2 seconds apart, including read/verification time. This is load pacing, not human impersonation or detection evasion. Limits can rise to 100 new likes, 200 advances and 600000ms per call. Internal waits consume no additional model calls; insufficient time returns waiting/resumeAt, caps return checkpoint. Continue the same call arguments/batch with a sufficient outer tool timeout; never poll or resample. Account warning, wrong identity, midnight (Shanghai 00–07) stops. Unknown intent freezes only that post; other selected comments may continue, and the final receipt retains unknown status. Result counts separate newLikesThisCall, verified, preexisting, skipped, unknown and pending. `verified` only means the loaded thread reached a bounded stable tail; scopeComplete is always false, never all comments on X.
+Serial fresh submissions are 1–2 seconds apart, including read/verification time. This is load pacing, not human impersonation or detection evasion. maxLikes caps new intents, including unknown/failed; old recovery, preexisting and pre-intent skips cost none. newLikesThisCall stays verified-only. Limits: 100 attempts, 200 advances, 600000ms/call. Internal waits consume no additional model calls; insufficient time returns waiting/resumeAt, caps return checkpoint. Continue the same call arguments/batch with a sufficient outer tool timeout; never poll or resample. Account warning, wrong identity, midnight (Shanghai 00–07) stops. Unknown intent freezes only that post; other selected comments may continue, and its unknown state remains in the receipt and ledger. Result counts separate newLikesThisCall, verified, preexisting, skipped, unknown and pending. `verified` only means the loaded thread reached a bounded stable tail; scopeComplete is always false, never all comments on X.
 
 X's published rules prohibit automated likes: https://help.x.com/en/rules-and-policies/x-automation . Sampling and timing do not change that rule or guarantee against restrictions. This API requires explicit task authorization and does not automatically attach to every reply.
 
@@ -135,4 +135,14 @@ Executor-scoped early windows: incoming likes and thread likes use the same evid
 
 ## Pin an owned public post
 
-`await x.pinPost({taskId,target:{postId,url,evidenceRef},userAuthorized:true,authorizationEvidenceRef})` requires explicit pin authorization and a DOM tab. The root checks current account and exact owned main post, records intent, selects the observed pin menu and confirmation, then checks the profile pinned ID. A navigation checkpoint requires the same call after the target renders. For unknown use `pinPost({...sameArguments,verifyOnly:true})` first; it never republishes content. A visible pending pin confirmation can resume the same task; target changes are rejected. Only `verified` means the target is currently pinned.
+Pin requires explicit authorization, its existing proof and a DOM tab:
+
+```js
+if (!x.pinPost) throw new Error("pin capability required");
+await x.pinPost({
+  taskId, target: { postId, url, evidenceRef }, userAuthorized: true,
+  authorizationEvidenceRef: authorizationProof,
+});
+```
+
+The root checks current account and exact owned main post, records intent, selects the observed pin menu and confirmation, then checks the profile pinned ID. A navigation checkpoint requires the same call after the target renders. For unknown use `pinPost({...sameArguments,verifyOnly:true})` first; it never republishes content. A visible pending pin confirmation can resume the same task; target changes are rejected. Only `verified` means the target is currently pinned.
