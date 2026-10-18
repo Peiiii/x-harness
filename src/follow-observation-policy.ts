@@ -14,6 +14,21 @@ export function followObservationAuthorized(
   const midnight =
     Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()) -
     8 * 3600000;
+  const window = execution.windowAuthorization;
+  const windowStart = Date.parse(window?.startsAt);
+  const windowEnd = Date.parse(window?.expiresAt);
+  const earlyWindow = Boolean(
+    window?.kind === "follow" &&
+    window.executorId === executor.id &&
+    window.userAuthorized === true &&
+    typeof window.evidenceRef === "string" &&
+    evidenceExists(window.evidenceRef) &&
+    windowStart >= midnight + 6 * 3600000 &&
+    windowStart <= start &&
+    end <= windowEnd &&
+    now < windowEnd &&
+    windowEnd <= midnight + 24 * 3600000,
+  );
   return Boolean(
     permit.kind === "follow" &&
     permit.executorId === executor.id &&
@@ -25,7 +40,7 @@ export function followObservationAuthorized(
     evidenceExists(permit.evidenceRef) &&
     Number.isFinite(start) &&
     Number.isFinite(end) &&
-    start >= midnight + 7 * 3600000 &&
+    start >= midnight + (earlyWindow ? 6 : 7) * 3600000 &&
     start <= now &&
     now < end &&
     end <= midnight + 24 * 3600000,
