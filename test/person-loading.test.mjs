@@ -90,12 +90,12 @@ for (const operation of ["openObserved", "refreshPerson"]) {
           signal === "transport" ? 0 : signal === "absent" ? 7 : 1,
         );
       }
-      assert.equal(reloads, operation === "refreshPerson" ? 1 : 0);
       assert.equal(
-        navigations,
-        (operation === "openObserved" ? 1 : 0) +
+        reloads,
+        (operation === "refreshPerson" ? 1 : 0) +
           (["absent", "reopen"].includes(signal) ? 1 : 0),
       );
+      assert.equal(navigations, operation === "openObserved" ? 1 : 0);
     });
   }
 }

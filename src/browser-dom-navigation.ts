@@ -359,9 +359,10 @@ export class DOMNavigation {
       if (check.page !== url || check.alerts?.length)
         throw Error("target-readiness-route-or-alert", { cause: error });
       // A loaded X error view does not become a profile by waiting longer.
-      // Reopen this exact observed route once; never repeat a Follow click.
+      // Reload the confirmed document once; same-URL navigation may be inert.
+      // This is read-only recovery, never another Follow activation.
       this.#session.current = null;
-      await this.#tab.goto(url);
+      await this.#tab.reload();
       await this.handleWaitTargetContent(target, url);
     }
   }
