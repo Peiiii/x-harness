@@ -1,5 +1,9 @@
 # 维护与发布节奏
 
+## 2026-10-19 positive follower-network discovery
+
+The original root followback audit now accepts an explicitly evidenced real viewer for authorized seed-network discovery and an explicit verified subset with no borrowed total counter. Default own-account identity checks remain unchanged; alternate modes admit positive inbound/not-following controls only and never infer own-account negatives. Checkpoint identity/subset cannot change. Full 624-test checks, types/build/contracts/format/maintainability and 13 Skill examples passed; the exact local consumer build read a bounded seed network and resumed a bounded verified subset while its original write restriction remained intact. Private account data and proof remain consumer-owned. See the original design acceptance ledger for scope and review. Source delivery and matching local Skill adoption are complete in this maintenance batch; npm is unchanged. Include this capability in the next follower-discovery consolidated public release, or when a public consumer needs it; no dependent package bump before that publication.
+
 2026-10-13用户明确要求：影响很小的改动先记录并积累，由执行者在合适时机集中修改，避免逐条修补和发布耗费时间。本文件拥有本仓库的延期判断、待办与发版时机；AGENTS、开发入口只链接本文件。
 
 ## 判断与执行

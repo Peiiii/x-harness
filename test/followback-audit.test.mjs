@@ -78,6 +78,140 @@ function fixture({
     store,
   };
 }
+const seedTargets = {
+  following: {
+    url: "https://x.com/fixture_seed/following",
+    evidenceRef: "fixture:seed",
+    expectedCount: 0,
+  },
+  followers: {
+    url: "https://x.com/fixture_seed/followers",
+    evidenceRef: "fixture:seed",
+    expectedCount: 4,
+  },
+};
+const seedViewer = { handle: "fixture_self", evidenceRef: "fixture:viewer" };
+test("seed network keeps the real viewer and only admits positive unreciprocated relationships", async () => {
+  const f = fixture();
+  f.platform.readPeople = async (q) => {
+    f.calls.push(q);
+    return {
+      complete: true,
+      accountHandle: "fixture_self",
+      page: q.target.url,
+      listBound: true,
+      people: [
+        {
+          handle: "unrelated",
+          relationship: "not-following",
+          followsYou: false,
+        },
+        {
+          handle: "supporter",
+          relationship: "not-following",
+          followsYou: true,
+        },
+        { handle: "mutual", relationship: "following", followsYou: true },
+        { handle: "unknown", relationship: "unknown", followsYou: true },
+      ].map((p) => ({ ...p, url: "https://x.com/" + p.handle })),
+    };
+  };
+  const r = await f.x.readFollowbackAudit({
+    ...seedTargets,
+    direction: "followback",
+    viewer: seedViewer,
+  });
+  assert.equal(r.viewerHandle, "fixture_self");
+  assert.equal(r.listOwnerHandle, "fixture_seed");
+  assert.equal(r.complete, true);
+  assert.equal(r.followingCount, 0);
+  assert.equal(r.nonFollowerCount, 0);
+  assert.equal(r.provisionalCount, 0);
+  assert.equal(r.notFollowedBackCount, 1);
+  assert.deepEqual(
+    f.proofs.at(-1).notFollowedBack.map((p) => p.handle),
+    ["supporter"],
+  );
+  assert.ok(
+    f.proofs
+      .at(-1)
+      .notFollowedBack.every((p) => p.listMembership === "seed-followers"),
+  );
+  assert.equal(f.calls.length, 1);
+});
+test("seed targets without explicit viewer keep the default own-account refusal", async () => {
+  const f = fixture();
+  const r = await f.x.readFollowbackAudit({
+    ...seedTargets,
+    direction: "followback",
+  });
+  assert.equal(r.reason, "account-identity-unconfirmed");
+  assert.equal(r.notFollowedBackCount, 0);
+});
+test("wrong observed viewer is refused even with an existing permission proof", async () => {
+  const f = fixture();
+  const r = await f.x.readFollowbackAudit({
+    ...seedTargets,
+    direction: "followback",
+    viewer: { ...seedViewer, handle: "wrong_viewer" },
+  });
+  assert.equal(r.reason, "account-identity-unconfirmed");
+  assert.equal(r.followersCount, 0);
+});
+test("seed viewer requires a nonempty proof and followback-only direction before reading", async () => {
+  for (const args of [
+    { ...seedTargets, viewer: seedViewer },
+    { ...seedTargets, direction: "both", viewer: seedViewer },
+    {
+      ...seedTargets,
+      direction: "followback",
+      viewer: { ...seedViewer, evidenceRef: "" },
+    },
+    {
+      ...seedTargets,
+      direction: "followback",
+      viewer: { ...seedViewer, handle: "@bad" },
+    },
+    { ...seedTargets, direction: "followback", viewer: null },
+  ]) {
+    const f = fixture();
+    await assert.rejects(
+      f.x.readFollowbackAudit(args),
+      /followback-viewer-proof-or-direction-invalid/,
+    );
+    assert.equal(f.calls.length, 0);
+  }
+});
+test("same scan cannot change its viewer or proof, while reordered equivalent fields resume", async () => {
+  const f = fixture({
+    pages: { following: [], followers: [["delta"], ["other"]] },
+  });
+  const args = {
+    ...seedTargets,
+    followers: { ...seedTargets.followers, expectedCount: 2 },
+    direction: "followback",
+    viewer: seedViewer,
+    maxWindows: 1,
+  };
+  const first = await f.x.readFollowbackAudit(args);
+  for (const viewer of [
+    { ...seedViewer, handle: "other" },
+    { ...seedViewer, evidenceRef: "fixture:other" },
+    undefined,
+  ]) {
+    await assert.rejects(
+      f.x.readFollowbackAudit({ ...args, scanId: first.scanId, viewer }),
+      /followback-resume-viewer-mismatch/,
+    );
+    assert.equal(f.calls.length, 1);
+  }
+  const next = await f.x.readFollowbackAudit({
+    ...args,
+    scanId: first.scanId,
+    viewer: { evidenceRef: seedViewer.evidenceRef, handle: "FIXTURE_SELF" },
+  });
+  assert.equal(next.complete, true);
+});
 test("root bulk audit deduplicates virtual overlaps and stores the complete difference without profile calls", async () => {
   const f = fixture();
   const r = await f.x.readFollowbackAudit(targets);
@@ -344,4 +478,117 @@ test("revised observed counters need new proof and retain the same audit history
   });
   assert.equal(r.complete, true);
   assert.equal(f.proofs.at(-1).counterRevisions.length, 1);
+});
+
+test("verified subset is explicit positive-only discovery and never count-matched coverage", async () => {
+  const f = fixture();
+  const originalRead = f.platform.readPeople;
+  f.platform.readPeople = async (q) => ({
+    ...(await originalRead(q)),
+    listBound: true,
+  });
+  const args = {
+    ...targets,
+    direction: "followback",
+    viewer: seedViewer,
+    followerSubset: "verified",
+    followers: {
+      url: "https://x.com/fixture_self/verified_followers",
+      evidenceRef: "fixture:profile",
+    },
+    maxWindows: 1,
+  };
+  const r = await f.x.readFollowbackAudit(args);
+  assert.equal(r.followerSubset, "verified");
+  assert.equal(r.complete, false);
+  assert.equal(r.followersComplete, false);
+  assert.equal(r.nonFollowerCount, 0);
+  assert.equal(r.notFollowedBackCount, 1);
+  assert.deepEqual(
+    f.proofs.at(-1).notFollowedBack.map((p) => p.listMembership),
+    ["verified-followers"],
+  );
+  await assert.rejects(
+    f.x.readFollowbackAudit({
+      ...args,
+      scanId: r.scanId,
+      followerSubset: undefined,
+      followers: targets.followers,
+    }),
+    /followback-resume-subset-mismatch/,
+  );
+});
+test("verified subset refuses implicit selection and a borrowed whole-account counter", async () => {
+  const subset = {
+    url: "https://x.com/fixture_self/verified_followers",
+    evidenceRef: "fixture:profile",
+  };
+  for (const args of [
+    {
+      ...targets,
+      direction: "followback",
+      viewer: seedViewer,
+      followers: subset,
+    },
+    {
+      ...targets,
+      direction: "followback",
+      followerSubset: "verified",
+      followers: subset,
+    },
+    {
+      ...targets,
+      direction: "followback",
+      viewer: seedViewer,
+      followerSubset: "verified",
+      followers: { ...subset, expectedCount: 2 },
+    },
+  ]) {
+    const f = fixture();
+    await assert.rejects(
+      f.x.readFollowbackAudit(args),
+      /followback-(?:own-unfiltered-list-targets-required|subset-requires-viewer-and-unknown-count)/,
+    );
+    assert.equal(f.calls.length, 0);
+  }
+});
+
+test("seed counter revisions never turn list absence into a positive inbound relationship", async () => {
+  const f = fixture({
+    pages: { following: [], followers: [["unrelated"], ["supporter"]] },
+  });
+  const original = f.platform.readPeople;
+  f.platform.readPeople = async (q) => {
+    const r = await original(q);
+    return {
+      ...r,
+      listBound: true,
+      people: r.people.map((p) => ({
+        ...p,
+        relationship:
+          p.handle === "supporter" ? "follows-you" : "not-following",
+        followsYou: p.handle === "supporter",
+      })),
+    };
+  };
+  const args = {
+    ...seedTargets,
+    followers: { ...seedTargets.followers, expectedCount: 2 },
+    direction: "followback",
+    viewer: seedViewer,
+    maxWindows: 1,
+  };
+  const first = await f.x.readFollowbackAudit(args);
+  assert.equal(first.notFollowedBackCount, 0);
+  const second = await f.x.readFollowbackAudit({
+    ...args,
+    scanId: first.scanId,
+    following: { ...args.following, evidenceRef: "fixture:new-profile" },
+  });
+  assert.equal(second.complete, true);
+  assert.deepEqual(
+    f.proofs.at(-1).notFollowedBack.map((p) => p.handle),
+    ["supporter"],
+  );
+  assert.equal(second.nonFollowerCount, 0);
 });

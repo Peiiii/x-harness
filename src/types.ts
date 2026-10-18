@@ -139,6 +139,10 @@ export interface ReadResult {
 }
 export interface FollowbackAuditOptions {
   direction?: "both" | "followback";
+  /** Positive-only seed-network discovery; requires direction: "followback". */
+  viewer?: { handle: string; evidenceRef: EvidenceRef };
+  /** Bounded positive-only discovery; never an all-followers count. Requires viewer. */
+  followerSubset?: "verified";
   /** Explicit user permission for this read task during 00–07; never authorizes writes. */
   nightReadAuthorization?: {
     userAuthorized: boolean;
@@ -153,6 +157,9 @@ export interface FollowbackAuditOptions {
 }
 export interface FollowbackAuditResult {
   direction: "both" | "followback";
+  viewerHandle?: string;
+  listOwnerHandle?: string;
+  followerSubset?: "verified";
   status: "observed" | "needsDecision" | "waiting";
   scanId: string;
   complete: boolean;
