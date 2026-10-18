@@ -1,4 +1,8 @@
-import { NativeLikeActivation } from "./like-activation.js";
+import {
+  NativeLikeActivation,
+  readLikeControlVisibility,
+} from "./like-activation.js";
+import { sameHandle, sameText } from "./platform-rules.js";
 import { attachImage } from "./readers-actions.js";
 
 import type { DOMDependencies } from "./browser-dom-dependencies.js";
@@ -651,6 +655,46 @@ export class DOMEditing {
     loc = await this.#unique(this.#locator("button", name));
     return { completed: false, loc, submittedEditor };
   }
+  private async prepareLikeControl(control: any, query: any, original: any) {
+    let current = original;
+    for (let scrolls = 0; scrolls <= 3; scrolls++) {
+      const state = await control.evaluate(readLikeControlVisibility);
+      if (state.page !== original.page)
+        throw Error("like-native-target-unconfirmed");
+      if (state.hittable)
+        return { current, scrolls, centerHittableBeforeIntent: true };
+      if (!state.direction || scrolls === 3)
+        throw Error("like-native-target-unconfirmed");
+      await this.#tab.pressKey(null, state.direction);
+      current = await this.#observe(query);
+      const post = current.posts?.[0],
+        expected = original.posts[0];
+      if (
+        current.page !== original.page ||
+        !current.accountHandle ||
+        !sameHandle(current.accountHandle, original.accountHandle) ||
+        current.needsStateCheck ||
+        current.alerts?.length ||
+        current.posts?.length !== 1 ||
+        post?.id !== expected.id ||
+        !sameHandle(post.author, expected.author) ||
+        !sameText(post.body, expected.body) ||
+        (query.threadRootId &&
+          (!current.threadConfirmed ||
+            !current.threadIds?.includes(expected.id)))
+      )
+        throw Error("like-native-target-unconfirmed");
+      const buttons =
+        post.buttons?.filter((b: any) =>
+          /(?:喜欢|Likes?|Unlike)/i.test(b.label),
+        ) ?? [];
+      if (buttons.length !== 1 || buttons[0].disabled)
+        throw Error("like-native-target-unconfirmed");
+      if (/喜欢了|取消喜欢|Unlike|Liked/i.test(buttons[0].label))
+        return { current, preexisting: true, scrolls };
+    }
+    throw Error("like-native-target-unconfirmed");
+  }
   private async handleLikePost(command: any) {
     const { query, result } = this.#session.current;
     const post = result.posts?.[0];
@@ -681,9 +725,15 @@ export class DOMEditing {
         visible: true,
       }),
     );
-    await this.#unique(
+    const control = await this.#unique(
       article.getByRole("button", { name: buttons[0].label, exact: true }),
     );
+    const readiness = await this.prepareLikeControl(control, query, result);
+    if (readiness.preexisting)
+      return {
+        completed: true,
+        value: { ...readiness.current, preexisting: true },
+      };
     this.#likeActivation ??= new NativeLikeActivation(this.#tab);
     const activation = await this.#likeActivation.submit({
       post,
@@ -715,6 +765,10 @@ export class DOMEditing {
       completed: true,
       value: {
         ...after,
+        likeReadiness: {
+          scrolls: readiness.scrolls,
+          centerHittableBeforeIntent: true,
+        },
         liked:
           !after.needsStateCheck &&
           !after.alerts?.length &&

@@ -85,3 +85,32 @@ export class NativeLikeActivation {
     }
   }
 }
+
+/** Read-only DOM program: never focuses, scrolls or activates a control. */
+export function readLikeControlVisibility(button: HTMLElement) {
+  const r = button.getBoundingClientRect();
+  const x = r.left + r.width / 2,
+    y = r.top + r.height / 2;
+  const style = getComputedStyle(button);
+  const visible =
+    r.width > 0 &&
+    r.height > 0 &&
+    button.getClientRects().length > 0 &&
+    style.visibility !== "hidden" &&
+    style.display !== "none" &&
+    Number(style.opacity) !== 0 &&
+    !button.hasAttribute("disabled") &&
+    button.getAttribute("aria-disabled") !== "true";
+  const inside = x >= 0 && x < innerWidth && y >= 0 && y < innerHeight;
+  const hit = visible && inside ? document.elementFromPoint(x, y) : null;
+  return {
+    page: location.href,
+    hittable: !!hit && (hit === button || button.contains(hit)),
+    direction:
+      visible && x >= 0 && x < innerWidth && !inside
+        ? y < 0
+          ? "PageUp"
+          : "PageDown"
+        : null,
+  };
+}

@@ -230,6 +230,11 @@ for (const thread of [false, true])
         verification,
         liked = false;
       const button = {
+        evaluate: async () => ({
+          page: result.page,
+          hittable: true,
+          direction: null,
+        }),
         waitFor: async () => {},
         count: async () => 1,
         click: async () => {
@@ -434,4 +439,143 @@ test("a CSS-hidden residual loading bar does not keep a finished thread loading"
   assert.equal(vm.runInContext(read, context).loading, false);
   visibility = "visible";
   assert.equal(vm.runInContext(read, context).loading, true);
+});
+
+// Native AX activation of an offscreen control may scroll without toggling it.
+// Prepare visibility before intent, preserving the original scoped observation.
+function visibilityFixture({
+  readyAfter = 1,
+  changed = {},
+  overlay = false,
+} = {}) {
+  const query = { view: "posts", targetId: "101", threadRootId: "100" };
+  const initial = {
+    page: "https://x.com/Author/status/100",
+    accountHandle: "Pei",
+    alerts: [],
+    threadConfirmed: true,
+    threadIds: ["100", "101"],
+    posts: [
+      {
+        id: "101",
+        author: "Author",
+        body: "comment",
+        primary: "/Author/status/101",
+        buttons: [{ label: "0 Likes. Like" }],
+      },
+    ],
+  };
+  const calls = { scrolls: 0, intents: 0, clicks: 0, liked: false };
+  const button = {
+    count: async () => 1,
+    waitFor: async () => {},
+    evaluate: async () => ({
+      page: initial.page,
+      hittable: calls.scrolls >= readyAfter && !overlay,
+      direction: overlay
+        ? null
+        : calls.scrolls >= readyAfter
+          ? null
+          : "PageDown",
+    }),
+    click: async () => {
+      throw Error("unexpected locator click");
+    },
+  };
+  const article = {
+    count: async () => 1,
+    getByRole: () => button,
+    filter: () => article,
+  };
+  const editing = new DOMEditing({
+    session: { current: { query, result: initial } },
+    unique: async (l) => l,
+    locator: () => article,
+    tab: {
+      playwright: { locator: () => ({}) },
+      pressKey: async (index, key) => {
+        assert.equal(index, null);
+        assert.equal(key, "PageDown");
+        calls.scrolls++;
+      },
+      getAXState: async () =>
+        `Window: "Post", App: Google Chrome.\n0 标准窗口 Post, URL: x.com/Author/status/100\n\t1 container Author @Author comment\n\t\t2 link 下午9:00 · 2026年10月14日, Value: x.com/Author/status/101\n\t\t3 文本 comment\n\t\t5 按钮 0 喜欢次数。喜欢\n`,
+      click: async () => {
+        calls.clicks++;
+        calls.liked = calls.scrolls >= readyAfter;
+      },
+    },
+    observe: async (q) => {
+      assert.equal(q.threadRootId, "100");
+      return {
+        ...initial,
+        ...changed,
+        posts: changed.posts ?? [
+          {
+            ...initial.posts[0],
+            buttons: [
+              { label: calls.liked ? "1 Likes. Liked" : "0 Likes. Like" },
+            ],
+          },
+        ],
+      };
+    },
+  });
+  return {
+    calls,
+    run: () =>
+      editing.likePost({
+        postId: "101",
+        beforeSubmit: async () => {
+          assert.ok(calls.scrolls >= readyAfter);
+          calls.intents++;
+        },
+      }),
+  };
+}
+
+test("offscreen like becomes hittable before one intent and native activation", async () => {
+  const f = visibilityFixture();
+  const out = await f.run();
+  assert.equal(out.value.liked, true);
+  assert.deepEqual(f.calls, { scrolls: 1, intents: 1, clicks: 1, liked: true });
+  assert.equal(out.value.likeReadiness.scrolls, 1);
+});
+
+for (const [name, options] of [
+  ["overlay", { overlay: true }],
+  ["bounded no progress", { readyAfter: 99 }],
+  ["route", { changed: { page: "https://x.com/Other/status/999" } }],
+  ["account", { changed: { accountHandle: "Other" } }],
+  ["alert", { changed: { alerts: ["challenge"] } }],
+  ["state", { changed: { needsStateCheck: true } }],
+  ["author", { changed: { posts: [{ id: "101", author: "Other" }] } }],
+  ["target", { changed: { posts: [{ id: "102", author: "Author" }] } }],
+  ["thread", { changed: { threadConfirmed: false } }],
+])
+  test(`visibility preparation refuses ${name} before intent`, async () => {
+    const f = visibilityFixture(options);
+    await assert.rejects(f.run(), /like-native-target-unconfirmed/);
+    assert.equal(f.calls.intents, 0);
+    assert.equal(f.calls.clicks, 0);
+    assert.ok(f.calls.scrolls <= 3);
+  });
+
+test("a like observed after preparation is preexisting, never toggled", async () => {
+  const f = visibilityFixture({
+    changed: {
+      posts: [
+        {
+          id: "101",
+          author: "Author",
+          body: "comment",
+          primary: "/Author/status/101",
+          buttons: [{ label: "1 Likes. Liked" }],
+        },
+      ],
+    },
+  });
+  assert.equal((await f.run()).value.preexisting, true);
+  assert.equal(f.calls.intents, 0);
+  assert.equal(f.calls.clicks, 0);
 });
