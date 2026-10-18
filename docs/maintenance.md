@@ -6,6 +6,8 @@ The original root followback audit now accepts an explicitly evidenced real view
 
 Protected follow request pending (2026-10-19): a protected target can switch to an observed pending-approval button after one submitted request. Current readiness then waits for an ordinary follow control and returns unknown. A pending request is not an established relationship and must never be resent or cancelled automatically; this target-local state is not an account-wide platform refusal. Independent candidates already have a usable continuation path, so defer the reader/readiness distinction to the next related follow maintenance bundle. Add a synthetic protected-request regression before changing the original person/readiness owner; keep old unknown IDs and permission gates. Private target evidence stays consumer-owned; no runtime/package change for this backlog item.
 
+Existing public people-window options (same maintenance scope): expose the already implemented/tested bulk and reset options in PeopleOptions and a conditional Skill reference. Default five-person windows remain unchanged; explicit bulk permits up to 1000 rendered rows. Full 624 checks and the repaired Skill context-budget check pass. Private root adoption captured a window larger than five, recovered an explicitly confirmed list head through the observed profile entry, and collected bounded multi-seed windows while write restrictions remained intact. No new collector, transport, runtime behavior or permission; include this contract documentation with the same follower-discovery release.
+
 2026-10-13用户明确要求：影响很小的改动先记录并积累，由执行者在合适时机集中修改，避免逐条修补和发布耗费时间。本文件拥有本仓库的延期判断、待办与发版时机；AGENTS、开发入口只链接本文件。
 
 ## 判断与执行

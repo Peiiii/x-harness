@@ -9,14 +9,14 @@
 | readExploreRecommendations / readHomeRecommendations | none | processedIds, limit (1–5), maxPages (1–10), mode |
 | readPost / [comments](post-comments.md) | target: {postId,url,evidenceRef} | includeContext, resolveQuote, mode |
 | readPerson | target: {handle,url,evidenceRef} | mode |
-| readPeople | target: {url,evidenceRef} | offset, limit (1–5), advance, mode |
+| readPeople / [bulk](people.md) | target: {url,evidenceRef} | offset, limit (1–5), advance, mode |
 | readFeedback | targets: [{postId,url,evidenceRef}] | replyLimit (0–3), mode |
 | inspectAccount | none | mode |
 | inspectRound | taskId (original batch ID) | none |
 
-Targets need proof. Native: selected profile, navigate:false; unknown relative time. Stop on route changes.
+Targets need proof. Native: selected profile, navigate:false; time unknown. Stop on route change.
 
-Bookmarks resume:true: same folder, tail ≠ full proof.
+Bookmarks resume:true: same folder; tail ≠ all.
 
 `pageComplete:false`: finite scope. Preserve full text; view media before describing.
 

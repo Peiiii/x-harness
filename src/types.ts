@@ -180,6 +180,10 @@ export interface PeopleOptions {
   target: { url: string; evidenceRef: EvidenceRef };
   offset?: number;
   limit?: number;
+  /** Existing bulk window: explicit true allows a limit up to 1000. */
+  bulk?: boolean;
+  /** Reset an observed list to its confirmed start before collecting. */
+  reset?: boolean;
   advance?: boolean;
   mode?: ReadMode;
 }
