@@ -4,9 +4,11 @@ import {
 } from "./like-activation.js";
 import { sameHandle, sameText } from "./platform-rules.js";
 import { attachImage } from "./readers-actions.js";
+import { DOMPeopleReadRecovery } from "./browser-dom-people-retry.js";
 
 import type { DOMDependencies } from "./browser-dom-dependencies.js";
 export class DOMEditing {
+  #peopleReadRecovery: DOMPeopleReadRecovery;
   #likeActivation?: NativeLikeActivation;
   #session!: DOMDependencies["session"];
   #unique!: DOMDependencies["unique"];
@@ -131,6 +133,7 @@ export class DOMEditing {
     this.#unique = unique;
     this.#locator = locator;
     this.#tab = tab;
+    this.#peopleReadRecovery = new DOMPeopleReadRecovery(tab);
     this.#observe = observe;
     this.dismissMenu = this.handleDismissMenu.bind(this);
     this.expandThreadReplies = this.handleExpandThreadReplies.bind(this);
@@ -322,6 +325,11 @@ export class DOMEditing {
         emit: false,
         disableDiffing: true,
       });
+      if (
+        typeof ax === "string" &&
+        (await this.#peopleReadRecovery.retry(current, ax))
+      )
+        return { completed: true };
       const anchorHandle = current.result.scrollAnchor?.handle;
       const control =
         typeof ax === "string" &&
