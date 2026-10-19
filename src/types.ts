@@ -667,6 +667,35 @@ export interface FollowPriorityResult {
     results: ActionResult[];
   };
 }
+export interface ReplyBatchOptions {
+  likeTargetAfterVerified?: boolean;
+  taskId: string;
+  actions: PreparedAction[];
+  followPriorityExecutorId?: string;
+  verifiedTarget?: Omit<VerifiedTargetPlanOptions, "taskId" | "kind">;
+  threadLikes?: Omit<ThreadLikeOptions, "url" | "batchId">;
+  /** Deterministic project admission may deny a new reply, never waive root guards. */
+  beforeReply?: (
+    action: PreparedAction,
+  ) => Promise<{ allowed: boolean; reason?: string }>;
+}
+export interface ReplyBatchResult {
+  targetLikes?: { actionId: string; result: ThreadLikeResult }[];
+  status: "verified" | "needsDecision";
+  reason?: string;
+  results: ActionResult[];
+  threadLikes?: {
+    actionId: string;
+    rootPostId: string;
+    result: ThreadLikeResult;
+  }[];
+  interactionStatus?:
+    "verified" | "checkpoint" | "waiting" | "unknown" | "needsDecision";
+  interactionReason?: string;
+  pendingLikeActionIds?: string[];
+  pendingReplyActionIds?: string[];
+  interactionEvidenceRef?: EvidenceRef;
+}
 export interface XGrowthHarness {
   pinPost?(
     args: import("./profile-pin.js").PinOptions,
@@ -681,18 +710,7 @@ export interface XGrowthHarness {
   planVerifiedTarget(
     args: VerifiedTargetPlanOptions,
   ): Promise<VerifiedTargetPlanResult>;
-  replyBatch(args: {
-    taskId: string;
-    actions: PreparedAction[];
-    followPriorityExecutorId?: string;
-    likeTargetAfterVerified?: boolean;
-    verifiedTarget?: Omit<VerifiedTargetPlanOptions, "taskId" | "kind">;
-  }): Promise<{
-    status: "verified" | "needsDecision";
-    reason?: string;
-    results: ActionResult[];
-    targetLikes?: { actionId: string; result: ThreadLikeResult }[];
-  }>;
+  replyBatch(args: ReplyBatchOptions): Promise<ReplyBatchResult>;
   likeIncomingBatch(args: IncomingLikeOptions): Promise<IncomingLikeResult>;
   readCreator(args: CreatorOptions): Promise<ReadResult>;
   readPeople(args: PeopleOptions): Promise<ReadResult>;

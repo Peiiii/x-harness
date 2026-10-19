@@ -51,7 +51,7 @@ Optional independentExecution:{tabId,evidenceRef,scopeEvidenceRef} requires real
 
 ## Reply
 
-Optional `replyBatch({...,likeTargetAfterVerified:true})` immediately verifies a like of each verified reply's exact original target. Returns separate `targetLikes:[{actionId,result}]`; unknown replies are never liked on an assumed-success basis. Root-only selection reuses the exact current thread when confirmed, otherwise opens the reviewed URL once. Legacy calls leave this disabled. A like failure never resubmits a comment; the project owns batch/day coverage and any authorized shortfall work.
+Opt-in [batch likes](#reply-batch-with-thread-likes): `likeTargetAfterVerified:true` likes only the parent; `threadLikes:{...}` samples its thread. Choose one mode.
 
 Additional fields: kind:'reply', postId, url, evidenceRef (observed parent), text; optional assets/activation as above. Common account/quality fields still required. The exact parent is verified by the API. `replyBatch({taskId,actions})` accepts 1–5 reviewed replies, submits serially and recovers an observed receipt once without resending; The batch owns one normal pacing wait (up to 30 seconds) per action and one read-only retry for an observed permalink. Longer or renewed waits and capability/decision failures return unfinished work. Remaining unknowns without permalinks get one batched own-account lookup, then exact-parent verification of unique observed links; unknowns never resubmit. Incoming clicks have a ≥30s minimum gap, not a safety guarantee. Incoming conversations require reviewed conversation:{recipientHandle,rootId,round,automatedLoop?}; at most 3 own rounds per recipient/root, with intent/unknown counted. Mark observed automatic loops to stop earlier.
 
@@ -148,3 +148,11 @@ await x.pinPost({
 ```
 
 The root checks current account and exact owned main post, records intent, selects the observed pin menu and confirmation, then checks the profile pinned ID. A navigation checkpoint requires the same call after the target renders. For unknown use `pinPost({...sameArguments,verifyOnly:true})` first; it never republishes content. A visible pending pin confirmation can resume the same task; target changes are rejected. Only `verified` means the target is currently pinned.
+
+## Reply batch with thread likes
+
+Explicit `replyBatch({taskId,actions,threadLikes:{sampleRate:0.6,maxLikes:20,maxPages:10,timeBudgetMs:30000}})` performs the existing 1–5 reviewed replies and public verification, then likes each exact verified parent and sampled visible comments. Default replyBatch stays replies-only. One caller invocation owns serial pacing/recovery/likes; do not add caller loops.
+
+Reply status/results and threadLikes/interactionStatus/pendingLikeActionIds are separate; checkpoints never mean all hidden comments or follower growth. Stable `reply-thread-likes-<parentId>` reuses original sampling/reactions. Unknown replies never trigger likes or resubmit. Repeat the same original arguments for permitted unfinished work. Invalid like config rejects before replies. Optional beforeReply is an async deny-only project admission callback, fresh for each new prepared reply; root permission/identity/quality/unknown/night gates remain. followPriorityExecutorId yields at original reply/like boundaries. Allow outer timeout for serial replies plus bounded thread budgets (three threads typically need >=240000ms).
+
+Target-only mode immediately likes each verified reply's exact original target and returns separate targetLikes. It reuses the current exact confirmed thread or opens the reviewed URL once; unknown replies never imply success. Target-like failures never resend a comment. Do not combine it with threadLikes; the whole-thread mode already includes its parent.

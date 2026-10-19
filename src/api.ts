@@ -1,3 +1,4 @@
+import { ReplyThreadBatch } from "./reply-thread-batch.js";
 import { ReplyReceiptRecovery } from "./reply-receipt-recovery.js";
 import { OriginalPostCadence } from "./original-post-cadence.js";
 import { FollowPriority } from "./follow-priority.js";
@@ -10,6 +11,8 @@ import { createGrowthHarness } from "./growth.js";
 import { readResult, decisions, diagnostic, stableReason } from "./results.js";
 import type {
   ActionResult,
+  ReplyBatchOptions,
+  ReplyBatchResult,
   ReadMode,
   ReadResult,
   RoundResult,
@@ -35,6 +38,7 @@ export class BusinessHarness implements XGrowthHarness {
   configureOriginalCadence: OriginalPostCadence["configure"];
   captureAccountScreenshot: XGrowthHarness["captureAccountScreenshot"];
   #threadReactions: ThreadReactions;
+  #replyThreadBatch: ReplyThreadBatch;
   #reactions!: IncomingReactions;
   #followbackAudit: FollowbackAudit;
   #platform!: BusinessDependencies["platform"];
@@ -54,6 +58,7 @@ export class BusinessHarness implements XGrowthHarness {
     this.#executor = dependencies.executor as
       import("./types.js").Executor | undefined;
     this.#threadReactions = new ThreadReactions(dependencies);
+    this.#replyThreadBatch = new ReplyThreadBatch(dependencies, this);
     this.likePostAndComments = this.likePostAndComments.bind(this);
     this.readFollowbackAudit = this.readFollowbackAudit.bind(this);
     this.replyBatch = this.replyBatch.bind(this);
@@ -383,16 +388,7 @@ export class BusinessHarness implements XGrowthHarness {
       },
     });
   }
-  public async replyBatch(args: {
-    taskId: string;
-    actions: import("./types.js").PreparedAction[];
-    followPriorityExecutorId?: string;
-    likeTargetAfterVerified?: boolean;
-    verifiedTarget?: Omit<
-      import("./types.js").VerifiedTargetPlanOptions,
-      "taskId" | "kind"
-    >;
-  }) {
+  public async replyBatch(args: ReplyBatchOptions): Promise<ReplyBatchResult> {
     if (
       !Array.isArray(args.actions) ||
       args.actions.length < 1 ||
@@ -404,18 +400,15 @@ export class BusinessHarness implements XGrowthHarness {
         results: [],
         reason: "reply-batch-invalid",
       };
+    if (args.threadLikes !== undefined) return this.#replyThreadBatch.run(args);
     const results: ActionResult[] = [];
-    const targetLikes: {
-      actionId: string;
-      result: import("./types.js").ThreadLikeResult;
-    }[] = [];
+    const targetLikes: NonNullable<ReplyBatchResult["targetLikes"]> = [];
     for (const action of args.actions) {
       if (action.kind !== "reply") continue;
-      const existingStatus = args.followPriorityExecutorId
-        ? (await this.#store.load()).state.actions.find(
-            (a: BoundaryRecord) => a.id === action.id,
-          )?.status
-        : undefined;
+      const existingStatus = await this.#replyThreadBatch.existingStatus(
+        args,
+        action,
+      );
       if (
         args.followPriorityExecutorId &&
         (!existingStatus || existingStatus === "prepared")
@@ -433,6 +426,15 @@ export class BusinessHarness implements XGrowthHarness {
           });
           break;
         }
+      }
+      const admission = await this.#replyThreadBatch.admit(
+        args,
+        action,
+        existingStatus,
+      );
+      if (admission) {
+        results.push(admission);
+        break;
       }
       if (args.verifiedTarget) {
         const plan = await this.planVerifiedTarget({
@@ -521,27 +523,15 @@ export class BusinessHarness implements XGrowthHarness {
       )
         break;
     }
-    const beforeRecovery = args.followPriorityExecutorId
-      ? await new FollowPriority(this.#store, this.#clock).inspect(
-          args.taskId,
-          args.followPriorityExecutorId,
-        )
-      : undefined;
+    const beforeRecovery = await this.#replyThreadBatch.priority(args);
     if (beforeRecovery?.reason !== "night-platform-window")
       await new ReplyReceiptRecovery(this.#store, this.#clock, this).run(
         args.taskId,
         results,
       );
-    return {
-      status:
-        results.length === args.actions.length &&
-        results.every((r) => ["verified", "preexisting"].includes(r.status))
-          ? ("verified" as const)
-          : ("needsDecision" as const),
-      results,
-      ...(args.likeTargetAfterVerified ? { targetLikes } : {}),
-    };
+    return this.#replyThreadBatch.replyResult(args, results, targetLikes);
   }
+
   private async captureReplyTargetLike(
     args: { likeTargetAfterVerified?: boolean },
     action: import("./types.js").PreparedAction,
