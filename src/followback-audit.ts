@@ -33,6 +33,23 @@ export class FollowbackAudit {
     );
   }
   private validate(args: FollowbackAuditOptions) {
+    if (
+      args.viewer !== undefined &&
+      (!args.viewer ||
+        args.direction !== "followback" ||
+        !/^[A-Za-z0-9_]{1,15}$/.test(args.viewer.handle) ||
+        typeof args.viewer.evidenceRef !== "string" ||
+        !args.viewer.evidenceRef ||
+        !this.#evidenceExists(args.viewer.evidenceRef))
+    )
+      throw new Error("followback-viewer-proof-or-direction-invalid");
+    if (
+      args.followerSubset !== undefined &&
+      (args.followerSubset !== "verified" ||
+        !args.viewer ||
+        args.followers.expectedCount !== undefined)
+    )
+      throw new Error("followback-subset-requires-viewer-and-unknown-count");
     if (args.direction && !["both", "followback"].includes(args.direction))
       throw new Error("followback-direction-invalid");
     const a = new URL(args.following.url),
@@ -44,7 +61,7 @@ export class FollowbackAudit {
       a.protocol !== "https:" ||
       b.origin !== a.origin ||
       b.pathname.toLowerCase().replace(/\/$/, "") !==
-        `/${match[1].toLowerCase()}/followers` ||
+        `/${match[1].toLowerCase()}/${args.followerSubset ? "verified_followers" : "followers"}` ||
       a.search ||
       b.search ||
       a.hash ||
@@ -100,6 +117,14 @@ export class FollowbackAudit {
         prior = checkpoint;
       }
       if (!prior) throw new Error("followback-resume-mismatch");
+      if (prior.followerSubset !== args.followerSubset)
+        throw new Error("followback-resume-subset-mismatch");
+      if (
+        prior.viewer?.handle?.toLowerCase() !==
+          args.viewer?.handle.toLowerCase() ||
+        prior.viewer?.evidenceRef !== args.viewer?.evidenceRef
+      )
+        throw new Error("followback-resume-viewer-mismatch");
       if (JSON.stringify(prior.targets) !== JSON.stringify(targets)) {
         for (const kind of ["following", "followers"] as const) {
           const old = prior.targets[kind],
@@ -135,6 +160,8 @@ export class FollowbackAudit {
     const job: BoundaryRecord = {
       scanId: randomUUID(),
       targets,
+      ...(args.viewer ? { viewer: { ...args.viewer } } : {}),
+      ...(args.followerSubset ? { followerSubset: args.followerSubset } : {}),
       startedAt: new Date(this.#clock()).toISOString(),
       following: {
         entries: {},
@@ -176,7 +203,8 @@ export class FollowbackAudit {
     if (value.status !== "observed" || !value.complete || value.alerts?.length)
       return value.reason ?? value.status;
     const owner = new URL(target.url).pathname.split("/")[1];
-    if (value.accountHandle?.toLowerCase() !== owner.toLowerCase())
+    const viewer = job.viewer?.handle ?? owner;
+    if (value.accountHandle?.toLowerCase() !== viewer.toLowerCase())
       return "account-identity-unconfirmed";
     state.started = true;
     const before = Object.keys(state.entries).length;
@@ -210,7 +238,13 @@ export class FollowbackAudit {
           evidenceRef: value.evidenceRef,
           relationship: person.relationship,
           followsYou: person.followsYou,
-          listMembership: value.listBound ? kind : undefined,
+          listMembership: value.listBound
+            ? job.followerSubset
+              ? "verified-followers"
+              : job.viewer
+                ? `seed-${kind}`
+                : kind
+            : undefined,
         },
       });
     }
@@ -237,9 +271,11 @@ export class FollowbackAudit {
     reason: string | null,
   ): Promise<FollowbackAuditResult> {
     const following = Object.values(job.following.entries) as BoundaryRecord[];
-    const mutual = following.filter((p) =>
-      Object.hasOwn(job.followers.entries, p.handle.toLowerCase()),
-    );
+    const mutual = job.viewer
+      ? []
+      : following.filter((p) =>
+          Object.hasOwn(job.followers.entries, p.handle.toLowerCase()),
+        );
     const absent = following.filter(
       (p) => !Object.hasOwn(job.followers.entries, p.handle.toLowerCase()),
     );
@@ -247,15 +283,19 @@ export class FollowbackAudit {
       job.direction === "followback"
         ? job.followers.complete
         : job.following.complete && job.followers.complete;
-    const nonFollowers = job.followers.complete ? absent : [];
-    const provisional = job.followers.complete ? [] : absent;
+    const nonFollowers = !job.viewer && job.followers.complete ? absent : [];
+    const provisional = job.viewer || job.followers.complete ? [] : absent;
     const notFollowedBack = Object.values(job.followers.entries).filter(
       (p: any) =>
         p.relationship === "follows-you" ||
-        (p.listMembership === "followers" &&
+        (job.viewer &&
+          p.followsYou === true &&
           p.relationship === "not-following") ||
-        (job.following.complete &&
-          !Object.hasOwn(job.following.entries, p.handle.toLowerCase())),
+        (!job.viewer &&
+          ((p.listMembership === "followers" &&
+            p.relationship === "not-following") ||
+            (job.following.complete &&
+              !Object.hasOwn(job.following.entries, p.handle.toLowerCase())))),
     );
     const observedAt = job.windows.at(-1)?.at ?? job.startedAt;
     const evidenceRef = await this.#proof({
@@ -271,6 +311,15 @@ export class FollowbackAudit {
     });
     return {
       direction: job.direction,
+      ...(job.viewer
+        ? {
+            viewerHandle: job.viewer.handle,
+            listOwnerHandle: new URL(job.targets.followers.url).pathname.split(
+              "/",
+            )[1],
+          }
+        : {}),
+      ...(job.followerSubset ? { followerSubset: job.followerSubset } : {}),
       status:
         reason === "night-window"
           ? "waiting"

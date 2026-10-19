@@ -1,0 +1,3 @@
+# Bulk people windows
+
+Bulk list windows reuse `readPeople({target,bulk:true,limit:1000,reset:true,mode:'decision'})` on an observed following/followers URL; reset requires the confirmed list start. Continue the same list with advance:true and no reset, consuming any remaining DOM offsets first. Keep full observations and original checkpoints locally; a bounded or stalled window is never whole-list coverage or relationship absence. For complete multi-window follower audits prefer the existing followback audit. This exposes the already tested reader options, adds no transport or permission, and never follows anyone.
