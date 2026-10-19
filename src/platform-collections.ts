@@ -493,7 +493,12 @@ export class PlatformCollections {
         )
       ) {
         nav = await this.#ready({ view: "menu" });
-        if (!(await this.#choose(nav, bookmark))) {
+        if (
+          !(await this.#choose(
+            nav,
+            (c: any) => bookmark(c) || /^(历史|History)$/i.test(c.label),
+          ))
+        ) {
           if (nav.items?.length)
             await this.#browser.act({ operation: "dismissMenu" });
           nav = await this.#ready({
