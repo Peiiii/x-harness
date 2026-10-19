@@ -319,3 +319,37 @@ test("observed bookmark menu radio activates the actual semantic item, never an 
   });
   assert.deepEqual(actions, ["click"]);
 });
+
+test("bookmark discovery enters History exposed only inside More menu", async () => {
+  let history = false,
+    dropdown = false;
+  const selected = [];
+  const adapter = new PlatformCollections({
+    ready: async (query) =>
+      query.view === "menu"
+        ? { items: [{ role: "link", label: "历史", href: "/i/history" }] }
+        : {
+            page: history ? "https://x.com/i/history" : "https://x.com/example",
+            controls: history
+              ? [{ role: "tab", label: "书签", selected: true }]
+              : [{ role: "button", label: "更多菜单项" }],
+            bookmarkFolders: dropdown ? ["Remakes"] : [],
+          },
+    observed: async () => ({}),
+    browser: { act: async () => {} },
+    choose: async (value, predicate) => {
+      const found = [...(value.controls ?? []), ...(value.items ?? [])].filter(
+        predicate,
+      );
+      if (found.length !== 1) return false;
+      selected.push(found[0].label);
+      if (found[0].label === "历史") history = true;
+      if (found[0].label === "书签") dropdown = true;
+      return true;
+    },
+  });
+  const result = await adapter.readBookmarks({ discoverOnly: true });
+  assert.equal(result.complete, true);
+  assert.deepEqual(result.folders, ["Remakes"]);
+  assert.deepEqual(selected, ["更多菜单项", "历史", "书签"]);
+});
