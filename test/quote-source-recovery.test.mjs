@@ -213,28 +213,36 @@ test("DOM quote selection compares exact observed text, ignoring empty link cont
   }
 });
 
-test("media quote opens its uniquely observed body instead of the media center", async () => {
+test("media quote uses its observed DOM body even when the receipt omits body", async () => {
   const { DOMNavigation } = await import("../dist/browser-dom-navigation.js");
   let url = "https://x.com/owner/status/10",
     bodyClicks = 0,
     cardClicks = 0;
-  const quoted = { ...card, body: "Specific source body." };
+  const text = {
+    filter: () => text,
+    count: async () => 1,
+    innerText: async () => "Specific source body.",
+    click: async () => {
+      bodyClicks++;
+      url = "https://x.com/source/status/20";
+    },
+  };
   const control = {
-    innerText: async () => quoted.text,
+    innerText: async () => card.text,
     click: async () => {
       cardClicks++;
       url = "https://x.com/source/status/20/photo/1";
     },
-    getByText: (text, options) => {
-      assert.equal(text, quoted.body);
-      assert.deepEqual(options, { exact: true });
-      return {
-        count: async () => 1,
-        click: async () => {
-          bodyClicks++;
-          url = "https://x.com/source/status/20";
-        },
-      };
+    locator: (selector) => {
+      if (selector === 'a[href*="/status/"]')
+        return {
+          count: async () => 1,
+          nth: () => ({
+            getAttribute: async () => "/source/status/20/photo/1",
+          }),
+        };
+      assert.equal(selector, '[data-testid="tweetText"]');
+      return text;
     },
   };
   const controls = {
@@ -249,9 +257,7 @@ test("media quote opens its uniquely observed body instead of the media center",
         query: { view: "posts" },
         result: {
           page: url,
-          posts: [
-            { ...parent, primary: "/owner/status/10", quoteCards: [quoted] },
-          ],
+          posts: [{ ...parent, primary: "/owner/status/10" }],
         },
       },
     },
@@ -266,7 +272,7 @@ test("media quote opens its uniquely observed body instead of the media center",
     },
   });
   assert.equal(
-    (await nav.openQuote({ postId: "10", cardText: quoted.text })).url,
+    (await nav.openQuote({ postId: "10", cardText: card.text })).url,
     "https://x.com/source/status/20",
   );
   assert.equal(bodyClicks, 1);

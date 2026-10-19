@@ -73,19 +73,43 @@ export class DOMNavigation {
         `unique-observed-quote-required:controls:${count}:matches:${matches.length}`,
       );
     const card = matches[0];
-    const body = posts[0].quoteCards[0].body;
     const textControl =
-      body && typeof card.getByText === "function"
-        ? card.getByText(body, { exact: true })
+      typeof card.locator === "function"
+        ? card.locator('[data-testid="tweetText"]').filter({ visible: true })
         : null;
     const target =
-      textControl && (await textControl.count()) === 1 ? textControl : card;
+      textControl &&
+      (await textControl.count()) === 1 &&
+      command.cardText.includes(await textControl.innerText())
+        ? textControl
+        : card;
+    const destinations = new Set<string>();
+    if (typeof card.locator === "function") {
+      const links = card.locator('a[href*="/status/"]');
+      for (let i = 0; i < (await links.count()); i++) {
+        const href = await links.nth(i).getAttribute("href");
+        if (!href) continue;
+        const parsed = xURL(new URL(href, current.result.page).href);
+        const match = parsed.pathname.match(
+          /^\/(\w{1,15})\/status\/(\d+)(?:\/photo\/\d+)?$/,
+        );
+        if (match && match[2] !== command.postId)
+          destinations.add(`https://x.com/${match[1]}/status/${match[2]}`);
+      }
+    }
     this.#session.current = null;
     await this.#tab.playwright.expectNavigation(() => target.click(), {
-
       waitUntil: "commit",
       timeoutMs: 5000,
     });
+    if (
+      destinations.size === 1 &&
+      typeof this.#tab.playwright.waitForURL === "function"
+    )
+      await this.#tab.playwright.waitForURL([...destinations][0], {
+        waitUntil: "commit",
+        timeoutMs: 5000,
+      });
     const url = await this.#tab.url();
     if (
       !/^\/\w{1,15}\/status\/\d+$/.test(xURL(url).pathname) ||
