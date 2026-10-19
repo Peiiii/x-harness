@@ -340,3 +340,105 @@ test("06h discovery uses only its own valid reply permit and stops at midnight",
   );
   assert.equal(calls, 1);
 });
+
+test("received history excludes the exact target but not a different root by its author", async (t) => {
+  const f = fixture(t);
+  await f.store.transaction(({ state }) => {
+    state.actions = [
+      {
+        id: "received",
+        kind: "reply",
+        status: "unknown",
+        postId: "1",
+        author: "peer1",
+        sourceCategory: "incoming",
+      },
+    ];
+    state.replyAuthorHistory = {
+      entries: [
+        {
+          id: "received",
+          kind: "reply",
+          status: "unknown",
+          postId: "1",
+          author: "peer1",
+        },
+        {
+          id: "received-two",
+          kind: "reply",
+          status: "verified",
+          author: "@PEER2",
+          sourceCategory: "incoming-reply",
+        },
+        { id: "active", kind: "reply", status: "unknown", author: "peer3" },
+      ],
+    };
+    return state;
+  });
+  const d = new ReplyDiscovery(
+    async (q) => {
+      assert.ok(q.processedIds.includes("1"));
+      return {
+        status: "observed",
+        evidenceRef: f.proof,
+        sources: [
+          post(1),
+          post(11, { author: "peer1" }),
+          post(22, { author: "peer2" }),
+          post(33, { author: "peer3" }),
+        ],
+      };
+    },
+    f.store,
+    () => NOW,
+  );
+  const r = await d.run({ queries: ["mutual"], target: 5, maxWindows: 1 });
+  assert.deepEqual(
+    r.candidates.map((c) => c.post.id),
+    ["11", "22"],
+  );
+});
+
+test("anonymous received records remain separate and caller author exclusions still apply", async (t) => {
+  const f = fixture(t);
+  await f.store.transaction(({ state }) => {
+    state.replyAuthorHistory = {
+      entries: [
+        {
+          kind: "reply",
+          status: "verified",
+          author: "peer1",
+          sourceCategory: "incoming",
+        },
+        { kind: "reply", status: "unknown", author: "@PEER2" },
+      ],
+    };
+    return state;
+  });
+  const d = new ReplyDiscovery(
+    async () => ({
+      status: "observed",
+      evidenceRef: f.proof,
+      sources: [post(1), post(2)],
+    }),
+    f.store,
+    () => NOW,
+  );
+  assert.deepEqual(
+    (
+      await d.run({ queries: ["mutual"], target: 5, maxWindows: 1 })
+    ).candidates.map((c) => c.post.id),
+    ["1"],
+  );
+  assert.deepEqual(
+    (
+      await d.run({
+        queries: ["mutual"],
+        target: 5,
+        maxWindows: 1,
+        excludedHandles: ["@peer1"],
+      })
+    ).candidates,
+    [],
+  );
+});

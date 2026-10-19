@@ -1,4 +1,5 @@
 import { executorWindowAllowed } from "./growth-policy.js";
+import { isIncomingReply, replyHistoryActions } from "./reply-author-policy.js";
 import type { RoundStore } from "./store.js";
 import type {
   PostEvidence,
@@ -23,13 +24,11 @@ export class ReplyDiscovery {
     );
     const ids = new Set<string>();
     if (state.accountHandle) authors.add(state.accountHandle.toLowerCase());
-    for (const a of [
-      ...(state.actions ?? []),
-      ...(state.replyAuthorHistory?.entries ?? []),
-    ]) {
+    for (const a of replyHistoryActions(state)) {
       if (a.kind !== "reply" || a.status === "skipped") continue;
       const author = a.author ?? a.conversation?.recipientHandle;
-      if (author) authors.add(author.toLowerCase());
+      if (author && !isIncomingReply(a))
+        authors.add(author.replace(/^@/, "").toLowerCase());
       if (a.postId) ids.add(a.postId);
     }
     return { authors, ids };

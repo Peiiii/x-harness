@@ -1,4 +1,30 @@
 import type { BoundaryRecord } from "./boundary.js";
+
+/** Resolve explicit category corrections without discarding original reservations. */
+export function replyHistoryActions(state: BoundaryRecord): BoundaryRecord[] {
+  const records = [
+    ...(state.replyAuthorHistory?.entries ?? []),
+    ...(state.actions ?? []),
+  ];
+  const categories = new Map<string, unknown>();
+  for (const record of records) {
+    if (record.id && record.sourceCategory !== undefined)
+      categories.set(record.id, record.sourceCategory);
+  }
+  return records
+    .filter((record) => record.kind === "reply")
+    .map((record) => ({
+      ...record,
+      sourceCategory: categories.has(record.id)
+        ? categories.get(record.id)
+        : record.sourceCategory,
+    }));
+}
+
+export function isIncomingReply(action: BoundaryRecord): boolean {
+  return ["incoming", "incoming-reply"].includes(action.sourceCategory);
+}
+
 /** Account policy counts distinct original actions, including unresolved submissions. */
 export function replyAuthorReason(
   state: BoundaryRecord,
@@ -30,7 +56,8 @@ export function replyAuthorReason(
   if (!history?.complete || !evidenceExists(history.evidenceRef ?? ""))
     return "reply-author-history-unconfirmed";
   const ids = new Set<string>();
-  for (const a of [...(history.entries ?? []), ...(state.actions ?? [])]) {
+  for (const a of replyHistoryActions(state)) {
+    if (isIncomingReply(a)) continue;
     const author = (a.author ?? a.conversation?.recipientHandle)
       ?.replace(/^@/, "")
       .toLowerCase();
