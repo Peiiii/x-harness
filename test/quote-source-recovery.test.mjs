@@ -212,3 +212,63 @@ test("DOM quote selection compares exact observed text, ignoring empty link cont
     }
   }
 });
+
+test("media quote opens its uniquely observed body instead of the media center", async () => {
+  const { DOMNavigation } = await import("../dist/browser-dom-navigation.js");
+  let url = "https://x.com/owner/status/10",
+    bodyClicks = 0,
+    cardClicks = 0;
+  const quoted = { ...card, body: "Specific source body." };
+  const control = {
+    innerText: async () => quoted.text,
+    click: async () => {
+      cardClicks++;
+      url = "https://x.com/source/status/20/photo/1";
+    },
+    getByText: (text, options) => {
+      assert.equal(text, quoted.body);
+      assert.deepEqual(options, { exact: true });
+      return {
+        count: async () => 1,
+        click: async () => {
+          bodyClicks++;
+          url = "https://x.com/source/status/20";
+        },
+      };
+    },
+  };
+  const controls = {
+    filter: () => controls,
+    count: async () => 1,
+    nth: () => control,
+  };
+  const article = { filter: () => article, locator: () => controls };
+  const nav = new DOMNavigation({
+    session: {
+      current: {
+        query: { view: "posts" },
+        result: {
+          page: url,
+          posts: [
+            { ...parent, primary: "/owner/status/10", quoteCards: [quoted] },
+          ],
+        },
+      },
+    },
+    observe: async () => ({}),
+    tab: {
+      url: async () => url,
+      playwright: {
+        getByRole: () => article,
+        locator: () => ({}),
+        expectNavigation: async (fn) => fn(),
+      },
+    },
+  });
+  assert.equal(
+    (await nav.openQuote({ postId: "10", cardText: quoted.text })).url,
+    "https://x.com/source/status/20",
+  );
+  assert.equal(bodyClicks, 1);
+  assert.equal(cardClicks, 0);
+});

@@ -73,8 +73,16 @@ export class DOMNavigation {
         `unique-observed-quote-required:controls:${count}:matches:${matches.length}`,
       );
     const card = matches[0];
+    const body = posts[0].quoteCards[0].body;
+    const textControl =
+      body && typeof card.getByText === "function"
+        ? card.getByText(body, { exact: true })
+        : null;
+    const target =
+      textControl && (await textControl.count()) === 1 ? textControl : card;
     this.#session.current = null;
-    await this.#tab.playwright.expectNavigation(() => card.click(), {
+    await this.#tab.playwright.expectNavigation(() => target.click(), {
+
       waitUntil: "commit",
       timeoutMs: 5000,
     });
