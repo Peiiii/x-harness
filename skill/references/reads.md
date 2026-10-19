@@ -14,11 +14,11 @@
 | inspectAccount | none | mode |
 | inspectRound | taskId (original batch ID) | none |
 
-Targets need proof. Native: selected profile, navigate:false; time unknown. Stop on route change.
+Proof required. Native: selected profile, navigate:false, unknown time; stop on route change.
 
-Bookmarks resume:true: same folder; tail ≠ all.
+Bookmarks resume:true: same folder, finite tail.
 
-`pageComplete:false`: finite scope. Preserve full text; view media before describing.
+`pageComplete:false`: finite scope; keep full text, view media first.
 
 Incoming: ledger processedIds; skip settled/intent/unknown. Parents: readPost(includeContext:true), deduplicate.
 
@@ -31,6 +31,6 @@ readPeople: selected followers/following; offset reuses cells, advance scrolls. 
 
 sourceOrigin needs selected For you on actual /explore or /home; keep kinds distinct. Exclude trends/search. Absent counts unknown.
 
-[Batch discovery](batch-discovery.md).
+[Batch + author-card evidence](batch-discovery.md).
 
 `timeline:"replies"`: unique observed same-profile tab; `navigate:false` requires it already selected. Finite receipt candidates still need exact-parent verification; unknown never resends.

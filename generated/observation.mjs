@@ -111,6 +111,50 @@ export const readXObservation = (query) => {
         const datetime = time?.getAttribute("datetime") ?? null;
         const id = primary?.match(/\/status\/(\d+)/)?.[1] ?? null;
         const author = primary?.match(/\/([^/]+)\/status\//)?.[1] ?? null;
+        const headers = Array.from(a.querySelectorAll('[data-testid="User-Name"]'))
+            .filter(visible)
+            .filter((header) => Array.from(header.querySelectorAll("a[href]")).some((link) => visible(link) &&
+            link.getAttribute("href")?.toLowerCase() ===
+                `/${author}`.toLowerCase()));
+        const header = headers.length === 1 ? headers[0] : null;
+        const badges = header
+            ? Array.from(header.querySelectorAll('svg[data-testid="icon-verified"]'))
+                .filter(visible)
+                .filter((badge) => {
+                const style = getComputedStyle(badge);
+                return style.visibility !== "hidden" && style.opacity !== "0";
+            })
+                .filter((badge) => /^(?:认证账号|Verified account)$/i.test(badge.getAttribute("aria-label") ?? ""))
+            : [];
+        const blue = badges.length === 1 &&
+            [
+                getComputedStyle(badges[0]).color,
+                getComputedStyle(badges[0]).fill,
+            ].includes("rgb(29, 155, 240)")
+            ? true
+            : null;
+        const names = header
+            ? Array.from(header.querySelectorAll("a[href]"))
+                .filter((link) => visible(link) &&
+                link.getAttribute("href")?.toLowerCase() ===
+                    `/${author}`.toLowerCase())
+                .map((link) => link.innerText?.trim())
+                .filter((name) => name && !name.startsWith("@"))
+            : [];
+        const authorIdentity = author
+            ? {
+                handle: author,
+                profileURL: `https://x.com/${author}`,
+                name: names.length === 1 ? names[0] : null,
+                source: "post-card",
+                blue,
+                missing: !header
+                    ? ["unique-author-header-unconfirmed"]
+                    : blue !== true
+                        ? ["blue-check-unconfirmed"]
+                        : [],
+            }
+            : undefined;
         const images = Array.from(a.querySelectorAll('[data-testid="tweetPhoto"] img'))
             .filter(visible)
             .map((img) => ({
@@ -128,6 +172,7 @@ export const readXObservation = (query) => {
         return {
             id,
             author,
+            authorIdentity,
             datetime,
             primary,
             text,

@@ -36,9 +36,18 @@ export interface LinkEvidence {
   text?: string;
   label?: string;
 }
+export interface AuthorIdentityEvidence {
+  handle: string;
+  profileURL: string;
+  name?: string | null;
+  source: "post-card";
+  blue: true | null;
+  missing: string[];
+}
 export interface PostEvidence {
   id: string | null;
   author?: string | null;
+  authorIdentity?: AuthorIdentityEvidence;
   datetime?: string | null;
   url?: string | null;
   body?: string | null;

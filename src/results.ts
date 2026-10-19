@@ -62,6 +62,23 @@ export function source(value: unknown, page?: string): PostEvidence {
       /* explicit missing below */
     }
   }
+  const identity = object(raw.authorIdentity);
+  if (
+    typeof out.author === "string" &&
+    typeof identity.handle === "string" &&
+    identity.handle.toLowerCase() === out.author.toLowerCase() &&
+    identity.source === "post-card" &&
+    identity.profileURL === `https://x.com/${identity.handle}`
+  ) {
+    out.authorIdentity = {
+      handle: identity.handle,
+      profileURL: identity.profileURL as string,
+      name: typeof identity.name === "string" ? identity.name : null,
+      source: "post-card",
+      blue: identity.blue === true ? true : null,
+      missing: strings(identity.missing),
+    };
+  }
   if (raw.metrics !== undefined)
     out.metrics = [
       ...new Set(

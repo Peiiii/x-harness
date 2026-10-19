@@ -34,6 +34,7 @@ export const samePublishedText = (a: any, b: any) => {
 export const source = (post: any, page: any) => ({
   id: post.id,
   author: post.author,
+  authorIdentity: post.authorIdentity,
   datetime: post.datetime,
   url: post.primary ? new URL(post.primary, page).href : null,
   body: post.body,
