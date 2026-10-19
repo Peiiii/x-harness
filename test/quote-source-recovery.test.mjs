@@ -224,7 +224,6 @@ test("media quote uses its observed DOM body even when the receipt omits body", 
     innerText: async () => "Specific source body.",
     click: async () => {
       bodyClicks++;
-      url = "https://x.com/source/status/20";
     },
   };
   const control = {
@@ -268,6 +267,11 @@ test("media quote uses its observed DOM body even when the receipt omits body", 
         getByRole: () => article,
         locator: () => ({}),
         expectNavigation: async (fn) => fn(),
+        waitForURL: async (destination) => {
+          assert.equal(destination, "https://x.com/source/status/20");
+          assert.equal(typeof destination, "string");
+          url = destination;
+        },
       },
     },
   });
