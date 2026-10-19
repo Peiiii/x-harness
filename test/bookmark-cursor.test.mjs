@@ -124,3 +124,81 @@ test("bounded bookmark continuation reaches unread retained cards beyond ten win
     ["999"],
   );
 });
+
+for (const mode of [
+  "selected",
+  "selected-normal",
+  "wrong-name",
+  "unselected",
+  "duplicate-selected",
+  "wrong-route",
+  "alert",
+  "loading",
+]) {
+  test(`named bookmark continuation with a history heading: ${mode}`, async () => {
+    let postReads = 0;
+    let waits = 0;
+    const controls = [
+      {
+        role: "tab",
+        label: mode === "wrong-name" ? "Other folder" : "Example folder",
+        selected: mode !== "unselected",
+      },
+    ];
+    if (mode === "selected-normal")
+      controls.push({ role: "tab", label: "Bookmarks", selected: false });
+    if (mode === "duplicate-selected")
+      controls.push({ role: "tab", label: "Other folder", selected: true });
+    const navigation = {
+      page:
+        mode === "wrong-route"
+          ? "https://x.com/home"
+          : "https://x.com/i/history/bookmarks/123",
+      headings: ["History"],
+      controls,
+      needsStateCheck: mode === "loading",
+      alerts: mode === "alert" ? ["rate-limit"] : [],
+    };
+    const ready = async ({ view }) => {
+      if (view !== "posts") return navigation;
+      postReads++;
+      return {
+        ...navigation,
+        posts: [
+          {
+            id: "41",
+            author: "example",
+            body: "A complete source",
+            datetime: "2026-01-01T00:00:00Z",
+            primary: "/example/status/41",
+          },
+        ],
+        moreInDOM: false,
+      };
+    };
+    const c = new PlatformCollections({
+      ready,
+      observed: ready,
+      choose: async (value, predicate) =>
+        value.controls.filter(predicate).length === 1,
+      browser: { act: async () => waits++ },
+    });
+    const result = await c.readBookmarks({
+      folder: "Example folder",
+      resume: mode !== "selected-normal",
+      limit: 1,
+      maxPages: 1,
+    });
+    if (mode.startsWith("selected")) {
+      assert.deepEqual(
+        result.sources.map((s) => s.id),
+        ["41"],
+      );
+      assert.equal(result.folderEvidence.name, "Example folder");
+      assert.equal(waits, 0);
+    } else {
+      assert.deepEqual(result.missing, ["folder-selection-unconfirmed"]);
+      assert.equal(postReads, 0);
+    }
+  });
+}

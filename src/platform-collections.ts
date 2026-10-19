@@ -626,9 +626,18 @@ export class PlatformCollections {
       folderEvidence: { entryPage, selectedPage: selected.page, name: folder },
     };
   }
+  private bookmarkFolderNamed(nav: any, folder: string) {
+    const tabs = (nav.controls ?? []).filter(
+      (c: any) => c.role === "tab" && c.selected === true,
+    );
+    return (
+      nav.headings?.includes(folder) ||
+      (tabs.length === 1 && tabs[0].label.split("\n")[0] === folder)
+    );
+  }
   private async confirmBookmarkFolder(folder: string) {
     let selected = await this.#ready({ view: "navigation" });
-    if (!selected.headings?.includes(folder)) {
+    if (!this.bookmarkFolderNamed(selected, folder)) {
       try {
         await this.#browser.act({
           operation: "waitForFolder",
@@ -641,7 +650,7 @@ export class PlatformCollections {
       selected = await this.#ready({ view: "navigation" });
     }
     if (
-      !selected.headings?.includes(folder) ||
+      !this.bookmarkFolderNamed(selected, folder) ||
       !/\/i\/(?:history\/)?bookmarks\//.test(selected.page ?? "") ||
       selected.needsStateCheck ||
       selected.alerts?.length
