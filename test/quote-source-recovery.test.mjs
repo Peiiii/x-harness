@@ -263,6 +263,9 @@ test("media quote uses its observed DOM body even when the receipt omits body", 
     observe: async () => ({}),
     tab: {
       url: async () => url,
+      goto: async (destination) => {
+        url = destination;
+      },
       playwright: {
         getByRole: () => article,
         locator: () => ({}),
@@ -279,6 +282,6 @@ test("media quote uses its observed DOM body even when the receipt omits body", 
     (await nav.openQuote({ postId: "10", cardText: card.text })).url,
     "https://x.com/source/status/20",
   );
-  assert.equal(bodyClicks, 1);
+  assert.equal(bodyClicks, 0);
   assert.equal(cardClicks, 0);
 });

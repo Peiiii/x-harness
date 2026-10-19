@@ -1,3 +1,4 @@
+import { matchesComposerQuote } from "./platform-quote.js";
 import { createAXHarness } from "./readers-ax-host.js";
 
 import { readXObservation } from "./observation.js";
@@ -109,11 +110,7 @@ export class DOMXBrowser {
       if (this.#session.quoteBinding && raw.quoteContexts?.length === 1) {
         const q = raw.quoteContexts[0],
           b = this.#session.quoteBinding;
-        if (
-          q.author?.toLowerCase() === b.author?.toLowerCase() &&
-          q.body?.startsWith(b.body)
-        )
-          result.quoteSourceId = b.postId;
+        if (matchesComposerQuote(q, b)) result.quoteSourceId = b.postId;
       }
       result.editorText =
         raw.editors?.length === 1 ? raw.editors[0].text : null;

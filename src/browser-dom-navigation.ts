@@ -98,10 +98,14 @@ export class DOMNavigation {
       }
     }
     this.#session.current = null;
-    await this.#tab.playwright.expectNavigation(() => target.click(), {
-      waitUntil: "commit",
-      timeoutMs: 5000,
-    });
+    // Prefer the unique permalink observed inside this exact card. Text clicks can
+    // hit an embedded self-link or image instead of the enclosing quoted source.
+    if (destinations.size === 1) await this.#tab.goto([...destinations][0]);
+    else
+      await this.#tab.playwright.expectNavigation(() => target.click(), {
+        waitUntil: "commit",
+        timeoutMs: 5000,
+      });
     if (
       destinations.size === 1 &&
       typeof this.#tab.playwright.waitForURL === "function"

@@ -45,7 +45,11 @@ export async function resolveQuotedSource(
   const bodyBound =
     quoted?.body &&
     (card.text.endsWith(quoted.body) ||
-      (excerpt.length >= 32 && normalize(quoted.body).startsWith(excerpt)));
+      (excerpt.length >= 32 && normalize(quoted.body).startsWith(excerpt)) ||
+      matchesComposerQuote(
+        { author: quoted.author, body: card.body },
+        { postId: quoted.id, author: quoted.author, body: quoted.body },
+      ));
   const confirmed =
     !source.needsStateCheck &&
     !source.alerts?.length &&
@@ -81,4 +85,27 @@ export async function resolveQuotedSource(
       cardText: card.text,
     };
   return fresh?.quoteSource ? back : incomplete(back);
+}
+
+// The source was selected by exact observed ID before opening this composer.
+export function matchesComposerQuote(context: any, binding: any): boolean {
+  if (
+    !/^[0-9]+$/.test(binding?.postId ?? "") ||
+    typeof binding?.body !== "string" ||
+    !binding.body.trim() ||
+    typeof context?.body !== "string" ||
+    typeof binding?.author !== "string" ||
+    typeof context?.author !== "string" ||
+    context.author?.toLowerCase() !== binding.author.toLowerCase()
+  )
+    return false;
+  if (context.body.startsWith(binding.body)) return true;
+  const tail = context.body.match(
+    /\s+(?:https?:\/\/)?(?:x|twitter)\.com\/([A-Za-z0-9_]{1,15})\/sta…\s*$/,
+  );
+  if (!tail || tail[1].toLowerCase() !== binding.author.toLowerCase())
+    return false;
+  const normalize = (text: string) => text.replace(/\s+/g, " ").trim();
+  const prefix = normalize(context.body.slice(0, tail.index));
+  return prefix.length >= 80 && normalize(binding.body).startsWith(prefix);
 }
