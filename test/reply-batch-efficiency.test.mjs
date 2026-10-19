@@ -486,3 +486,64 @@ for (const scenario of [
     );
   });
 }
+
+test("opt-in reply target likes run immediately after each verified reply, unknown never gets a like", async (t) => {
+  const f = fixture(t),
+    events = [];
+  const api = createBusinessHarness({
+    store: f.store,
+    platform: {},
+    clock: () => NOW,
+  });
+  api.replyToPost = async (a) => {
+    events.push("reply:" + a.postId);
+    return {
+      status: a.postId === "2" ? "unknown" : "verified",
+      actionId: a.preparedAction.id,
+    };
+  };
+  api.likePostAndComments = async (a) => {
+    events.push("like:" + a.url);
+    assert.equal(a.reuseCurrentPage, true);
+    assert.equal(a.sampleRate, 0);
+    assert.equal(a.maxLikes, 1);
+    return { status: "verified", counts: { newLikesThisCall: 1 } };
+  };
+  const actions = ["1", "2", "3"].map((id) => ({
+    id,
+    kind: "reply",
+    postId: id,
+    url: `https://x.com/Author/status/${id}`,
+    text: "hello",
+  }));
+  const r = await api.replyBatch({
+    taskId: "round-1",
+    actions,
+    likeTargetAfterVerified: true,
+  });
+  assert.deepEqual(events, [
+    "reply:1",
+    "like:https://x.com/Author/status/1",
+    "reply:2",
+    "reply:3",
+    "like:https://x.com/Author/status/3",
+  ]);
+  assert.equal(r.targetLikes.length, 2);
+});
+
+test("legacy reply batch leaves likes disabled", async (t) => {
+  const f = fixture(t);
+  const api = createBusinessHarness({
+    store: f.store,
+    platform: {},
+    clock: () => NOW,
+  });
+  api.replyToPost = async () => ({ status: "verified", actionId: "a" });
+  api.likePostAndComments = async () =>
+    assert.fail("legacy invocation cannot like");
+  const r = await api.replyBatch({
+    taskId: "round-1",
+    actions: [{ id: "a", kind: "reply", postId: "1", text: "hello" }],
+  });
+  assert.equal(r.targetLikes, undefined);
+});

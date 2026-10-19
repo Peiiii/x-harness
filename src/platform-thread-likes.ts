@@ -26,10 +26,16 @@ export class PlatformThreadLikes {
     };
     let value: any;
     try {
-      value = await this.#deps.open(
-        { url: args.url, evidenceRef: args.evidenceRef },
-        query,
-      );
+      if (args.reuseCurrentPage) {
+        const current = await this.#deps.observed(query);
+        if (current.page === args.url && current.threadRootPresent)
+          value = current;
+      }
+      if (!value)
+        value = await this.#deps.open(
+          { url: args.url, evidenceRef: args.evidenceRef },
+          query,
+        );
     } catch (error: any) {
       if (!/timed out|timeout|deadline exceeded/i.test(String(error)))
         throw error;

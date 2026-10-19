@@ -11,6 +11,7 @@ export function threadLikeConfig(args: ThreadLikeOptions) {
   const config = {
     url: `https://x.com${url.pathname.replace(/\/$/, "")}`,
     rootId,
+    reuseCurrentPage: args.reuseCurrentPage === true,
     sampleRate: args.sampleRate ?? 0.6,
     maxLikes: args.maxLikes ?? 20,
     maxPages: args.maxPages ?? 40,

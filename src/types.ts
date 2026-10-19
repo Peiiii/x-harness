@@ -205,6 +205,7 @@ export interface WindowOptions {
 export interface IncomingReplyOptions extends WindowOptions {}
 export interface ThreadLikeOptions {
   url: string;
+  reuseCurrentPage?: boolean;
   batchId?: string;
   sampleRate?: number;
   maxLikes?: number;
@@ -684,11 +685,13 @@ export interface XGrowthHarness {
     taskId: string;
     actions: PreparedAction[];
     followPriorityExecutorId?: string;
+    likeTargetAfterVerified?: boolean;
     verifiedTarget?: Omit<VerifiedTargetPlanOptions, "taskId" | "kind">;
   }): Promise<{
     status: "verified" | "needsDecision";
     reason?: string;
     results: ActionResult[];
+    targetLikes?: { actionId: string; result: ThreadLikeResult }[];
   }>;
   likeIncomingBatch(args: IncomingLikeOptions): Promise<IncomingLikeResult>;
   readCreator(args: CreatorOptions): Promise<ReadResult>;

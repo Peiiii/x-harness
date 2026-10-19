@@ -51,6 +51,8 @@ Optional independentExecution:{tabId,evidenceRef,scopeEvidenceRef} requires real
 
 ## Reply
 
+Optional `replyBatch({...,likeTargetAfterVerified:true})` immediately verifies a like of each verified reply's exact original target. Returns separate `targetLikes:[{actionId,result}]`; unknown replies are never liked on an assumed-success basis. Root-only selection reuses the exact current thread when confirmed, otherwise opens the reviewed URL once. Legacy calls leave this disabled. A like failure never resubmits a comment; the project owns batch/day coverage and any authorized shortfall work.
+
 Additional fields: kind:'reply', postId, url, evidenceRef (observed parent), text; optional assets/activation as above. Common account/quality fields still required. The exact parent is verified by the API. `replyBatch({taskId,actions})` accepts 1–5 reviewed replies, submits serially and recovers an observed receipt once without resending; The batch owns one normal pacing wait (up to 30 seconds) per action and one read-only retry for an observed permalink. Longer or renewed waits and capability/decision failures return unfinished work. Remaining unknowns without permalinks get one batched own-account lookup, then exact-parent verification of unique observed links; unknowns never resubmit. Incoming clicks have a ≥30s minimum gap, not a safety guarantee. Incoming conversations require reviewed conversation:{recipientHandle,rootId,round,automatedLoop?}; at most 3 own rounds per recipient/root, with intent/unknown counted. Mark observed automatic loops to stop earlier.
 
 ```js
@@ -114,7 +116,7 @@ An unconfirmed individual reply parent baseline submits nothing and does not sto
 
 ## Thread likes
 
-`likePostAndComments({url,batchId?,sampleRate:0.6,maxLikes:20,maxPages:40,timeBudgetMs:120000})` opens the selected X permalink and internally scans/expands ordinary rendered replies. No caller comment/author list is needed. Root is selected separately; comments use a persisted per-ID 60% sample, not an exact quota. Same batch/root/rate resumes without redrawing; changed sampling requires a new batch ID. Existing global reactions prevent duplicate clicks across batches. Already-liked controls never toggle; unknown intent is verified when visible and never clicked again.
+`likePostAndComments({url,batchId?,sampleRate:0.6,maxLikes:20,maxPages:40,timeBudgetMs:120000,reuseCurrentPage?:boolean})` opens the selected X permalink and internally scans/expands ordinary rendered replies. No caller comment/author list is needed. Root is selected separately; comments use a persisted per-ID 60% sample, not an exact quota. Same batch/root/rate resumes without redrawing; changed sampling requires a new batch ID. Existing global reactions prevent duplicate clicks across batches. Already-liked controls never toggle; unknown intent is verified when visible and never clicked again.
 
 Thread clicks use one fresh, exact Chrome AX button activation, avoiding locator keyboard focus that itself clicks. The thread page remains open; exact card ID, author, account and fresh public liked state are checked without visiting commenter profiles. Ancestors, ads, sidebar and Discover more recommendations are excluded; only unambiguous observed Show replies/Show more replies controls expand. Hidden/unavailable replies are outside verified coverage. DOM Chrome tab required; native app binding returns capability-required.
 

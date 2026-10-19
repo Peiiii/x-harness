@@ -387,6 +387,7 @@ export class BusinessHarness implements XGrowthHarness {
     taskId: string;
     actions: import("./types.js").PreparedAction[];
     followPriorityExecutorId?: string;
+    likeTargetAfterVerified?: boolean;
     verifiedTarget?: Omit<
       import("./types.js").VerifiedTargetPlanOptions,
       "taskId" | "kind"
@@ -404,6 +405,10 @@ export class BusinessHarness implements XGrowthHarness {
         reason: "reply-batch-invalid",
       };
     const results: ActionResult[] = [];
+    const targetLikes: {
+      actionId: string;
+      result: import("./types.js").ThreadLikeResult;
+    }[] = [];
     for (const action of args.actions) {
       if (action.kind !== "reply") continue;
       const existingStatus = args.followPriorityExecutorId
@@ -504,6 +509,8 @@ export class BusinessHarness implements XGrowthHarness {
           });
       }
       results.push(result);
+      if (await this.captureReplyTargetLike(args, action, result, targetLikes))
+        break;
       if (
         result.status === "needsDecision" &&
         result.reason === "publication-baseline-unconfirmed"
@@ -532,7 +539,43 @@ export class BusinessHarness implements XGrowthHarness {
           ? ("verified" as const)
           : ("needsDecision" as const),
       results,
+      ...(args.likeTargetAfterVerified ? { targetLikes } : {}),
     };
+  }
+  private async captureReplyTargetLike(
+    args: { likeTargetAfterVerified?: boolean },
+    action: import("./types.js").PreparedAction,
+    result: ActionResult,
+    targetLikes: {
+      actionId: string;
+      result: import("./types.js").ThreadLikeResult;
+    }[],
+  ) {
+    if (
+      !args.likeTargetAfterVerified ||
+      result.status !== "verified" ||
+      action.kind !== "reply"
+    )
+      return false;
+    const liked = await this.likeVerifiedReplyTarget(action);
+    targetLikes.push({ actionId: action.id, result: liked });
+    return (
+      liked.reason === "thread-like-page-or-account-unconfirmed" ||
+      liked.reason === "outside-authorized-window"
+    );
+  }
+  private likeVerifiedReplyTarget(
+    action: Extract<import("./types.js").PreparedAction, { kind: "reply" }>,
+  ) {
+    return this.likePostAndComments({
+      url: action.url!,
+      batchId: `reply-target-like-${action.postId}`,
+      sampleRate: 0,
+      maxLikes: 1,
+      maxPages: 1,
+      timeBudgetMs: 10000,
+      reuseCurrentPage: true,
+    });
   }
   public likePostAndComments(args: import("./types.js").ThreadLikeOptions) {
     return this.#threadReactions.run(args);

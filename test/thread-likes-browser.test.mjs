@@ -579,3 +579,40 @@ test("a like observed after preparation is preexisting, never toggled", async ()
   assert.equal(f.calls.intents, 0);
   assert.equal(f.calls.clicks, 0);
 });
+
+test("opt-in exact current thread avoids another navigation but wrong page still opens reviewed URL", async () => {
+  let opens = 0;
+  const url = "https://x.com/Author/status/100";
+  const view = {
+    page: url,
+    accountHandle: "Pei",
+    alerts: [],
+    threadConfirmed: true,
+    threadRootPresent: true,
+    threadIds: ["100"],
+    posts: [{ id: "100", author: "Author" }],
+  };
+  let current = view;
+  const reader = new PlatformThreadLikes({
+    observed: async () => current,
+    ready: async () => view,
+    open: async () => {
+      opens++;
+      return view;
+    },
+    browser: { act: async () => {} },
+  });
+  const args = {
+    url,
+    rootId: "100",
+    evidenceRef: "proof",
+    reuseCurrentPage: true,
+    reset: true,
+  };
+  const a = await reader.readThreadLikeWindow(args);
+  assert.equal(a.needsStateCheck, false);
+  assert.equal(opens, 0);
+  current = { ...view, page: "https://x.com/Other/status/200" };
+  await reader.readThreadLikeWindow(args);
+  assert.equal(opens, 1);
+});
