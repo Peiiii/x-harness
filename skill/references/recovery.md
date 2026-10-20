@@ -1,25 +1,29 @@
 # Recovery by signal
 
-Load on failure/unknown only. Keep operation/status/missing/code/proof/error; do not infer success or repeat failures.
+Failures only: keep operation/status/missing/code/proof/error; no guessed success or unchanged retries.
 
 | Signal | Next action and exit condition |
 | --- | --- |
 | unknown submission | `await x.verifySubmission({taskId,actionId})`, same IDs; no resend. [Observed link](receipt-recovery.md). |
 | Existing public post needs recovery | `await x.verifyPublishedPost({taskId,draftPath,publicURL,evidenceRef})`; observed URL/proof. sourceLink/sourceLinks: [link proof](source-link-recovery.md). |
-| Follow needs independent recovery | `await x.verifyFollow({handle,url,evidenceRef,mode:'decision'})`; honor returned verified. Normal followBatch already verifies. |
-| needsDecision | Resolve returned missing review/proof in original action, resume same ID. Current AI performs internal review under project contract. |
+| Follow needs independent recovery | `await x.verifyFollow({handle,url,evidenceRef,mode:'decision'})`; Honor verified. followBatch already verifies. |
+| needsDecision | Current AI resolves review/proof under project contract; resume original ID. |
 | waiting | Honor resumeAt/reason, continue independent permitted work; never bypass time/identity/claim gates. |
-| needsCapability | Inspect exact missing method/operation. If a supported binding supplies it, rebind once and retry a necessary read; otherwise repair reported owner with failing sample and targeted validation. |
-| diagnostic.next: inspect-local-proof | Read only `{operation,error}` from diagnostic.evidenceRef; resolve via this reference, keep full proof local. Unknown/intent needs same-ID verification. Unsupported: report code/error and update/support; no private source. |
-| diagnostic.next: restore-proof-store | Restore the workspace's writable proof directory, then resume the same action. Do not replace its ledger or infer submission failure. |
-| Missing fields/partial window | Narrow to target, expand/advance documented bounded window; preserve text. No whole-page output or automatic reload. |
+| needsCapability | Identify operation: one supported rebind, else repair owner with failed sample/verification. |
+| diagnostic.next: inspect-local-proof | Read `{operation,error}` from diagnostic.evidenceRef; full proof stays local. Verify unknown/intent by original ID. Unsupported: report code/error for update/support; no private source. |
+| diagnostic.next: restore-proof-store | Restore writable workspace proof directory; resume same action/ledger, no inferred submission failure. |
+| Missing fields/partial window | Narrow target; documented bounded expansion/paging, preserve text. No whole-page output/reload. |
 
 ## Host connection or native focus
 
-Naming failure is not tab failure or X logout. Once, try a host-supported alternative: real Chrome → owned tab → root read. Preserve editors; no policy bypass/unchanged retries. Success proves current reading, not stable transport/writes. Reuse bindings; after real reset rediscover Chrome identity, not old numeric IDs. Native rejection needs fresh URL/window and one supported correction. App fallback keeps root calls; do not change network settings.
+### Stale page at retryAt
 
-`tab-busy`: inspect proof/claim. Age/null PID is not termination. Only evidenced own-runtime termination permits CAS release matching executor/runtime/token, preserving intent/unknown and others. Verify same ID, never resubmit. Do not reset a working runtime to diagnose another error.
+After Retry-After/retryAt, reload only the owned draft-free page once; root inspectAccount must prove fresh, complete, matching identity before original IDs resume. No draft loss or unknown resend. Missing identity/transport/old logs are not new429: inspect current diagnostics, change the failing condition. Only current business429 renews backoff. Success proves recovery, not cause; normal partial windows never trigger reload.
+
+Naming failure does not prove logout. Try one supported alternative: real Chrome → owned tab → root read; preserve editors/policies/network. Success proves reading only. Reuse bindings; after reset rediscover Chrome, not old numeric IDs. Native rejection: fresh URL/window, one supported correction. App fallback retains root calls.
+
+`tab-busy`: inspect proof/claim; age/null PID is not termination. Evidenced own-runtime termination permits CAS release only for matching executor/runtime/token. Preserve intent/unknown/others; verify original ID. Never reset a working runtime for another error.
 
 ## Repair boundary
 
-Source is only for unresolved defects/capability gaps: maintainers repair the owner, verify the failed boundary and return to root; consumers report gap/update/support, without source. Never scan adapters for arguments, add parsers, bypass refusal or resubmit unknown.
+Unresolved defects/gaps: maintainers repair/verify the owner, return to root. Consumers report gap/update/support, without source. No argument scans/parsers, refusal bypass or unknown resend.
