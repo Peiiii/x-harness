@@ -33,6 +33,34 @@ test("wrong author, link author, content, short prefix and missing exact-source 
   );
 });
 
+test("clipped composer URL labels require source prefix and complete links in source order", () => {
+  const full = body + "\nAPI: api.example.test\nPlan: example.test/plan";
+  const reviewed = { ...binding, body: full };
+  const prefix = body.slice(0, 120);
+  const links = "\nhttp://\napi.example.test\nhttps://\nexample.test/plan";
+  const card = { author: binding.author, body: prefix + links };
+  assert.equal(matchesComposerQuote(card, reviewed), true);
+  for (const changed of [
+    { ...card, author: "AnotherUser" },
+    { ...card, body: "Changed " + prefix + links },
+    { ...card, body: "Short" + links },
+    { ...card, body: prefix + links + " unrelated text" },
+    { ...card, body: prefix + links.replace("api.example.test", "other.test") },
+    {
+      ...card,
+      body:
+        prefix +
+        links.replace("api.example.test", "api.example.test.evil.test"),
+    },
+    {
+      ...card,
+      body: prefix + "\nhttps://\nexample.test/plan\nhttp://\napi.example.test",
+    },
+  ])
+    assert.equal(matchesComposerQuote(changed, reviewed), false);
+  assert.equal(matchesComposerQuote(card, { ...reviewed, postId: "" }), false);
+});
+
 test("public quote recovery preserves parent, exact observed source ID and date when a self-link is truncated", async () => {
   const { resolveQuotedSource } = await import("../dist/platform-quote.js");
   const date = "2026-10-01T12:00:00.000Z";

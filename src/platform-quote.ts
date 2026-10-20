@@ -103,9 +103,35 @@ export function matchesComposerQuote(context: any, binding: any): boolean {
   const tail = context.body.match(
     /\s+(?:https?:\/\/)?(?:x|twitter)\.com\/([A-Za-z0-9_]{1,15})\/sta…\s*$/,
   );
-  if (!tail || tail[1].toLowerCase() !== binding.author.toLowerCase())
-    return false;
+  if (!tail) return matchesVisibleLinkTail(context.body, binding.body);
+  if (tail[1].toLowerCase() !== binding.author.toLowerCase()) return false;
   const normalize = (text: string) => text.replace(/\s+/g, " ").trim();
   const prefix = normalize(context.body.slice(0, tail.index));
   return prefix.length >= 80 && normalize(binding.body).startsWith(prefix);
+}
+
+// Some long cards end their clipped text with separately rendered URL labels.
+// Require the existing substantial prefix and every complete URL, in source order.
+function matchesVisibleLinkTail(preview: string, source: string): boolean {
+  const start = preview.search(/\nhttps?:\/\/[ \t]*\n/i);
+  if (start < 0) return false;
+  const normalize = (text: string) => text.replace(/\s+/g, " ").trim();
+  const prefix = normalize(preview.slice(0, start));
+  if (prefix.length < 80 || !normalize(source).startsWith(prefix)) return false;
+  const tail = preview.slice(start).trim();
+  const pattern = /https?:\/\/[ \t]*\n([^\s]+)/gi;
+  const links = Array.from(tail.matchAll(pattern), (match) => match[1]);
+  if (!links.length || tail.replace(pattern, "").trim()) return false;
+  let offset = 0;
+  for (const link of links) {
+    if (!/^[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[/?#][^\s]*)?$/.test(link))
+      return false;
+    const escaped = link.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const match = new RegExp(
+      `(?:^|[^A-Za-z0-9._/-])${escaped}(?=$|[^A-Za-z0-9._/-])`,
+    ).exec(source.slice(offset));
+    if (!match) return false;
+    offset += match.index + match[0].length;
+  }
+  return true;
 }
