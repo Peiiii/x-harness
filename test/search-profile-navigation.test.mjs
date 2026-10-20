@@ -173,3 +173,149 @@ test("already committed post still waits for exact content without another navig
   });
   assert.equal(waits, 1);
 });
+
+for (const mode of ["unique", "missing", "ambiguous", "forced"]) {
+  test(`publication profile return keeps the loaded client when safe: ${mode}`, async () => {
+    const target = "https://x.com/owner";
+    let page = "https://x.com/compose/post",
+      contentWaits = 0;
+    const calls = [];
+    const link = {
+      filter() {
+        return this;
+      },
+      count: async () =>
+        mode === "missing" ? 0 : mode === "ambiguous" ? 2 : 1,
+      click: async () => {
+        calls.push("click");
+        page = target;
+      },
+    };
+    const article = {
+      first() {
+        return this;
+      },
+      waitFor: async () => {
+        contentWaits++;
+      },
+    };
+    const browser = createDOMXBrowser({
+      url: async () => page,
+      goto: async (url) => {
+        calls.push("goto");
+        page = url;
+      },
+      playwright: {
+        locator: () => link,
+        getByRole: () => article,
+        waitForURL: async (url) => {
+          assert.equal(page, url);
+        },
+      },
+    });
+    await browser.act({
+      operation: "openObserved",
+      view: "posts",
+      url: target,
+      evidenceRef: "reviewed-own-profile",
+      ...(mode === "forced" ? { forceNavigation: true } : {}),
+    });
+    assert.deepEqual(calls, [mode === "unique" ? "click" : "goto"]);
+    assert.equal(contentWaits, 1);
+  });
+}
+
+for (const mode of ["unique", "missing", "ambiguous", "forced"]) {
+  test(`profile result refresh uses an evidenced timeline round trip without reload: ${mode}`, async () => {
+    const url = "https://x.com/owner",
+      calls = [];
+    let page = url;
+    const profile = {
+      filter() {
+        return this;
+      },
+      count: async () =>
+        mode === "missing" ? 0 : mode === "ambiguous" ? 2 : 1,
+      getAttribute: async () => "true",
+      click: async () => {
+        calls.push("timeline");
+        page = url;
+      },
+    };
+    const adjacent = {
+      filter() {
+        return this;
+      },
+      count: async () => 1,
+      click: async () => {
+        calls.push("adjacent");
+        page = url + "/with_replies";
+      },
+    };
+    const article = {
+      first() {
+        return this;
+      },
+      waitFor: async () => {
+        calls.push("content");
+      },
+    };
+    const browser = createDOMXBrowser({
+      url: async () => page,
+      reload: async () => {
+        calls.push("reload");
+      },
+      getAXState: async () => {},
+      playwright: {
+        locator: (selector) =>
+          selector.includes("/with_replies") ? adjacent : profile,
+        getByRole: () => article,
+        waitForURL: async (target) => {
+          assert.equal(page, target);
+        },
+      },
+    });
+    await browser.act({
+      operation: "refreshPosts",
+      url,
+      evidenceRef: "original-profile-proof",
+      ...(mode === "forced" ? { forceNavigation: true } : {}),
+    });
+    assert.deepEqual(
+      calls,
+      mode === "unique"
+        ? ["adjacent", "timeline", "content"]
+        : ["reload", "content"],
+    );
+  });
+}
+
+test("original refresh waits for the reviewed candidate rather than an early pinned card", async () => {
+  let expected;
+  let waits = 0;
+  const article = {
+    first() {
+      return this;
+    },
+    filter(q) {
+      expected = q.hasText;
+      return this;
+    },
+    waitFor: async () => {
+      waits++;
+    },
+  };
+  const browser = createDOMXBrowser({
+    url: async () => "https://x.com/owner",
+    reload: async () => {},
+    playwright: { getByRole: () => article },
+  });
+  await browser.act({
+    operation: "refreshPosts",
+    url: "https://x.com/owner",
+    evidenceRef: "synthetic",
+    expectedText: "reviewed candidate",
+  });
+  assert.equal(expected, "reviewed candidate");
+  assert.equal(waits, 1);
+});

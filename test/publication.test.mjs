@@ -84,7 +84,7 @@ test("MP4 publication requires a video on the exact fresh post", async () => {
     );
 });
 
-test("baseline freshly observes an already loaded exact profile without reload; receipt verification still refreshes", async () => {
+test("fresh complete original receipt verifies without refreshing the loaded profile", async () => {
   let reads = 0;
   const acts = [];
   const browser = {
@@ -109,7 +109,7 @@ test("baseline freshly observes an already loaded exact profile without reload; 
   assert.deepEqual(acts, []);
   assert.equal(baseline.posts[0].id, "10");
   await platform.findSubmission(action);
-  assert.deepEqual(acts, ["refreshPosts"]);
+  assert.deepEqual(acts, []);
   const bad = createXPlatform(
     {
       ...browser,
@@ -128,3 +128,32 @@ test("baseline freshly observes an already loaded exact profile without reload; 
     true,
   );
 });
+
+for (const changed of [
+  { author: "other" },
+  { id: "9" },
+  { datetime: "2026-10-11T13:58:00Z" },
+  { body: "different" },
+  { needsExpansion: true },
+  { images: [] },
+]) {
+  test(`unmatched original still refreshes once: ${JSON.stringify(changed)}`, async () => {
+    const acts = [];
+    const platform = createXPlatform(
+      {
+        capabilities: () => [],
+        observe: async () => ({
+          page: action.accountURL,
+          accountHandle: "owner",
+          needsStateCheck: false,
+          alerts: [],
+          posts: [{ ...post, ...changed }],
+        }),
+        act: async (q) => acts.push(q.operation),
+      },
+      { clock: () => time },
+    );
+    assert.equal((await platform.findSubmission(action)).verified, false);
+    assert.deepEqual(acts, ["refreshPosts"]);
+  });
+}

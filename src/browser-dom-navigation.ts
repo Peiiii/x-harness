@@ -272,7 +272,10 @@ export class DOMNavigation {
     let link: any;
     if (
       !command.forceNavigation &&
-      command.view !== "posts" &&
+      (command.view !== "posts" ||
+        (/^\/[A-Za-z0-9_]{1,15}\/?$/.test(xURL(command.url).pathname) &&
+          !xURL(command.url).search &&
+          !xURL(command.url).hash)) &&
       typeof this.#tab.playwright?.locator === "function"
     ) {
       link = this.#tab.playwright
@@ -472,12 +475,54 @@ export class DOMNavigation {
     )
       throw new Error("公开核验页面不匹配");
     this.#session.current = null;
-    await this.#tab.reload();
-    // Native observation settles the real loading transition when the tab exposes it.
-    if (typeof this.#tab.getAXState === "function")
-      await this.#tab.getAXState({ emit: false });
+    const target = xURL(command.url);
+    const profileTab =
+      !command.forceNavigation &&
+      /^\/[A-Za-z0-9_]{1,15}\/?$/.test(target.pathname) &&
+      !target.search &&
+      !target.hash &&
+      typeof this.#tab.playwright?.locator === "function"
+        ? this.#tab.playwright
+            .locator(`[role="tab"][href=${JSON.stringify(target.pathname)}]`)
+            .filter({ visible: true })
+        : undefined;
+    const alternateTab =
+      profileTab && typeof this.#tab.playwright?.locator === "function"
+        ? this.#tab.playwright
+            .locator(
+              `[role="tab"][href=${JSON.stringify(target.pathname.replace(/\/$/, "") + "/with_replies")}]`,
+            )
+            .filter({ visible: true })
+        : undefined;
+    if (
+      profileTab &&
+      alternateTab &&
+      (await profileTab.count()) === 1 &&
+      (await alternateTab.count()) === 1 &&
+      (await profileTab.getAttribute("aria-selected")) === "true"
+    ) {
+      // The selected Posts tab opens a menu in current X. Switch to the exact
+      // observed adjacent timeline and back instead of clicking that menu or
+      // bootstrapping Viewer through a full document reload.
+      await alternateTab.click();
+      await this.#tab.playwright.waitForURL(
+        target.origin + target.pathname.replace(/\/$/, "") + "/with_replies",
+        { timeoutMs: 5000 },
+      );
+      await profileTab.click();
+      await this.#tab.playwright.waitForURL(command.url, { timeoutMs: 5000 });
+    } else {
+      await this.#tab.reload();
+      if (typeof this.#tab.getAXState === "function")
+        await this.#tab.getAXState({ emit: false });
+    }
+    const articles = this.#tab.playwright.getByRole("article");
+    // A pinned card can render before the timeline. Wait for the reviewed
+    // candidate when supplied; only the later full observation can verify it.
     await this.handleWaitTargetContent(
-      this.#tab.playwright.getByRole("article").first(),
+      command.expectedText
+        ? articles.filter({ hasText: command.expectedText }).first()
+        : articles.first(),
       command.url,
     );
     return;

@@ -166,20 +166,27 @@ export class PlatformWriting {
         ? { url: action.url, evidenceRef: action.evidenceRef }
         : { url: action.accountURL, evidenceRef: action.accountEvidenceRef };
     let value = await this.#open(receiptTarget, { view: "posts", limit: 5 });
+    const matchesContent = (post: any) => this.matchesContent(post, action);
+    const observedOriginal =
+      action.kind === "original" &&
+      !value.needsStateCheck &&
+      !value.alerts?.length &&
+      (value.posts ?? []).filter(matchesContent).length === 1;
     if (
       context.phase !== "baseline" &&
+      !observedOriginal &&
       !(action.kind === "original" && observedReceipt) &&
       !value.needsStateCheck &&
       !(this.#browser.capabilities?.("refreshPosts") ?? ["refreshPosts"]).length
     ) {
       await this.#browser.act({
         operation: "refreshPosts",
+        ...(action.kind === "original" ? { expectedText: action.text } : {}),
         url: receiptTarget.url,
         evidenceRef: receiptTarget.evidenceRef,
       });
       value = await this.#observed({ view: "posts", limit: 5 });
     }
-    const matchesContent = (post: any) => this.matchesContent(post, action);
     let matches = (value.posts ?? []).filter(matchesContent);
     const receiptCandidate =
       action.kind === "reply" &&
