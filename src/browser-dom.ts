@@ -95,16 +95,18 @@ export class DOMXBrowser {
       limit: query.limit ?? 1,
     });
     const raw = result;
-    // This observed disclosure confirms AI provenance; preserve it without treating it as a rate/login failure.
-    result.notices = (result.alerts ?? []).filter(
-      (text: any) => text.trim() === "检测到 AI 生成内容",
-    );
+    // Exact informational messages are retained; any added refusal text stays
+    // an alert. A send toast alone never proves publication.
+    const informational = (text: string) =>
+      text.trim() === "检测到 AI 生成内容" ||
+      text.trim() === "你的帖子已发送。你有 1 小时时间进行任何编辑。\n查看";
+    result.notices = (result.alerts ?? []).filter(informational);
     if (this.#session.refreshNotice) {
       result.notices.push(this.#session.refreshNotice);
       this.#session.refreshNotice = null;
     }
     result.alerts = (result.alerts ?? []).filter(
-      (text: any) => text.trim() !== "检测到 AI 生成内容",
+      (text: string) => !informational(text),
     );
     if (query.view === "composer") {
       if (this.#session.quoteBinding && raw.quoteContexts?.length === 1) {

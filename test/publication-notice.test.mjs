@@ -1,0 +1,26 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createDOMXBrowser } from "../dist/diagnostics.js";
+const sent = "你的帖子已发送。你有 1 小时时间进行任何编辑。\n查看";
+test("observed send toast is informational and preserves simultaneous refusals", async () => {
+  const browser = createDOMXBrowser({
+    playwright: {
+      evaluate: async () => ({
+        alerts: [sent, "检测到 AI 生成内容", "Too many requests"],
+        posts: [],
+      }),
+    },
+  });
+  const result = await browser.observe({ view: "posts" });
+  assert.deepEqual(result.notices, [sent, "检测到 AI 生成内容"]);
+  assert.deepEqual(result.alerts, ["Too many requests"]);
+});
+test("a send toast combined with unknown extra text stays blocking", async () => {
+  const combined = sent + "\n操作受限";
+  const browser = createDOMXBrowser({
+    playwright: { evaluate: async () => ({ alerts: [combined], posts: [] }) },
+  });
+  const result = await browser.observe({ view: "posts" });
+  assert.deepEqual(result.alerts, [combined]);
+  assert.deepEqual(result.notices, []);
+});
