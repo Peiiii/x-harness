@@ -2,6 +2,7 @@ export interface DOMSession {
   current?: any;
   replyBinding?: any;
   quoteBinding?: any;
+  quoteClientReturn?: { parent: string; source: string };
   refreshNotice?: any;
   editBinding?: any;
 }

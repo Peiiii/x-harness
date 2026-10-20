@@ -100,7 +100,20 @@ export class DOMNavigation {
     this.#session.current = null;
     // Prefer the unique permalink observed inside this exact card. Text clicks can
     // hit an embedded self-link or image instead of the enclosing quoted source.
-    if (destinations.size === 1) await this.#tab.goto([...destinations][0]);
+    if (command.preferClientNavigation) {
+      if (
+        destinations.size !== 1 ||
+        typeof card.press !== "function" ||
+        typeof this.#tab.back !== "function"
+      )
+        throw Error("quote-client-navigation-unavailable");
+      await card.press("Enter");
+      this.#session.quoteClientReturn = {
+        parent: current.result.page,
+        source: [...destinations][0],
+      };
+    } else if (destinations.size === 1)
+      await this.#tab.goto([...destinations][0]);
     else
       await this.#tab.playwright.expectNavigation(() => target.click(), {
         waitUntil: "commit",
@@ -241,6 +254,32 @@ export class DOMNavigation {
     });
     return;
   }
+  private async handleQuoteClientReturn(command: any) {
+    const route = this.#session.quoteClientReturn;
+    if (
+      !command.preferObservedLink ||
+      !route ||
+      route.parent !== xURL(command.url).href ||
+      (await this.#tab.url()) !== route.source
+    )
+      return false;
+    this.#session.quoteClientReturn = undefined;
+    this.#session.current = null;
+    await this.#tab.back();
+    if (typeof this.#tab.getAXState === "function")
+      await this.#tab.getAXState({ emit: false });
+    if ((await this.#tab.url()) !== command.url) {
+      const link = this.#tab.playwright
+        .locator(`a[href=${JSON.stringify(xURL(command.url).pathname)}]`)
+        .filter({ visible: true });
+      if ((await link.count()) !== 1)
+        throw Error("quote-client-return-link-unavailable");
+      await link.click();
+    }
+    await this.#tab.playwright.waitForURL(command.url, { timeoutMs: 5000 });
+    await this.waitObservedPost(command.url);
+    return true;
+  }
   private async handleOpenObserved(command: any) {
     xURL(command.url);
     if (!command.evidenceRef) throw new Error("导航缺已观察证据");
@@ -260,6 +299,7 @@ export class DOMNavigation {
         await this.waitObservedPost(command.url);
       return;
     }
+    if (await this.handleQuoteClientReturn(command)) return;
     const originalPage =
       typeof this.#tab.url === "function"
         ? await this.#tab.url()
@@ -273,6 +313,12 @@ export class DOMNavigation {
     if (
       !command.forceNavigation &&
       (command.view !== "posts" ||
+        (command.preferObservedLink === true &&
+          /^\/[A-Za-z0-9_]{1,15}\/status\/\d+$/.test(
+            xURL(command.url).pathname,
+          ) &&
+          !xURL(command.url).search &&
+          !xURL(command.url).hash) ||
         (/^\/[A-Za-z0-9_]{1,15}\/?$/.test(xURL(command.url).pathname) &&
           !xURL(command.url).search &&
           !xURL(command.url).hash)) &&
@@ -295,6 +341,8 @@ export class DOMNavigation {
       }
     }
     const clickedLink = link && (await link.count()) === 1;
+    if (command.preferObservedLink && !clickedLink)
+      throw Error("original-receipt-link-not-currently-visible");
     try {
       if (clickedLink) await link.click();
       else await this.#tab.goto(command.url);
@@ -321,6 +369,7 @@ export class DOMNavigation {
         // Exact target content readiness below remains mandatory while loading.
       } else {
         if (
+          command.preferObservedLink ||
           !clickedLink ||
           !originalPage ||
           check.page !== originalPage ||

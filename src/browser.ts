@@ -192,6 +192,26 @@ export function readXSurface({
                   .filter(visible)
                   .map((card: any) => ({
                     text: card.innerText,
+                    links: [...(card.querySelectorAll?.("a[href]") ?? [])]
+                      .filter(visible)
+                      .map((a: any) => a.getAttribute("href")),
+                    author: (() => {
+                      const handles = [
+                        ...new Set(
+                          [...(card.querySelectorAll?.("span") ?? [])]
+                            .filter(
+                              (el: any) =>
+                                visible(el) &&
+                                !el.closest('[data-testid="tweetText"]') &&
+                                /^@[A-Za-z0-9_]{1,15}$/.test(
+                                  el.innerText.trim(),
+                                ),
+                            )
+                            .map((el: any) => el.innerText.trim().slice(1)),
+                        ),
+                      ];
+                      return handles.length === 1 ? handles[0] : null;
+                    })(),
                     body: card.querySelector?.('[data-testid="tweetText"]')
                       ?.innerText,
                     datetime: card

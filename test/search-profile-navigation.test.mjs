@@ -319,3 +319,78 @@ test("original refresh waits for the reviewed candidate rather than an early pin
   assert.equal(expected, "reviewed candidate");
   assert.equal(waits, 1);
 });
+
+test("an evidenced original receipt can use one unique visible permalink without document navigation", async () => {
+  const url = "https://x.com/owner/status/123";
+  let page = "https://x.com/owner";
+  const calls = [];
+  const link = {
+    filter() {
+      return this;
+    },
+    count: async () => 1,
+    click: async () => {
+      calls.push("link");
+      page = url;
+    },
+  };
+  const article = {
+    filter() {
+      return this;
+    },
+    first() {
+      return this;
+    },
+    waitFor: async () => {},
+  };
+  const browser = createDOMXBrowser({
+    url: async () => page,
+    goto: async () => {
+      calls.push("goto");
+    },
+    playwright: {
+      locator: () => link,
+      getByRole: () => article,
+      waitForURL: async (target) => assert.equal(page, target),
+    },
+  });
+  await browser.act({
+    operation: "openObserved",
+    view: "posts",
+    url,
+    evidenceRef: "observed-own-receipt",
+    preferObservedLink: true,
+    targetId: "123",
+  });
+  assert.deepEqual(calls, ["link"]);
+});
+
+for (const count of [0, 2])
+  test(`original receipt missing or ambiguous link does not fall back to document navigation: ${count}`, async () => {
+    let gotos = 0;
+    const link = {
+      filter() {
+        return this;
+      },
+      count: async () => count,
+    };
+    const browser = createDOMXBrowser({
+      url: async () => "https://x.com/owner",
+      goto: async () => {
+        gotos++;
+      },
+      playwright: { locator: () => link },
+    });
+    await assert.rejects(
+      () =>
+        browser.act({
+          operation: "openObserved",
+          view: "posts",
+          url: "https://x.com/owner/status/123",
+          evidenceRef: "real-proof",
+          preferObservedLink: true,
+        }),
+      /original-receipt-link-not-currently-visible/,
+    );
+    assert.equal(gotos, 0);
+  });

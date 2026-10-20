@@ -24,6 +24,7 @@ export async function resolveQuotedSource(
     operation: "openQuote",
     postId: target.postId,
     cardText: card.text,
+    ...(target.preferClientNavigation ? { preferClientNavigation: true } : {}),
   });
   const id = xURL(destination.url).pathname.match(/\/status\/(\d+)$/)?.[1];
   let source = await ready({ view: "posts", targetId: id });
@@ -67,7 +68,11 @@ export async function resolveQuotedSource(
         destination: destination.url,
       },
     },
-    { view: "posts", targetId: target.postId },
+    {
+      view: "posts",
+      targetId: target.postId,
+      ...(target.preferClientNavigation ? { preferObservedLink: true } : {}),
+    },
   );
   const fresh = back.posts?.find((p: any) => p.id === target.postId);
   if (

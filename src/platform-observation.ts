@@ -59,6 +59,9 @@ export class PlatformObservation {
           evidenceRef: target.evidenceRef,
           view: query.view,
           handle: query.handle,
+          ...(query.preferObservedLink === true
+            ? { preferObservedLink: true }
+            : {}),
           // Thread membership is scoped to its root. An in-page permalink can
           // leave an unrelated thread mounted; open the evidenced route once.
           ...(query.view === "posts" && query.threadRootId
@@ -66,6 +69,7 @@ export class PlatformObservation {
             : {}),
         });
       } catch (error: unknown) {
+        if (query.preferObservedLink) throw error;
         // A URL wait may expire just before the committed document is observable.
         // Observe once; an inert unchanged page may navigate the same evidenced
         // URL directly once. Never repeat a submission. Exact post and

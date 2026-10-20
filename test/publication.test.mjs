@@ -157,3 +157,32 @@ for (const changed of [
     assert.deepEqual(acts, ["refreshPosts"]);
   });
 }
+
+test("root original receipt propagates client navigation preference through platform observation", async () => {
+  let page = "https://x.com/home";
+  const commands = [];
+  const platform = createXPlatform(
+    {
+      capabilities: () => [],
+      observe: async () => ({
+        page,
+        accountHandle: "owner",
+        needsStateCheck: false,
+        alerts: [],
+        posts: [post],
+      }),
+      act: async (q) => {
+        commands.push(q);
+        page = q.url;
+      },
+    },
+    { clock: () => time },
+  );
+  const result = await platform.findSubmission({
+    ...action,
+    observedPublicURL: "https://x.com/owner/status/10",
+    observedPublicEvidenceRef: "fresh-observed-proof",
+  });
+  assert.equal(result.verified, true);
+  assert.equal(commands[0].preferObservedLink, true);
+});

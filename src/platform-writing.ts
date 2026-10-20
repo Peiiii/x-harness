@@ -146,17 +146,7 @@ export class PlatformWriting {
       ["reply", "original"].includes(action.kind) &&
       action.observedPublicURL &&
       action.observedPublicEvidenceRef;
-    const receiptPath = observedReceipt
-      ? xURL(action.observedPublicURL).pathname.split("/")
-      : [];
-    if (
-      observedReceipt &&
-      (receiptPath.length !== 4 ||
-        !sameHandle(receiptPath[1], action.accountHandle) ||
-        receiptPath[2] !== "status" ||
-        !/^[0-9]+$/.test(receiptPath[3]))
-    )
-      throw new Error("已观察回复回执须属于原账号");
+    const receiptPath = this.observedReceiptPath(action, observedReceipt);
     const receiptTarget = observedReceipt
       ? {
           url: action.observedPublicURL,
@@ -165,8 +155,21 @@ export class PlatformWriting {
       : action.kind === "reply" && action.url && action.evidenceRef
         ? { url: action.url, evidenceRef: action.evidenceRef }
         : { url: action.accountURL, evidenceRef: action.accountEvidenceRef };
-    let value = await this.#open(receiptTarget, { view: "posts", limit: 5 });
     const matchesContent = (post: any) => this.matchesContent(post, action);
+    let value =
+      (await this.readVisibleOriginalReceipt(
+        action,
+        receiptPath,
+        receiptTarget,
+        matchesContent,
+      )) ??
+      (await this.#open(receiptTarget, {
+        view: "posts",
+        limit: 5,
+        ...(action.kind === "original" && observedReceipt
+          ? { preferObservedLink: true, targetId: receiptPath[3] }
+          : {}),
+      }));
     const observedOriginal =
       action.kind === "original" &&
       !value.needsStateCheck &&
@@ -243,6 +246,53 @@ export class PlatformWriting {
         matches.length === 1 ? [] : ["unique-public-submission-unconfirmed"],
     };
   }
+  private observedReceiptPath(action: any, observedReceipt: any): string[] {
+    const receiptPath = observedReceipt
+      ? xURL(action.observedPublicURL).pathname.split("/")
+      : [];
+    if (
+      observedReceipt &&
+      (receiptPath.length !== 4 ||
+        !sameHandle(receiptPath[1], action.accountHandle) ||
+        receiptPath[2] !== "status" ||
+        !/^[0-9]+$/.test(receiptPath[3]))
+    )
+      throw new Error("已观察回复回执须属于原账号");
+    return receiptPath;
+  }
+  private async readVisibleOriginalReceipt(
+    action: any,
+    receiptPath: string[],
+    receiptTarget: any,
+    matchesContent: (post: any) => boolean,
+  ) {
+    const observedReceipt =
+      action.observedPublicURL && action.observedPublicEvidenceRef;
+    const currentReceipt =
+      action.kind === "original" && observedReceipt
+        ? await this.#observed({
+            view: "posts",
+            targetId: receiptPath[3],
+            limit: 5,
+          })
+        : null;
+    const currentPath = currentReceipt?.page
+      ? xURL(currentReceipt.page).pathname.toLowerCase()
+      : "";
+    const reusableReceipt =
+      currentReceipt &&
+      !currentReceipt.needsStateCheck &&
+      !currentReceipt.alerts?.length &&
+      sameHandle(currentReceipt.accountHandle, action.accountHandle) &&
+      [
+        xURL(action.accountURL).pathname.toLowerCase(),
+        xURL(receiptTarget.url).pathname.toLowerCase(),
+      ].includes(currentPath) &&
+      currentReceipt.posts?.some(
+        (p: any) => p.id === receiptPath[3] && matchesContent(p),
+      );
+    return reusableReceipt ? currentReceipt : null;
+  }
   private async readCandidateDetail(
     value: any,
     url: string,
@@ -304,11 +354,49 @@ export class PlatformWriting {
     );
   }
   private async readQuotedReceipt(value: any, action: any, candidate: any) {
+    const card =
+      candidate.quoteCards?.length === 1 ? candidate.quoteCards[0] : null;
+    const expected = xURL(action.quoteTarget.url);
+    const identities = new Map<string, string>();
+    for (const link of card?.links ?? []) {
+      try {
+        const url = xURL(new URL(link, value.page).href);
+        const m = url.pathname.match(
+          /^\/([A-Za-z0-9_]{1,15})\/status\/(\d+)(?:\/photo\/\d+)?$/,
+        );
+        if (m) identities.set(m[2], `https://x.com/${m[1]}/status/${m[2]}`);
+      } catch {
+        /* Non-X links do not identify the quote card. */
+      }
+    }
+    const observedURL = identities.get(action.quoteTarget.postId);
+    if (
+      action.kind === "original" &&
+      card &&
+      identities.size === 1 &&
+      observedURL &&
+      observedURL.toLowerCase() === expected.href.toLowerCase() &&
+      sameHandle(card.author, expected.pathname.split("/")[1]) &&
+      Number.isFinite(Date.parse(card.datetime))
+    ) {
+      candidate.quoteSource = {
+        id: action.quoteTarget.postId,
+        url: observedURL,
+        author: card.author,
+        datetime: card.datetime,
+        parentId: candidate.id,
+        cardText: card.text,
+        binding: "observed-card-permalink",
+        bodyComplete: false,
+      };
+      return value;
+    }
     return this.#readPost({
       postId: candidate.id,
       url: new URL(candidate.primary, value.page).href,
       evidenceRef: { page: value.page, observedAt: value.observedAt },
       resolveQuote: true,
+      preferClientNavigation: action.kind === "original",
     });
   }
   private async readLoadedReplyReceipt(

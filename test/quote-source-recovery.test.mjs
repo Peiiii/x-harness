@@ -285,3 +285,152 @@ test("media quote uses its observed DOM body even when the receipt omits body", 
   assert.equal(bodyClicks, 0);
   assert.equal(cardClicks, 0);
 });
+
+for (const returnMode of ["exact", "profile"])
+  test("original quote client navigation activates the bound card and returns by exact history without goto", async () => {
+    const { DOMNavigation } = await import("../dist/browser-dom-navigation.js");
+    const own = "https://x.com/owner/status/10",
+      source = "https://x.com/source/status/20";
+    let url = own;
+    const calls = [];
+    const control = {
+      innerText: async () => card.text,
+      press: async (key) => {
+        assert.equal(key, "Enter");
+        calls.push("card");
+        url = source;
+      },
+      locator: (selector) =>
+        selector === 'a[href*="/status/"]'
+          ? {
+              count: async () => 1,
+              nth: () => ({
+                getAttribute: async () => "/source/status/20/photo/1",
+              }),
+            }
+          : {
+              filter() {
+                return this;
+              },
+              count: async () => 0,
+            },
+    };
+    const controls = {
+      filter() {
+        return this;
+      },
+      count: async () => 1,
+      nth: () => control,
+    };
+    const article = {
+      filter() {
+        return this;
+      },
+      locator: () => controls,
+      first() {
+        return this;
+      },
+      waitFor: async () => {},
+    };
+    const session = {
+      current: {
+        query: { view: "posts" },
+        result: {
+          page: own,
+          posts: [{ ...parent, primary: "/owner/status/10" }],
+        },
+      },
+    };
+    const nav = new DOMNavigation({
+      session,
+      observe: async () => ({}),
+      tab: {
+        url: async () => url,
+        goto: async () => {
+          calls.push("goto");
+        },
+        back: async () => {
+          calls.push("back");
+          url = returnMode === "exact" ? own : "https://x.com/owner";
+        },
+        playwright: {
+          getByRole: () => article,
+          locator: () => ({
+            filter() {
+              return this;
+            },
+            count: async () => 1,
+            click: async () => {
+              calls.push("receipt");
+              url = own;
+            },
+          }),
+          waitForURL: async (target) => assert.equal(url, target),
+        },
+      },
+    });
+    assert.equal(
+      (
+        await nav.openQuote({
+          postId: "10",
+          cardText: card.text,
+          preferClientNavigation: true,
+        })
+      ).url,
+      source,
+    );
+    await nav.openObserved({
+      url: own,
+      evidenceRef: "original-parent",
+      view: "posts",
+      preferObservedLink: true,
+    });
+    assert.deepEqual(
+      calls,
+      returnMode === "exact" ? ["card", "back"] : ["card", "back", "receipt"],
+    );
+  });
+
+test("a quote history return without its unique receipt link remains unknown without document navigation", async () => {
+  const { DOMNavigation } = await import("../dist/browser-dom-navigation.js");
+  let url = "https://x.com/source/status/20",
+    gotos = 0;
+  const nav = new DOMNavigation({
+    session: {
+      quoteClientReturn: {
+        parent: "https://x.com/owner/status/10",
+        source: url,
+      },
+    },
+    observe: async () => ({}),
+    tab: {
+      url: async () => url,
+      back: async () => {
+        url = "https://x.com/owner";
+      },
+      goto: async () => {
+        gotos++;
+      },
+      playwright: {
+        locator: () => ({
+          filter() {
+            return this;
+          },
+          count: async () => 0,
+        }),
+      },
+    },
+  });
+  await assert.rejects(
+    () =>
+      nav.openObserved({
+        url: "https://x.com/owner/status/10",
+        evidenceRef: "actual-parent",
+        view: "posts",
+        preferObservedLink: true,
+      }),
+    /quote-client-return-link-unavailable/,
+  );
+  assert.equal(gotos, 0);
+  assert.equal(url, "https://x.com/owner");
+});
