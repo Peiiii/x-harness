@@ -19,10 +19,15 @@ export interface XNetworkRecord {
   wallTime?: number;
   latencyMs?: number;
   occurredAt: string;
-  timeQuality: "request-wall-clock" | "derived-request-clock" | "capture-clock";
+  timeQuality:
+    | "request-wall-clock"
+    | "derived-request-clock"
+    | "capture-clock"
+    | "browser-wall-clock";
   observedAt: string;
   rateLimit?: NumericRates;
   canceled?: boolean;
+  fromCache?: boolean;
   errorText?: string;
 }
 type Pending = {

@@ -13,3 +13,6 @@ site/dist/
 .agents/ai-development-system.lock.json
 
 /SOURCE.md
+
+/observation-extension/network-events.js
+/observation-extension/BUILD.json

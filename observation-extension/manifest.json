@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "X Harness · 本地请求观测",
+  "version": "0.2.74",
+  "description": "被动记录 X API 请求、状态码和服务器额度；日志仅存本机，不修改或发送请求。",
+  "permissions": ["webRequest", "storage", "alarms"],
+  "host_permissions": ["https://x.com/*", "https://api.x.com/*"],
+  "background": {
+    "service_worker": "worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "查看 X 请求观测",
+    "default_popup": "dashboard.html"
+  },
+  "options_page": "dashboard.html",
+  "minimum_chrome_version": "102"
+}

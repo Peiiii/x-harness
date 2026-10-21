@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><title>X 本地请求观测</title
+  ><link rel="stylesheet" href="dashboard.css" />
+  <body>
+    <main>
+      <h1>X 请求观测</h1>
+      <p>被动记录 X API 元数据，日志只存本机。不发送或修改平台请求。</p>
+      <div class="actions">
+        <button id="start">开始 24 小时观测</button
+        ><button id="stop">停止采集</button
+        ><button id="refresh">刷新报告</button
+        ><button id="export">导出日志</button>
+      </div>
+      <p id="status" role="status">读取本地状态…</p>
+      <div id="totals"></div>
+      <table>
+        <thead>
+          <tr>
+            <th>接口</th>
+            <th>请求</th>
+            <th>响应</th>
+            <th>429</th>
+            <th>额度／剩余</th>
+            <th>复位时间</th>
+          </tr>
+        </thead>
+        <tbody id="endpoints"></tbody>
+      </table>
+      <h2>覆盖与异常</h2>
+      <pre id="coverage"></pre>
+      <p class="note">
+        范围：当前 Chrome 配置中的 x.com/i/api 与
+        api.x.com。其它配置、浏览器关闭时段及存储异常保留为未知；服务器额度按接口解读，不能跨标签页相加。
+      </p>
+    </main>
+    <script type="module" src="dashboard.js"></script>
+  </body>
+</html>

@@ -54,6 +54,8 @@ const paths = git(
   "src",
   "generated",
   "scripts/generate-observation.mjs",
+  "scripts/build-observation-extension.mjs",
+  "observation-extension",
   "tsconfig.json",
   "release/src",
   "release/tsconfig.json",
@@ -96,12 +98,22 @@ execFileSync(
   [join(clean, "scripts/generate-observation.mjs")],
   { stdio: "inherit" },
 );
+execFileSync(
+  process.execPath,
+  [join(clean, "scripts/build-observation-extension.mjs")],
+  { stdio: "inherit" },
+);
 rmSync(destination, { recursive: true, force: true });
 mkdirSync(destination, { recursive: true });
 for (const directory of ["dist", "generated", "skill"])
   cpSync(join(clean, directory), join(destination, directory), {
     recursive: true,
   });
+cpSync(
+  join(clean, ".local/observation-extension"),
+  join(destination, "observation-extension"),
+  { recursive: true },
+);
 mkdirSync(join(destination, "cli"));
 cpSync(join(clean, ".release-cli/main.js"), join(destination, "cli/main.js"));
 // Root npm pack also obtains a working bin through prepack.
@@ -123,6 +135,7 @@ publicManifest.files = [
   "README.md",
   "LICENSE",
   "SOURCE.md",
+  "observation-extension",
 ];
 publicManifest.gitHead = revision;
 writeFileSync(
@@ -133,7 +146,16 @@ writeFileSync(
   join(destination, "SOURCE.md"),
   `# Corresponding source\n\nVersion ${manifest.version}, commit ${revision}.\n\nComplete source, build scripts and dependencies: https://github.com/Peiiii/x-harness/tree/${revision}\n\nClone this revision, run npm ci, npm run bootstrap and npm run release:build.\n\nLicense: AGPL-3.0-only.\n`,
 );
+cpSync(
+  join(destination, "SOURCE.md"),
+  join(destination, "observation-extension/SOURCE.md"),
+);
 if (rootPack) {
+  cpSync(
+    join(destination, "observation-extension"),
+    join(repository, "observation-extension"),
+    { recursive: true },
+  );
   rmSync(join(repository, "dist"), { recursive: true, force: true });
   cpSync(join(destination, "dist"), join(repository, "dist"), {
     recursive: true,

@@ -1,0 +1,73 @@
+:root {
+  font:
+    15px/1.6 system-ui,
+    sans-serif;
+  color: #1b2733;
+  background: #f6f8fa;
+}
+body {
+  margin: 0;
+  min-width: 720px;
+}
+main {
+  max-width: 1200px;
+  margin: 32px auto;
+  padding: 24px;
+}
+h1 {
+  font-size: 28px;
+  margin: 0;
+}
+p {
+  color: #52616e;
+}
+.actions {
+  display: flex;
+  gap: 10px;
+  margin: 24px 0;
+}
+button {
+  padding: 10px 16px;
+  background: #fff;
+  border: 1px solid #cbd4dc;
+  border-radius: 7px;
+  cursor: pointer;
+}
+button:first-child {
+  background: #1d5bf0;
+  color: #fff;
+  border-color: #1d5bf0;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+#totals {
+  font-size: 20px;
+  margin: 20px 0;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  font-size: 13px;
+}
+th,
+td {
+  padding: 10px;
+  text-align: left;
+  border-bottom: 1px solid #e0e7ed;
+}
+td:first-child {
+  max-width: 470px;
+  overflow-wrap: anywhere;
+}
+pre {
+  white-space: pre-wrap;
+  background: #fff;
+  padding: 16px;
+  font-size: 12px;
+}
+.note {
+  font-size: 12px;
+}

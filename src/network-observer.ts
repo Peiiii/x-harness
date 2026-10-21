@@ -64,6 +64,10 @@ export class XNetworkObserver {
   }
   async start({ automatic = true }: { automatic?: boolean } = {}) {
     if (this.#running) return this.status();
+    if (automatic && typeof process === "undefined")
+      throw new Error(
+        "continuous-observation-requires-background-capable-host",
+      );
     const repairedBytes = await this.#journal.acquire();
     try {
       const previous = await this.#journal.loadCheckpoint();

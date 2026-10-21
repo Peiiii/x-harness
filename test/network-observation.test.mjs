@@ -558,3 +558,17 @@ test("external stop intent targets only its actual owning run and releases clean
   await a.poll();
   assert.equal(a.status().running, false);
 });
+
+test("a process-free host refuses unsupported unattended CDP polling before claiming files", async (t) => {
+  const { spawnSync } = await import("node:child_process");
+  const p = await directory(t);
+  const moduleURL = new URL("../dist/diagnostics.js", import.meta.url).href;
+  const script = `globalThis.process=undefined;const {XNetworkObserver}=await import(${JSON.stringify(moduleURL)});const o=new XNetworkObserver({directory:${JSON.stringify(p)},context:'no-background',lockMode:'darwin-advisory',listTabs:async()=>[],getTab:async()=>{}});try{await o.start();throw Error('Unsupported background polling was accepted');}catch(e){if(e.message!=='continuous-observation-requires-background-capable-host')throw e;}`;
+  const result = spawnSync(
+    process.execPath,
+    ["--input-type=module", "-e", script],
+    { encoding: "utf8" },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal((await readdir(p)).length, 0);
+});

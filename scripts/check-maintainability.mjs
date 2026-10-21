@@ -132,9 +132,14 @@ export function checkCycles(graph) {
   return findings;
 }
 export function checkPackage() {
-  const files = ["src", "test", "scripts", "release", "generated"].flatMap(
-    (name) => codeFiles(resolve(packageRoot, name)),
-  );
+  const files = [
+    "src",
+    "test",
+    "scripts",
+    "release",
+    "generated",
+    "observation-extension",
+  ].flatMap((name) => codeFiles(resolve(packageRoot, name)));
   files.push(
     ...codeFiles(resolve(packageRoot, "site/src")),
     ...["build.mjs", "deploy.mjs"].map((name) =>

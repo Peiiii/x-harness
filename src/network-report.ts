@@ -44,10 +44,12 @@ export async function readXNetworkReport(
   const countedSources = new Set<string>();
   const totals = counts(),
     gaps: any[] = [];
+  let nativeCapture = false;
   let duplicates = 0,
     malformedLines = 0,
     unmatchedFailures = 0,
     captureClockEvents = 0,
+    cachedResponses = 0,
     firstBatchAt: string | undefined,
     lastBatchAt: string | undefined;
   const files = (await readdir(directory))
@@ -70,6 +72,7 @@ export async function readXNetworkReport(
         malformedLines++;
         continue;
       }
+      if (batch.transport === "chrome-webRequest") nativeCapture = true;
       const batchTime = Date.parse(batch.observedAt);
       if (batchTime >= lower && batchTime < upper) {
         firstBatchAt =
@@ -106,6 +109,8 @@ export async function readXNetworkReport(
           }
           seen.add(r.eventId);
           if (r.timeQuality === "capture-clock") captureClockEvents++;
+          if (r.method === "Network.responseReceived" && r.fromCache)
+            cachedResponses++;
           increment(totals, r);
           const tab = tabs.get(source.tabId) ?? counts();
           increment(tab, r);
@@ -156,14 +161,16 @@ export async function readXNetworkReport(
       duplicateEventsIgnored: duplicates,
       unmatchedFailures,
       captureClockEvents,
+      cachedResponses,
       fullAccountCoverageProven: false,
       healthAgeMs,
       degraded: health?.degraded ?? true,
       stale:
         healthAgeMs === null ||
         healthAgeMs > Math.max(10_000, (health?.intervalMs ?? 2000) * 3),
-      source:
-        "Attached main-tab X HTTP API protocol events; other profiles, unobserved worker targets and pre-attachment traffic are not measured.",
+      source: nativeCapture
+        ? "Approved Chrome-profile X API webRequest events; other profiles and pre-capture intervals are not measured. Browser request events are not guaranteed server-billed requests."
+        : "Attached main-tab X HTTP API protocol events; other profiles, unobserved worker targets and pre-attachment traffic are not measured.",
       interpretation:
         "Counts are observed lower bounds when coverage is missing. Header windows are server evidence, not inferred global account limits.",
     },
@@ -221,5 +228,10 @@ function updateEndpoint(endpoint: any, r: XNetworkRecord) {
     endpoint.statuses[r.status] = (endpoint.statuses[r.status] ?? 0) + 1;
   if (r.method === "Network.responseReceived" && !r.rateLimit)
     endpoint.missingRateResponses++;
-  if (r.rateLimit) updateRate(endpoint, r);
+  if (
+    r.rateLimit &&
+    !r.fromCache &&
+    (r.timeQuality !== "browser-wall-clock" || r.fromCache === false)
+  )
+    updateRate(endpoint, r);
 }
