@@ -131,6 +131,7 @@ export class ReplyDiscovery {
         query,
         resume: lastQuery === query,
         processedIds: [...examined, ...excluded.ids],
+        excludedHandles: [...excluded.authors, ...authors],
         limit: 5,
         maxPages: 10,
         mode: "decision" as const,

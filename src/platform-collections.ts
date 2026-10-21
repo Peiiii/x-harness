@@ -55,12 +55,15 @@ export class PlatformCollections {
   }
   private async handleCollectSources({
     processedIds = [],
+    excludedHandles = [],
     maxPages = 3,
     limit = 1,
     resume = false,
   }: any = {}): Promise<any> {
     this.validateSourceWindow(processedIds, maxPages, limit);
+    const excluded = this.sourceExclusions(excludedHandles);
     const seen = new Set(processedIds),
+      excludedSourceIds: string[] = [],
       sources: any[] = [],
       missing: any[] = [];
     let last: any,
@@ -114,6 +117,8 @@ export class PlatformCollections {
       for (const candidate of last.posts ?? []) {
         if (!candidate.id || seen.has(candidate.id)) continue;
         seen.add(candidate.id);
+        if (this.sourceExcluded(candidate, excluded, excludedSourceIds))
+          continue;
         let post = candidate;
         if (candidate.needsExpansion) {
           const expanded = await this.expandSource(candidate, last, offset);
@@ -185,6 +190,7 @@ export class PlatformCollections {
       observedAt: last?.observedAt,
       fresh: true,
       sources,
+      excludedSourceIds,
       complete: sources.length >= limit,
       pageComplete: false,
       ...(last?.paginationBoundary
@@ -195,6 +201,33 @@ export class PlatformCollections {
           ? []
           : [...new Set([...missing, "bounded-source-window-exhausted"])],
     };
+  }
+  private sourceExcluded(
+    candidate: any,
+    excluded: Set<string>,
+    ids: string[],
+  ): boolean {
+    const handle = String(candidate.author ?? "")
+      .replace(/^@/, "")
+      .toLowerCase();
+    if (!excluded.has(handle)) return false;
+    ids.push(candidate.id);
+    return true;
+  }
+  private sourceExclusions(excludedHandles: unknown): Set<string> {
+    if (
+      !Array.isArray(excludedHandles) ||
+      excludedHandles.some(
+        (handle: unknown) =>
+          typeof handle !== "string" || !/^@?[A-Za-z0-9_]{1,15}$/.test(handle),
+      )
+    )
+      throw new Error("source-excluded-handles-invalid");
+    return new Set(
+      excludedHandles.map((handle: string) =>
+        handle.replace(/^@/, "").toLowerCase(),
+      ),
+    );
   }
   private isSourceControlFailure(error: unknown) {
     if (!(error instanceof Error)) return false;
@@ -708,6 +741,7 @@ export class PlatformCollections {
     limit = 3,
     maxPages = 1,
     processedIds = [],
+    excludedHandles = [],
     resume = false,
   }: any = {}): Promise<any> {
     if (resume) {
@@ -730,6 +764,8 @@ export class PlatformCollections {
       limit,
       maxPages,
       processedIds,
+      excludedHandles,
+      resume,
     });
     if (
       !value.page ||
@@ -775,6 +811,7 @@ export class PlatformCollections {
       limit = 3,
       maxPages = 1,
       processedIds = [],
+      excludedHandles = [],
     }: import("./types.js").ExploreRecommendationOptions = {},
     surface: "explore" | "home" = "explore",
   ): Promise<any> {
@@ -825,6 +862,7 @@ export class PlatformCollections {
         limit,
         maxPages,
         processedIds,
+        excludedHandles,
       });
       const sameExplorePage = page(diagnosticRead.page);
       return {
@@ -905,6 +943,7 @@ export class PlatformCollections {
       limit,
       maxPages,
       processedIds,
+      excludedHandles,
     });
     if (!page(value.page))
       return {
