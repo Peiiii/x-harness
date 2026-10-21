@@ -17,6 +17,7 @@ export interface XNetworkObserverOptions {
   discoverMs?: number;
   durationMs?: number;
   clock?: () => number;
+  lockMode?: "pid" | "darwin-advisory";
 }
 type Source = {
   tabId: string;
@@ -56,7 +57,7 @@ export class XNetworkObserver {
       if (!Number.isFinite(value) || value < minimum)
         throw new Error(`invalid-observer-${name}`);
     this.#options = options;
-    this.#journal = new XNetworkJournal(options.directory);
+    this.#journal = new XNetworkJournal(options.directory, options.lockMode);
   }
   #now() {
     return (this.#options.clock ?? Date.now)();
@@ -118,7 +119,8 @@ export class XNetworkObserver {
       degraded:
         !!this.#lastError ||
         [...this.#sources.values()].some((s) => s.active && s.failures > 0),
-      pid: process.pid,
+      pid: typeof process === "undefined" ? null : process.pid,
+      lockMode: this.#options.lockMode ?? "pid",
       startedAt: new Date(this.#startedAt).toISOString(),
       stopAt: new Date(this.#deadline).toISOString(),
       checkedAt: new Date(now).toISOString(),
@@ -293,6 +295,7 @@ export class XNetworkObserver {
           to: new Date(now).toISOString(),
           lostEvents: null,
         });
+      if (await this.#journal.stopRequested(this.#runId)) this.#deadline = now;
       await this.#discover(now);
       const sources = [];
       for (const source of this.#sources.values()) {

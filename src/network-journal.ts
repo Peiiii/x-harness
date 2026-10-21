@@ -1,3 +1,4 @@
+import { constants } from "node:fs";
 import {
   mkdir,
   open,
@@ -19,13 +20,20 @@ export class XNetworkJournal {
   readonly directory: string;
   readonly token = randomUUID();
   #owned = false;
-  constructor(directory: string) {
+  #lockHandle?: Awaited<ReturnType<typeof open>>;
+  #lockMode: "pid" | "darwin-advisory";
+  constructor(directory: string, lockMode: "pid" | "darwin-advisory" = "pid") {
     this.directory = directory;
+    this.#lockMode = lockMode;
   }
 
   async acquire() {
     await mkdir(this.directory, { recursive: true, mode: 0o700 });
     const path = join(this.directory, "writer.lock");
+    if (this.#lockMode === "darwin-advisory")
+      return this.#acquireAdvisory(path);
+    if (typeof process === "undefined")
+      throw new Error("sandbox-requires-advisory-lock");
     let handle;
     try {
       handle = await open(path, "wx", 0o600);
@@ -46,6 +54,46 @@ export class XNetworkJournal {
       return await this.#repairTail();
     } catch (error) {
       await this.release();
+      throw error;
+    }
+  }
+  async #acquireAdvisory(path: string) {
+    // Darwin open(2) O_EXLOCK. Keep this inode and descriptor for the entire lease.
+    if (constants.O_NONBLOCK !== 4)
+      throw new Error("darwin-advisory-lock-unavailable");
+    let handle;
+    try {
+      handle = await open(
+        path,
+        constants.O_CREAT | constants.O_RDWR | constants.O_NONBLOCK | 0x20,
+        0o600,
+      );
+    } catch (error: any) {
+      if (["EAGAIN", "EWOULDBLOCK"].includes(error.code))
+        throw new Error("observer-writer-already-running");
+      throw error;
+    }
+    try {
+      const text = await handle.readFile("utf8");
+      if (text && JSON.parse(text).lockMode !== "darwin-advisory")
+        throw new Error("observer-lock-mode-migration-required");
+      const content = Buffer.from(
+        JSON.stringify({
+          lockMode: "darwin-advisory",
+          pid: typeof process === "undefined" ? null : process.pid,
+          token: this.token,
+        }),
+      );
+      await handle.write(content, 0, content.length, 0);
+      await handle.truncate(content.length);
+      await handle.sync();
+      this.#lockHandle = handle;
+      this.#owned = true;
+      return await this.#repairTail();
+    } catch (error) {
+      this.#owned = false;
+      this.#lockHandle = undefined;
+      await handle.close();
       throw error;
     }
   }
@@ -111,6 +159,21 @@ export class XNetworkJournal {
     await truncate(path, keep);
     return size - keep;
   }
+  async stopRequested(runId: string) {
+    try {
+      const control = JSON.parse(
+        await readFile(join(this.directory, "control.json"), "utf8"),
+      );
+      return (
+        control.schema === "x-network-control/v1" &&
+        control.runId === runId &&
+        control.stop === true
+      );
+    } catch (error: any) {
+      if (error.code !== "ENOENT") throw error;
+      return false;
+    }
+  }
   async loadCheckpoint(): Promise<any | undefined> {
     try {
       const state = JSON.parse(
@@ -153,7 +216,10 @@ export class XNetworkJournal {
   async release() {
     if (!this.#owned) return;
     await this.#assertOwner();
-    await unlink(join(this.directory, "writer.lock"));
+    if (this.#lockHandle) {
+      await this.#lockHandle.close();
+      this.#lockHandle = undefined;
+    } else await unlink(join(this.directory, "writer.lock"));
     this.#owned = false;
   }
 }

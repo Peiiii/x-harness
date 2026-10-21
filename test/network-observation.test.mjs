@@ -468,3 +468,93 @@ test("health records actual flush completion rather than poll start time", async
   assert.equal(a.status().lastFlushAt, new Date(at + 500).toISOString());
   await a.stop();
 });
+
+test(
+  "Darwin advisory lease rejects another open and reopens the same inode after release",
+  { skip: process.platform !== "darwin" },
+  async (t) => {
+    const p = await directory(t),
+      a = new XNetworkJournal(p, "darwin-advisory"),
+      b = new XNetworkJournal(p, "darwin-advisory");
+    await a.acquire();
+    await assert.rejects(() => b.acquire(), /already-running/);
+    await a.release();
+    await b.acquire();
+    await b.release();
+    const lock = JSON.parse(await readFile(join(p, "writer.lock"), "utf8"));
+    assert.equal(lock.lockMode, "darwin-advisory");
+  },
+);
+test(
+  "Darwin kernel releases an advisory lease on abrupt writer process death",
+  { skip: process.platform !== "darwin" },
+  async (t) => {
+    const { spawn } = await import("node:child_process");
+    const { once } = await import("node:events");
+    const p = await directory(t);
+    const moduleURL = new URL("../dist/network-journal.js", import.meta.url)
+      .href;
+    const child = spawn(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `import {XNetworkJournal} from ${JSON.stringify(moduleURL)};const journal=new XNetworkJournal(${JSON.stringify(p)},'darwin-advisory');await journal.acquire();console.log('ready');setInterval(()=>{},1000);`,
+      ],
+      { stdio: ["ignore", "pipe", "pipe"] },
+    );
+    t.after(() => {
+      if (child.exitCode === null) child.kill("SIGKILL");
+    });
+    await once(child.stdout, "data");
+    const replacement = new XNetworkJournal(p, "darwin-advisory");
+    await assert.rejects(() => replacement.acquire(), /already-running/);
+    child.kill("SIGKILL");
+    await once(child, "exit");
+    await replacement.acquire();
+    await replacement.release();
+  },
+);
+test(
+  "sandbox process-free observer uses advisory locking without global process",
+  { skip: process.platform !== "darwin" },
+  async (t) => {
+    const { spawnSync } = await import("node:child_process");
+    const p = await directory(t);
+    const moduleURL = new URL("../dist/diagnostics.js", import.meta.url).href;
+    const code = `const original=process;globalThis.process=undefined;const {XNetworkObserver}=await import(${JSON.stringify(moduleURL)});const o=new XNetworkObserver({directory:${JSON.stringify(p)},context:'sandbox-test',lockMode:'darwin-advisory',listTabs:async()=>[],getTab:async()=>{throw Error('Unexpected browser access');}});await o.start({automatic:false});if(o.status().pid!==null)throw Error('PID was fabricated');await o.stop();`;
+    const child = spawnSync(
+      process.execPath,
+      ["--input-type=module", "-e", code],
+      { encoding: "utf8" },
+    );
+    assert.equal(child.status, 0, child.stderr);
+  },
+);
+
+test("external stop intent targets only its actual owning run and releases cleanly", async (t) => {
+  const p = await directory(t),
+    f = fixture(p),
+    a = new XNetworkObserver(f.opts);
+  await a.start({ automatic: false });
+  await writeFile(
+    join(p, "control.json"),
+    JSON.stringify({
+      schema: "x-network-control/v1",
+      runId: "some-other-run",
+      stop: true,
+    }),
+  );
+  await a.poll();
+  assert.equal(a.status().running, true);
+  await writeFile(
+    join(p, "control.json"),
+    JSON.stringify({
+      schema: "x-network-control/v1",
+      runId: a.status().runId,
+      stop: true,
+    }),
+  );
+  await a.poll();
+  assert.equal(a.status().running, false);
+});

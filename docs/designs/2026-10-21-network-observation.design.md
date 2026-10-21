@@ -33,3 +33,9 @@ Active IDs live in the consumer acceptance contract. Synthetic exact-count fixtu
 ## Scope and review
 
 Risk L3: persistence, long-running runtime and data integrity. flow standard, stable design required, plan required through the active acceptance record. Retrospective pending. Design review: passed after checking that health/recovery, full successful response metadata and day-boundary evidence are explicit. Existing business actions and limits are not changed. Running source checkout has unrelated WIP; all SDK edits use an isolated worktree from current origin/main. Source changes are precisely committed and ordinarily pushed; verified local artifact can be adopted before any applicable consolidated npm release. Actual runtime adoption and one-day analysis are separately recorded.
+
+## Real-host correction and review
+
+The actual CUA sandbox rejects node:process and provides no global process. Initial0.2.72 adoption failed before browser discovery. The validated macOS consumer therefore uses a Darwin advisory file lease (open2 O_EXLOCK|O_NONBLOCK), with a held descriptor and persistent inode. It needs no process access and cannot steal a live lease; kernel release on abrupt process death is tested. Normal Node hosts retain the PID mode, with serialized dead-writer recovery. Lock modes cannot be mixed in a directory. Health exposes null PID rather than guessing. This is an actual host boundary, not a reason to relax ownership or bypass the denied module. SDK options, journal acquisition/release, health, installed guide, consumer bootstrap and host tests propagate the new lock mode. Real sandbox start/stop without any browser calls passed before final capture adoption.
+
+Protocol reference: https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/open.2.html . Design review rerun for lock lifecycle and crash boundaries: passed.

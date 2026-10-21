@@ -9,6 +9,7 @@ var { XNetworkObserver, readXNetworkReport } = await import('@nextclaw/x-harness
 var observer = new XNetworkObserver({
   directory: './.local/x-network',
   context: 'selected-browser',
+  lockMode: 'darwin-advisory', // validated macOS CUA host; no process global required
   listTabs: () => browser.tabs.list(),
   getTab: id => browser.tabs.get(id),
 });
@@ -19,7 +20,7 @@ await readXNetworkReport('./.local/x-network');
 // To finish early: await observer.stop();
 ```
 
-Defaults: sample every2s, discover every15s, stop after24h. These are local capture intervals, not platform request rates. `intervalMs`, `discoverMs`, `durationMs` are explicit options. Only one writer may own a directory. An observer has to run in the host that owns the real CUA handles; a shell or a scheduler cannot reconstruct those handles. A host restart needs a new observer in a browser-enabled runtime using the same directory/context. It resumes checkpointed cursors and source epochs, retains original unfinished deadline, and records the interruption. A still-living writer is never stolen because its heartbeat is old.
+Defaults: sample every2s, discover every15s, stop after24h. These are local capture intervals, not platform request rates. `intervalMs`, `discoverMs`, `durationMs` are explicit options. Only one writer may own a directory. The validated macOS CUA host uses `lockMode: 'darwin-advisory'`: Darwin O_EXLOCK holds a persistent file inode until stop/process exit; never delete that lock file. Node hosts may use the default PID lease. Do not mix modes in one directory. An observer has to run in the host that owns the real CUA handles; a shell or a scheduler cannot reconstruct those handles. A host restart needs a new observer in a browser-enabled runtime using the same directory/context. It resumes checkpointed cursors and source epochs, retains original unfinished deadline, and records the interruption. A still-living writer is never stolen because its heartbeat is old. A Darwin lease is released by the kernel on process death even when the sandbox exposes no PID.
 
 The local directory contains Shanghai-date JSONL files, an atomic checkpoint and health.json. Successful and failed response quota headers are retained. Reports replay distinct event IDs, so a crash after append but before checkpoint does not inflate totals. Requests, responses, redirects and failures remain separate; websocket messages, resource counts and DOM reads are not HTTP API request counts. GraphQL query hashes are normalized only in endpoint aggregates. Query strings, cookies, bodies, arbitrary errors and unrelated domains are never journaled.
 
