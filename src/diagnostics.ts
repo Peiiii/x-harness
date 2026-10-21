@@ -17,3 +17,7 @@ export { checkRound, readRound, runRoundCLI } from "./round-state.js";
 export { readCreatorMeta, readCreatorPostExtras } from "./creator.js";
 
 export type { BoundaryRecord } from "./boundary.js";
+export { XNetworkObserver } from "./network-observer.js";
+export { readXNetworkReport } from "./network-report.js";
+export type { XNetworkObserverOptions } from "./network-observer.js";
+export type { XNetworkRecord, NumericRates } from "./network-events.js";

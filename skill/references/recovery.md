@@ -27,3 +27,6 @@ Naming failure does not prove logout. Try one supported alternative: real Chrome
 ## Repair boundary
 
 Unresolved defects/gaps: maintainers repair/verify the owner, return to root. Consumers report gap/update/support, without source. No argument scans/parsers, refusal bypass or unknown resend.
+
+
+Passive request evidence: [observation](network-observation.md).
