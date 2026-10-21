@@ -32,6 +32,8 @@ Existing public people-window options (same maintenance scope): expose the alrea
 
 ## 待办
 
+2026-10-21 PROFILE-UNAVAILABLE-READINESS：DOMNavigation 在主栏已显示不可用资料且 UserName 不可见时，先鲜核原路由/告警，再返回 profile-content-unavailable；不把普通空时间线当不可用，不创建关注意图或成功。8条修前反例、42项定向/705项全量、类型/合同/构建/格式/维护检查与真实原对象读取通过，正常资料仍完整。受检本地构建已采用，源码变更见 profile-unavailable-readiness 设计；待下一同模块集中发布，不单独 npm。
+
 2026-10-16 Creator窄窗口修复：`collectCreatorDOM` 的固定滚动点可能超出真实视口，阻断批量采集。bugfix / L1，skip-design：单owner只读几何修正，不改API、写入、状态或资格门；每次滚动前从当前视口取内部坐标，窗口缩窄后重新取值，不调整用户窗口。两条窄窗口/中途缩窄反例修前失败、修后通过，Creator共16项及TypeScript/build通过，diff review无finding。真实根入口在窄窗口读取50帖成功；首次导航加载未确认仍沿原有界恢复，50帖不是完整历史。回归测试与本段为复盘落点，本地采用，待同模块集中发布，不单独npm。
 
 每项保留日期、实际问题/原owner、影响与延期理由、处理触发、验证条件、状态与完成引用；缺证据不造问题。
