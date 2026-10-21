@@ -352,3 +352,27 @@ export function latestNormalInteractionTime(state: any): number {
     0,
   );
 }
+
+/** Shared policy; absent/expired configuration preserves the original cadence. */
+export function normalInteractionIntervalMs(
+  state: any,
+  now: number,
+  evidenceExists: (ref: string) => boolean,
+): number {
+  const pacing = state.interactionPacing;
+  if (!pacing) return 30000;
+  if (
+    !Number.isInteger(pacing.minimumIntervalMs) ||
+    pacing.minimumIntervalMs < 0 ||
+    !Number.isFinite(Date.parse(pacing.notBefore)) ||
+    !Number.isFinite(Date.parse(pacing.notAfter)) ||
+    Date.parse(pacing.notAfter) <= Date.parse(pacing.notBefore) ||
+    typeof pacing.evidenceRef !== "string" ||
+    !evidenceExists(pacing.evidenceRef)
+  )
+    throw new Error("normal-interaction-pacing-invalid");
+  return now >= Date.parse(pacing.notBefore) &&
+    now < Date.parse(pacing.notAfter)
+    ? pacing.minimumIntervalMs
+    : 30000;
+}

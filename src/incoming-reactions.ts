@@ -1,6 +1,7 @@
 import {
   executorWindowAllowed,
   latestNormalInteractionTime,
+  normalInteractionIntervalMs,
 } from "./growth-policy.js";
 import type { BusinessDependencies } from "./api.js";
 import type { IncomingLikeOptions, IncomingLikeResult } from "./types.js";
@@ -161,11 +162,14 @@ export class IncomingReactions {
         }),
       };
     const latest = latestNormalInteractionTime(snapshot.state);
-    if (latest && now - latest < 30000)
+    const interval = normalInteractionIntervalMs(snapshot.state, now, (ref) =>
+      store.evidenceExists(ref),
+    );
+    if (latest && now - latest < interval)
       return {
         status: "waiting",
         reason: "like-pacing",
-        resumeAt: new Date(latest + 30000).toISOString(),
+        resumeAt: new Date(latest + interval).toISOString(),
       };
     let intent = false;
     try {
@@ -184,7 +188,12 @@ export class IncomingReactions {
             )
               throw Error("like-intent-conflict");
             const latest = latestNormalInteractionTime(s.state);
-            const recent = latest && this.#clock() - latest < 30000;
+            const recent =
+              latest &&
+              this.#clock() - latest <
+                normalInteractionIntervalMs(s.state, this.#clock(), (ref) =>
+                  store.evidenceExists(ref),
+                );
             if (recent) throw Error("like-pacing");
             s.state.reactions.push({
               postId: target.postId,

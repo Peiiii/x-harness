@@ -1,4 +1,7 @@
-import { latestNormalInteractionTime } from "./growth-policy.js";
+import {
+  latestNormalInteractionTime,
+  normalInteractionIntervalMs,
+} from "./growth-policy.js";
 import { OriginalPostCadence } from "./original-post-cadence.js";
 import { actionableForExecutor } from "./executor-actionability.js";
 import type { BoundaryRecord } from "./boundary.js";
@@ -113,14 +116,19 @@ export class GrowthExecution {
     if (cadence) return { snapshot, need: cadence };
     if (action.kind === "reply" && action.conversation) {
       const recent = latestNormalInteractionTime(state);
-      if (recent && this.#clock() < recent + 30000)
+      const interval = normalInteractionIntervalMs(
+        state,
+        this.#clock(),
+        this.#evidenceExists,
+      );
+      if (recent && this.#clock() < recent + interval)
         return {
           snapshot,
           need: {
             status: "waiting",
             actionId: action.id,
             reason: "incoming-interaction-pacing",
-            resumeAt: new Date(recent + 30000).toISOString(),
+            resumeAt: new Date(recent + interval).toISOString(),
           },
         };
     }

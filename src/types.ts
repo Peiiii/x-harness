@@ -114,6 +114,7 @@ export interface SourceOriginEvidence {
   selectedTab: "为你推荐" | "For you";
 }
 export interface ReadResult {
+  excludedSourceIds?: string[];
   status: "observed" | "needsDecision" | "needsCapability";
   fresh?: boolean;
   complete?: boolean;
@@ -203,6 +204,8 @@ export interface PeopleOptions {
   mode?: ReadMode;
 }
 export interface WindowOptions {
+  /** Skip known authors before expanding source cards. Does not approve other sources. */
+  excludedHandles?: string[];
   mode?: ReadMode;
   limit?: number;
   maxPages?: number;

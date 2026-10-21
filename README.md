@@ -34,6 +34,11 @@ const result = await x.readCreator({
 ```
 
 Read APIs: `readCreator`, `readBookmarks`, `searchSources`, `readPost`, `readPerson`, `readFeedback`, `inspectAccount`, `inspectRound`.
+
+Source windows accept `excludedHandles`: known authors are skipped before card expansion and do not consume the requested result capacity. Search continuation retains its confirmed cursor. This is discovery filtering, not semantic approval or write authorization.
+
+Normal reply and incoming-like pacing defaults to 30 seconds. An original ledger may carry an explicitly authorized `interactionPacing` policy with `minimumIntervalMs`, `notBefore`, exclusive `notAfter`, and an existing `evidenceRef`. An expired policy restores the default; malformed or unproved policies fail closed. Thread-like pacing and actual platform refusals remain independent. This configuration does not promise any throughput.
+
 Bulk list audit: `readFollowbackAudit` saves deduplicated relationship lists and resumable coverage evidence. Followback direction reads unfiltered followers; unmatched profile counts remain incomplete. See [the API reference](skill/references/followback-audit.md). `followBatch` optionally persists bounded random intent gaps, while retaining all original budget, refusal and unknown guards.
 
 Write APIs: `publishPost`, `replyToPost`, `followOne`, `followBatch`, `runGrowthRound`, `likePostAndComments`.
