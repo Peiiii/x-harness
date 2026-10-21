@@ -1,3 +1,4 @@
+import { XUsageJournal } from "./usage.js";
 import { createBusinessHarness } from "./api.js";
 import { AccountScreenshots } from "./account-screenshots.js";
 import { createFileRoundStore } from "./store.js";
@@ -13,9 +14,14 @@ export function bindXGrowthHarness(options: HarnessOptions): XGrowthHarness {
     throw new Error("需原台账路径与本地证明目录");
   if (executor && (!tab || !tab.id))
     throw new Error("executor-requires-independent-tab");
-  const browser = tab ? createDOMXBrowser(tab) : createNativeXBrowser(app);
+  const usage = new XUsageJournal(proofDirectory);
+  const browser = usage.wrap(
+    tab ? createDOMXBrowser(tab) : createNativeXBrowser(app),
+    "browser",
+    ["observe", "act", "collectCreator", "screenshot"],
+  );
   const store = createFileRoundStore({ ledgerPath, proofDirectory });
-  return createBusinessHarness({
+  const harness = createBusinessHarness({
     platform: createXPlatform(browser, { clock }),
     store,
     screenshots: tab
@@ -24,4 +30,8 @@ export function bindXGrowthHarness(options: HarnessOptions): XGrowthHarness {
     clock,
     executor: executor ? { ...executor, tabId: tab!.id } : undefined,
   });
+  Object.defineProperty(harness, "usageStatus", {
+    value: () => usage.status(),
+  });
+  return usage.wrap(harness, "harness");
 }

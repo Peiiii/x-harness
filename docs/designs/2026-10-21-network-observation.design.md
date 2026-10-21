@@ -1,3 +1,7 @@
+# Adopted scope correction: Harness call-frequency evidence
+
+User explicitly rejected additional installation and accepted Harness-layer frequency proxies. Normal binding now owns local public-call and browser-command records; no background task or extra X request. See skill/references/usage-observation.md. Earlier full-network work below is historical optional capability, not an adoption prerequisite. Native extension was not installed.
+
 # X network observation — 2026-10-21
 
 ## User result and evidence

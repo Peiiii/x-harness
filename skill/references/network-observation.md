@@ -1,6 +1,8 @@
 # Request observation
 
-## Continuous capture in Codex CUA
+For operational intensity and efficiency decisions, start with [built-in Harness call logs](usage-observation.md). They need no extension or background collector. The following full-network mechanisms are optional diagnostics, not prerequisites.
+
+## Optional full-network capture in Codex CUA
 
 Use the packaged `observation-extension/` MV3 extension, or `npm run extension:build` from source. Review manifest permissions before installation; adding site access requires explicit approval. It observes only X API routes through webRequest, stores sanitized events and counters transactionally in local IndexedDB, and uses local alarms for health. It sends no requests and changes no traffic. The dashboard starts a finite24h run, stops it, shows quotas/gaps and exports local JSON. `importNativeXNetworkExport(inputPath,directory)` from diagnostics converts the export for `readXNetworkReport`. Browser request events include cached responses; cache markers prevent treating old cached quota headers as current server budget. Other profiles and browser-off intervals are not claimed complete.
 

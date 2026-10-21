@@ -22,3 +22,6 @@ export { readXNetworkReport } from "./network-report.js";
 export type { XNetworkObserverOptions } from "./network-observer.js";
 export type { XNetworkRecord, NumericRates } from "./network-events.js";
 export { importNativeXNetworkExport } from "./network-native-export.js";
+
+export { readXUsageReport } from "./usage.js";
+export type { XUsageStatus } from "./usage.js";

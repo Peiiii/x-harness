@@ -703,6 +703,7 @@ export interface ReplyBatchResult {
   interactionEvidenceRef?: EvidenceRef;
 }
 export interface XGrowthHarness {
+  usageStatus?(): import("./usage.js").XUsageStatus;
   pinPost?(
     args: import("./profile-pin.js").PinOptions,
   ): Promise<import("./profile-pin.js").PinResult>;
