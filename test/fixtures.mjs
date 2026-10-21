@@ -107,6 +107,7 @@ export function fixture(
     writes = [],
     commands = [],
     observations = [];
+  let accountHandle = "Pei";
   function browserForTab() {
     let page = "https://x.com/Pei",
       editorText = "",
@@ -118,6 +119,9 @@ export function fixture(
       wrongReply: false,
       alerts: [],
       readsFail: false,
+      setAccountHandle(value) {
+        accountHandle = value;
+      },
       capabilities() {
         return this.missing;
       },
@@ -129,8 +133,8 @@ export function fixture(
           page,
           needsStateCheck: false,
           alerts: this.alerts,
-          accountHandle: "Pei",
-          accountURL: "https://x.com/Pei",
+          accountHandle,
+          accountURL: `https://x.com/${accountHandle}`,
         };
         if (query.view === "person")
           return {

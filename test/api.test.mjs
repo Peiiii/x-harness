@@ -218,7 +218,19 @@ test("single reply adopts reviewed action, binds public parent and returns one-i
   const f = fixture(t, { planned: [0, 0, 1], actionKinds: ["reply"] }),
     action = f.read().actions[0];
   f.edit((s) => (s.actions = []));
-  const out = await business(f).replyToPost({
+  const platform = createXPlatform(f.browser, { clock: () => NOW });
+  let accountReads = 0;
+  const readAccount = platform.readAccount.bind(platform);
+  platform.readAccount = async () => {
+    accountReads++;
+    return readAccount();
+  };
+  const api = createBusinessHarness({
+    platform,
+    store: f.store,
+    clock: () => NOW,
+  });
+  const out = await api.replyToPost({
     taskId: "round-1",
     postId: action.postId,
     text: action.text,
@@ -227,6 +239,11 @@ test("single reply adopts reviewed action, binds public parent and returns one-i
   assert.equal(out.status, "verified", JSON.stringify(out));
   assert.equal(f.posts.at(-1).replyToId, "123");
   assert.equal(f.writes.length, 1);
+  assert.equal(
+    accountReads,
+    0,
+    "reply baseline carries the fresh account identity",
+  );
   small(out);
   assert.equal(out.actual, undefined);
 });
@@ -255,6 +272,18 @@ test("followBatch adopts five reviewed targets and owns full serial submission/r
     planned: [5, 0, 0],
     actionKinds: Array(5).fill("follow"),
   });
+  const platform = createXPlatform(f.browser, { clock: () => NOW });
+  let accountReads = 0;
+  const readAccount = platform.readAccount.bind(platform);
+  platform.readAccount = async () => {
+    accountReads++;
+    return readAccount();
+  };
+  const api = createBusinessHarness({
+    platform,
+    store: f.store,
+    clock: () => NOW,
+  });
   const actions = f.read().actions.map((a, i) => ({
     ...a,
     handle: "reader" + i,
@@ -273,8 +302,41 @@ test("followBatch adopts five reviewed targets and owns full serial submission/r
   assert.equal(out.remaining, 0);
   assert.equal(f.writes.length, 5);
   assert.equal(f.commands.filter((c) => c === "refreshPerson").length, 5);
+  assert.equal(
+    accountReads,
+    0,
+    "identity is taken from each required profile read",
+  );
+  assert.equal(
+    f.observations.filter((view) => view === "account").length,
+    0,
+    "the five-target batch does not issue separate account observations",
+  );
   assert.equal(out.actual, undefined);
   small(out);
+});
+
+test("fused identity checks still block follow and reply writes on account mismatch", async (t) => {
+  const follow = fixture(t, { planned: [1, 0, 0], actionKinds: ["follow"] });
+  follow.browser.setAccountHandle("Other");
+  const followOut = await business(follow).followBatch({
+    taskId: "round-1",
+    handles: ["reader"],
+  });
+  assert.equal(followOut.status, "needsDecision");
+  assert.equal(follow.writes.length, 0);
+  assert.equal(follow.read().attempts.length, 0);
+
+  const reply = fixture(t, { planned: [0, 0, 1], actionKinds: ["reply"] });
+  reply.browser.setAccountHandle("Other");
+  const replyOut = await business(reply).replyToPost({
+    taskId: "round-1",
+    postId: "123",
+    text: "有具体贡献的回复",
+  });
+  assert.equal(replyOut.status, "needsDecision");
+  assert.equal(reply.writes.length, 0);
+  assert.equal(reply.read().attempts.length, 0);
 });
 
 test("wrong review text, changed draft or scope cannot be hidden by single-item projection", async (t) => {

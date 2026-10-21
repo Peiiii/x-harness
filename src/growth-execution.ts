@@ -76,40 +76,6 @@ export class GrowthExecution {
     this.#session = session;
     this.execute = this.handleExecute.bind(this);
   }
-  private async checkExecutionIdentity(
-    snapshot: any,
-    action: any,
-  ): Promise<ExecutionStep | null> {
-    const state = snapshot.state;
-    let own: any;
-    try {
-      own = await this.#platform.readAccount();
-    } catch (error: any) {
-      return {
-        snapshot,
-        need: {
-          status: "needsDecision",
-          actionId: action.id,
-          reason: "account-read-failed",
-          error: error.message.slice(0, 240),
-        },
-      };
-    }
-    if (
-      own.needsStateCheck ||
-      own.alerts?.length ||
-      !same(own.accountHandle, state.accountHandle)
-    )
-      return {
-        snapshot,
-        need: {
-          status: "needsDecision",
-          actionId: action.id,
-          reason: "fresh-account-unconfirmed",
-        },
-      };
-    return null;
-  }
   private actionIsActionable(state: any, kind: string): boolean {
     return actionableForExecutor(
       state,
@@ -158,8 +124,6 @@ export class GrowthExecution {
           },
         };
     }
-    const identity = await this.checkExecutionIdentity(snapshot, action);
-    if (identity) return identity;
     if (action.kind === "follow") {
       const budget = this.#waitBudget(state);
       if (budget) return { snapshot, need: { ...budget, actionId: action.id } };
@@ -253,6 +217,15 @@ export class GrowthExecution {
             status: "needsDecision",
             actionId: action.id,
             reason: "publication-baseline-unconfirmed",
+          },
+        };
+      if (!same(baseline.accountHandle, state.accountHandle))
+        return {
+          snapshot,
+          need: {
+            status: "needsDecision",
+            actionId: action.id,
+            reason: "fresh-account-unconfirmed",
           },
         };
       beforeIds = (baseline.posts ?? []).map((p: any) => p.id).filter(Boolean);
