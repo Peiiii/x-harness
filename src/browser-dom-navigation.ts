@@ -436,13 +436,34 @@ export class DOMNavigation {
       // Only a committed exact route is recovered; exact content readiness still follows.
     }
   }
+  private async rejectUnavailableProfile(url: string) {
+    const empty = this.#tab.playwright.locator(
+      '[data-testid="primaryColumn"] [data-testid="empty_state_header_text"]',
+    );
+    const name = this.#tab.playwright.locator('[data-testid="UserName"]');
+    // A visible profile name takes precedence over a normal empty timeline.
+    // Older adapters without visibility observation retain bounded readiness.
+    if (
+      typeof empty.isVisible !== "function" ||
+      typeof name.isVisible !== "function" ||
+      !(await empty.isVisible()) ||
+      (await name.isVisible())
+    )
+      return;
+    const check = await this.#observe({ view: "account", limit: 1 });
+    if (check.page !== url || check.alerts?.length)
+      throw Error("target-readiness-route-or-alert");
+    throw Error("profile-content-unavailable");
+  }
   private async handleWaitProfileContent(target: any, url: string) {
+    await this.rejectUnavailableProfile(url);
     try {
       await this.handleWaitTargetContent(target, url);
       return;
     } catch (error: any) {
       if (!/timed out|timeout|deadline exceeded/i.test(error.message))
         throw error;
+      await this.rejectUnavailableProfile(url);
       const check = await this.#observe({ view: "account", limit: 1 });
       if (check.page !== url || check.alerts?.length)
         throw Error("target-readiness-route-or-alert", { cause: error });
