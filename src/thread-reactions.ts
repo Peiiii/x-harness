@@ -217,18 +217,28 @@ export class ThreadReactions {
       const batch = s.state.threadLikeBatches.find((b: any) => b.id === id);
       batch.evidenceRef = evidenceRef;
       for (const post of view.posts ?? []) {
-        if (
-          !post.id ||
-          batch.entries[post.id] ||
-          !view.threadIds?.includes(post.id)
-        )
-          continue;
-        const selected =
-          post.id === batch.rootId ||
-          threadLikeFraction(batch.seed, post.id, "sample") < batch.sampleRate;
+        if (!post.id || !view.threadIds?.includes(post.id)) continue;
+        const entry = batch.entries[post.id];
         const old = (s.state.reactions ?? []).find(
           (r: any) => r.postId === post.id,
         );
+        const own = sameHandle(post.author, batch.accountHandle);
+        if (own && !old && (!entry || entry.status === "prepared")) {
+          batch.entries[post.id] = {
+            postId: post.id,
+            author: post.author,
+            selected: false,
+            status: "skipped",
+            reason: "own-account-post",
+          };
+          continue;
+        }
+        if (entry) continue;
+        const selected =
+          !own &&
+          (post.id === batch.rootId ||
+            threadLikeFraction(batch.seed, post.id, "sample") <
+              batch.sampleRate);
         batch.entries[post.id] = {
           postId: post.id,
           author: post.author,
