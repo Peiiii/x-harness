@@ -10,6 +10,8 @@ flow=bugfix，risk=L2，retrospective_state=pending。消费者在补原批点�
 
 验证：两项回归修前分别错误点击本人根帖、旧 prepared 本人评论；修后108项线程/浏览器/回复组合定向检查通过。全量先通过773项，唯一加载失败是隔离环境缺 fake-indexeddb；复用原固定依赖后该文件12项通过，合计785项有效通过。TypeScript、构建、改动文件格式、维护性与 diff 检查通过。实现Review(mode=implementation)：no findings；新过滤只改变尚无 intent 的选择，原本人 unknown 的反应记录及只读恢复保持。真实原批次采用待消费者继续验证，未以本地回归宣称已恢复平台或十条/分钟。
 
+真实采用已验证：原职责连续核成两条外评和一条来话；继续已读本人评论区原根帖时，本人根帖被记录为 own-account-post/skipped，零本人新 intent，另一作者新增点赞公开已核。旧 unknown 与已有本人点赞没有删除或重试；六个原批点赞差额仍如实保留，不用独立新赞抵扣。源码已集成主线0042359，本地受检基线a6b2ee7采用；不单独发npm。retrospective_state=completed；retrospective_decision=已修原选择owner并用两项反例和真实根入口验收，不新增提示词规则。
+
 
 用户于2026-10-14要求：调用方只选帖子，不先收集评论列表；harness 内部自动点赞原帖和评论。追加要求评论约60%抽样、时间分布优化且不过于缓慢。flow=standard，L3，plan=not-required；retrospective_state=completed。
 
