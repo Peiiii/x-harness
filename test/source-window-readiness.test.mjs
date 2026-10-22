@@ -742,3 +742,71 @@ for (const expanding of [true, false]) {
     );
   });
 }
+
+for (const boundary of [
+  "confirmed",
+  "account-changed",
+  "page-changed",
+  "loading",
+]) {
+  test(`processed source exhaustion keeps ${boundary} evidence distinct`, async () => {
+    let scrolls = 0;
+    const view = () => ({
+      page: "https://x.com/i/history/bookmarks/7",
+      accountHandle: "example_owner",
+      posts: [post(1)],
+      renderedIds: ["1"],
+      firstRenderedId: "1",
+      renderedArticles: 1,
+      viewportScrollTop: 1000,
+      moreInDOM: false,
+      atRenderedTail: false,
+      loading: false,
+      fresh: true,
+      needsStateCheck: false,
+      alerts: [],
+      ...(scrolls === 0
+        ? {}
+        : boundary === "account-changed"
+          ? { accountHandle: "another_owner" }
+          : boundary === "page-changed"
+            ? { page: "https://x.com/home" }
+            : boundary === "loading"
+              ? { loading: true }
+              : {}),
+    });
+    const adapter = new PlatformCollections({
+      browser: {
+        act: async ({ operation }) => {
+          if (operation === "nextPosts") scrolls++;
+          if (operation === "waitForPosts") throw Error("timed out");
+        },
+      },
+      ready: async () => view(),
+      observed: async () => view(),
+      choose: async () => {},
+    });
+    const result = await adapter.collectSources({
+      processedIds: ["1"],
+      maxPages: 3,
+      limit: 1,
+    });
+    assert.equal(scrolls, 10);
+    assert.equal(result.fresh, true);
+    assert.equal(result.needsStateCheck === true, boundary !== "confirmed");
+    assert.deepEqual(result.sources, []);
+    assert.equal(result.complete, false);
+    assert.notEqual(result.pageComplete, true);
+    assert.ok(
+      result.missing.includes(
+        boundary === "confirmed"
+          ? "bounded-scroll-window-exhausted"
+          : "source-page-unconfirmed",
+      ),
+    );
+    assert.equal(
+      result.missing.includes("source-page-unconfirmed"),
+      boundary !== "confirmed",
+    );
+  });
+}

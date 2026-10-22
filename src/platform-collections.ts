@@ -168,6 +168,11 @@ export class PlatformCollections {
               complete: false,
               missing: ["source-page-unconfirmed"],
             };
+          if (advanced.missing?.includes("bounded-scroll-window-exhausted")) {
+            last = advanced;
+            missing.push("bounded-scroll-window-exhausted");
+            break;
+          }
           if (advanced.paginationBoundary) {
             last = advanced;
             missing.push("stable-rendered-tail");
@@ -374,9 +379,15 @@ export class PlatformCollections {
       )
         return advanced;
     }
+    const confirmed =
+      advanced.page === previous.page &&
+      advanced.accountHandle &&
+      advanced.accountHandle === previous.accountHandle &&
+      !advanced.loading &&
+      advanced.posts?.some((post: any) => post.id);
     return {
       ...advanced,
-      needsStateCheck: true,
+      needsStateCheck: !confirmed,
       missing: ["bounded-scroll-window-exhausted"],
     };
   }
