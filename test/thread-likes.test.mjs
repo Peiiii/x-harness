@@ -31,7 +31,7 @@ function scenario(t, options = {}) {
     viewportScrollTop: index,
     posts: windows[index].map((id) => ({
       id,
-      author: "Author",
+      author: options.authors?.[id] ?? "Author",
       primary: `/Author/status/${id}`,
       buttons: [{ label: liked.has(id) ? "1 Likes. Liked" : "0 Likes. Like" }],
     })),
@@ -107,6 +107,55 @@ function scenario(t, options = {}) {
     },
   };
 }
+
+test("own posts never consume a new-like budget or receive a new intent", async (t) => {
+  const s = scenario(t, { windows: [["100", "101"]], authors: { 100: "pEi" } });
+  const out = await s.api.likePostAndComments({
+    url,
+    sampleRate: 1,
+    maxLikes: 1,
+  });
+  assert.deepEqual(
+    s.clicks.map((c) => c.id),
+    ["101"],
+  );
+  assert.equal(out.counts.newLikesThisCall, 1);
+  const { state } = await s.f.store.load();
+  assert.equal(
+    state.reactions.some((r) => r.postId === "100"),
+    false,
+  );
+  assert.equal(state.threadLikeBatches[0].entries["100"].selected, false);
+});
+
+test("resuming an old prepared own entry skips it while preserving own unknown", async (t) => {
+  const s = scenario(t, {
+    windows: [["100", "101", "102"]],
+    authors: { 101: "Pei", 102: "PEI" },
+    preexisting: ["100"],
+  });
+  await s.api.likePostAndComments({ url, sampleRate: 0 });
+  await s.f.store.transaction(({ state }) => {
+    const entries = state.threadLikeBatches[0].entries;
+    Object.assign(entries["101"], { selected: true, status: "prepared" });
+    Object.assign(entries["102"], { selected: true, status: "unknown" });
+    state.reactions ??= [];
+    state.reactions.push({
+      postId: "102",
+      status: "unknown",
+      intentAt: new Date(NOW).toISOString(),
+    });
+    return state;
+  });
+  await s.api.likePostAndComments({ url, sampleRate: 0 });
+  assert.equal(s.clicks.length, 0);
+  const { state } = await s.f.store.load();
+  assert.equal(state.threadLikeBatches[0].entries["101"].status, "skipped");
+  assert.equal(
+    state.reactions.find((r) => r.postId === "102").status,
+    "unknown",
+  );
+});
 
 test("URL-only task traverses windows in one call, likes root, never toggles and resumes", async (t) => {
   const s = scenario(t, { preexisting: ["101"] });
