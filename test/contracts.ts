@@ -1,9 +1,22 @@
 import {
   createXGrowthHarness,
+  type FollowBlueCheckException,
   type XGrowthHarness,
   type CuaTab,
   type ReadResult,
 } from "../dist/index.js";
+declare const policyProof: string;
+declare const membershipProof: string;
+const blueException: FollowBlueCheckException = {
+  kind: "follow-blue-check",
+  userAuthorized: true,
+  actionId: "follow-reviewed",
+  handle: "reader",
+  accountHandle: "operator",
+  evidenceRef: policyProof,
+  scopeEvidenceRef: membershipProof,
+  expiresAt: "2026-12-01T12:00:00Z",
+};
 declare const tab: CuaTab;
 const api: XGrowthHarness = createXGrowthHarness({
   tab,
@@ -19,6 +32,18 @@ const read: Promise<ReadResult> = api.readPost({
   mode: "decision",
 });
 void read;
+api.runGrowthRound({
+  taskId: "round",
+  maxActions: 1,
+  decision: {
+    actionId: "follow-reviewed",
+    approved: true,
+    evidenceRef: policyProof,
+    blue: null,
+    chinese: true,
+    blueCheckException: blueException,
+  },
+});
 const connected = createXGrowthHarness({
   ledgerPath: "/original/day.md",
   proofDirectory: "/proof",

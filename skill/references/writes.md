@@ -78,6 +78,8 @@ var result = await x.replyToPost({
 
 ## Follow
 
+Explicit user-authorized cohort exceptions: read [blue screening](follow-blue-exception.md). Ordinary candidates still require blue; never forge a badge.
+
 Give a 5-person `followBatch` an outer host timeout of at least 180000ms for serial pacing and verification. On host timeout, inspect original IDs first: never replay intent/unknown; only never-submitted prepared entries may resume after current policy gates.
 
 Additional fields: kind:'follow', handle, url, evidenceRef (observed person), plus common account fields and follow quality. Batch uses `{taskId,handles,preparedActions?}`; original contract determines allowed batch sizes. Each preparedAction corresponds to its handle. If already prepared, omit preparedActions. `await x.followOne({taskId,handle})` requires its original prepared action and project-permitted single-action scope. A preexisting relationship is not a new verified follow; honor result counts.
@@ -142,7 +144,9 @@ Pin requires explicit authorization, its existing proof and a DOM tab:
 ```js
 if (!x.pinPost) throw new Error("pin capability required");
 await x.pinPost({
-  taskId, target: { postId, url, evidenceRef }, userAuthorized: true,
+  taskId,
+  target: { postId, url, evidenceRef },
+  userAuthorized: true,
   authorizationEvidenceRef: authorizationProof,
 });
 ```

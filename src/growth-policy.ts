@@ -6,6 +6,7 @@ import { replyAuthorReason } from "./reply-author-policy.js";
 import { replyRootAgeReason } from "./reply-root-policy.js";
 import { kinds, followWindows, operations, same } from "./growth-constants.js";
 import { followObservationAuthorized } from "./follow-observation-policy.js";
+import { followBlueCheckAllowed } from "./follow-qualification-policy.js";
 export class GrowthPolicy {
   #executor!: GrowthDependencies["executor"];
   #clock!: GrowthDependencies["clock"];
@@ -215,7 +216,7 @@ export class GrowthPolicy {
     if (action.kind === "follow") {
       if (
         !same(action.quality.handle, action.handle) ||
-        action.quality.blue !== true ||
+        !followBlueCheckAllowed(action, this.#clock(), this.#evidenceExists) ||
         action.quality.chinese !== true
       )
         return "follow-qualification-required";

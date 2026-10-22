@@ -14,6 +14,7 @@ type ActionAdmission = { beforeIds: string[] } | ExecutionStep;
 import type { GrowthDependencies } from "./growth-dependencies.js";
 
 import { operations, same } from "./growth-constants.js";
+import { followBlueCheckAllowed } from "./follow-qualification-policy.js";
 export class GrowthExecution {
   #cadence!: OriginalPostCadence;
   #capability!: GrowthDependencies["capability"];
@@ -133,51 +134,7 @@ export class GrowthExecution {
         };
     }
     if (action.kind === "follow") {
-      const budget = this.#waitBudget(state);
-      if (budget) return { snapshot, need: { ...budget, actionId: action.id } };
-      let value: any;
-      try {
-        value = await this.#platform.readPerson(action);
-      } catch (error: any) {
-        return {
-          snapshot,
-          need: {
-            status: "needsDecision",
-            actionId: action.id,
-            reason: "person-read-failed",
-            error: error.message.slice(0, 240),
-          },
-        };
-      }
-      if (
-        value.needsStateCheck ||
-        value.alerts?.length ||
-        value.relationship === "unknown" ||
-        !same(value.accountHandle, state.accountHandle)
-      )
-        return {
-          snapshot,
-          need: {
-            status: "needsDecision",
-            actionId: action.id,
-            reason: "fresh-person-unconfirmed",
-          },
-        };
-      if (value.blue === false)
-        return {
-          snapshot,
-          need: {
-            status: "needsDecision",
-            actionId: action.id,
-            reason: "fresh-blue-qualification-contradicts-review",
-          },
-        };
-      if (value.relationship === "following") {
-        const next = structuredClone(state);
-        next.actions.find((a: any) => a.id === action.id).status =
-          "preexisting";
-        return { snapshot: await this.#save(snapshot, next), need: null };
-      }
+      return this.admitFollow(snapshot, action);
     } else {
       const hour = Number(
         new Intl.DateTimeFormat("en-GB", {
@@ -239,6 +196,64 @@ export class GrowthExecution {
       beforeIds = (baseline.posts ?? []).map((p: any) => p.id).filter(Boolean);
     }
     return { beforeIds };
+  }
+  private async admitFollow(
+    snapshot: any,
+    action: any,
+  ): Promise<ActionAdmission> {
+    const state = snapshot.state;
+    const budget = this.#waitBudget(state);
+    if (budget) return { snapshot, need: { ...budget, actionId: action.id } };
+    let value: any;
+    try {
+      value = await this.#platform.readPerson(action);
+    } catch (error: any) {
+      return {
+        snapshot,
+        need: {
+          status: "needsDecision",
+          actionId: action.id,
+          reason: "person-read-failed",
+          error: error.message.slice(0, 240),
+        },
+      };
+    }
+    if (
+      value.needsStateCheck ||
+      value.alerts?.length ||
+      value.relationship === "unknown" ||
+      !same(value.accountHandle, state.accountHandle)
+    )
+      return {
+        snapshot,
+        need: {
+          status: "needsDecision",
+          actionId: action.id,
+          reason: "fresh-person-unconfirmed",
+        },
+      };
+    if (
+      !followBlueCheckAllowed(
+        action,
+        this.#clock(),
+        this.#evidenceExists,
+        value.blue,
+      )
+    )
+      return {
+        snapshot,
+        need: {
+          status: "needsDecision",
+          actionId: action.id,
+          reason: "fresh-blue-qualification-contradicts-review",
+        },
+      };
+    if (value.relationship === "following") {
+      const next = structuredClone(state);
+      next.actions.find((a: any) => a.id === action.id).status = "preexisting";
+      return { snapshot: await this.#save(snapshot, next), need: null };
+    }
+    return { beforeIds: [] };
   }
   private async readSubmissionWithURLContinuation(
     action: any,

@@ -1,0 +1,3 @@
+# Authorized blue-screening exception
+
+An explicit user policy may waive blue screening for an observed, reviewed source cohort. Keep the actual `quality.blue:null|false`; provide `quality.blueCheckException:{kind:'follow-blue-check',userAuthorized:true,actionId,handle,accountHandle,evidenceRef:policyProof,scopeEvidenceRef:membershipProof,expiresAt}`. The original action, handle and account must match, both proofs must exist, and expiry must be future. The same optional object is accepted by a follow review decision. It waives only the blue requirement; Chinese/personal review, identity, time, refusals, original-ID protection and durable verification remain. Ordinary follows still require blue. Never infer the exception from a missing badge or forge `blue:true`.

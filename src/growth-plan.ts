@@ -127,8 +127,11 @@ export class PlannedRound {
           ...(action.kind === "follow"
             ? {
                 handle: action.handle,
-                blue: decision.blue === true,
+                blue: decision.blue === null ? null : decision.blue === true,
                 chinese: decision.chinese === true,
+                ...(decision.blueCheckException
+                  ? { blueCheckException: decision.blueCheckException }
+                  : {}),
               }
             : {
                 approvedText: decision.approvedText,

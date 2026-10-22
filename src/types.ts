@@ -353,13 +353,25 @@ export interface FeedbackOptions {
   replyLimit?: number;
   mode?: ReadMode;
 }
+export interface FollowBlueCheckException {
+  kind: "follow-blue-check";
+  userAuthorized: true;
+  actionId: string;
+  handle: string;
+  accountHandle: string;
+  /** Explicit policy authorization and observed source-membership proof. */
+  evidenceRef: EvidenceRef;
+  scopeEvidenceRef: EvidenceRef;
+  expiresAt: string;
+}
 export interface QualityReview {
   approved: boolean;
   evidenceRef: EvidenceRef;
   approvedText?: string;
   draftFingerprint?: string;
   handle?: string;
-  blue?: boolean;
+  blue?: boolean | null;
+  blueCheckException?: FollowBlueCheckException;
   chinese?: boolean;
 }
 interface PreparedActionBase {
@@ -486,7 +498,8 @@ export type RoundDecision =
       evidenceRef: EvidenceRef;
       approvedText?: string;
       draftFingerprint?: string;
-      blue?: boolean;
+      blue?: boolean | null;
+      blueCheckException?: FollowBlueCheckException;
       chinese?: boolean;
     };
 export interface RoundOptions {
