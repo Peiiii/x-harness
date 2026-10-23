@@ -328,6 +328,20 @@ export class DOMNavigation {
         .locator(`a[href=${JSON.stringify(path)}]`)
         .filter({ visible: true });
       if (
+        command.view === "posts" &&
+        /^\/[A-Za-z0-9_]{1,15}\/?$/.test(xURL(command.url).pathname) &&
+        (await link.count()) > 1
+      ) {
+        // Self-profile avatar and navigation links share the same href. Only
+        // the unique visible profile navigation anchor is safe to disambiguate.
+        const navigation = this.#tab.playwright
+          .locator(
+            `[data-testid="AppTabBar_Profile_Link"][href=${JSON.stringify(path)}]`,
+          )
+          .filter({ visible: true });
+        if ((await navigation.count()) === 1) link = navigation;
+      }
+      if (
         command.view === "person" &&
         /^[A-Za-z0-9_]{1,15}$/.test(command.handle ?? "") &&
         (await link.count()) > 1
