@@ -408,3 +408,44 @@ test("early reply permit keeps follow selection closed and independent reply ava
     );
   }
 });
+
+test("early reply permit cannot hide missing original follow authority", async (t) => {
+  const q = await setup(t);
+  const start = Date.parse("2026-10-12T06:00:00+08:00");
+  q.setClock(start);
+  const valid = {
+    id: "follow",
+    scopeKinds: ["follow", "reply"],
+    tabId: "follow-tab",
+    evidenceRef: q.f.proof,
+    windowAuthorization: {
+      kind: "reply",
+      executorId: "follow",
+      userAuthorized: true,
+      evidenceRef: q.f.proof,
+      startsAt: new Date(start).toISOString(),
+      expiresAt: new Date(start + 3600000).toISOString(),
+    },
+  };
+  for (const patch of [
+    { scopeKinds: ["reply"] },
+    { tabId: null },
+    { evidenceRef: "missing" },
+  ]) {
+    await q.f.store.transaction(({ state }) => {
+      state.executions.follow = { ...valid, ...patch };
+      return state;
+    });
+    const r = await q.priority.inspect("round-1", "follow");
+    assert.equal(r.ready, false);
+    assert.equal(r.blocked, true);
+  }
+  await q.f.store.transaction(({ state }) => {
+    state.executions.follow = valid;
+    return state;
+  });
+  assert.equal(
+    (await q.priority.inspect("wrong-task", "follow")).blocked,
+    true,
+  );
+});

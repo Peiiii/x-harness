@@ -19,6 +19,11 @@ export class FollowPriority {
     const now = this.clock();
     const hour = new Date(now + 8 * 3600000).getUTCHours();
     const executor = state.executions?.[executorId];
+    const authorityReady =
+      state.batchId === taskId &&
+      executor?.scopeKinds?.includes("follow") &&
+      Boolean(executor.tabId) &&
+      this.store.evidenceExists(executor.evidenceRef);
     if (
       hour < 7 &&
       !executorWindowAllowed(state, executor, "follow", now, (ref) =>
@@ -26,6 +31,7 @@ export class FollowPriority {
       )
     ) {
       if (
+        authorityReady &&
         executorWindowAllowed(state, executor, "reply", now, (ref) =>
           this.store.evidenceExists(ref),
         )
@@ -33,12 +39,7 @@ export class FollowPriority {
         return { ready: false, reason: "follow-window-not-open" };
       return { ready: false, blocked: true, reason: "night-platform-window" };
     }
-    if (
-      state.batchId !== taskId ||
-      !executor?.scopeKinds?.includes("follow") ||
-      !executor.tabId ||
-      !this.store.evidenceExists(executor.evidenceRef)
-    )
+    if (!authorityReady)
       return {
         ready: false,
         blocked: true,
