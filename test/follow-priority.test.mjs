@@ -345,3 +345,66 @@ test("early follow priority honors the original scoped permit without widening n
     );
   }
 });
+
+test("early reply permit keeps follow selection closed and independent reply available", async (t) => {
+  const q = await setup(t);
+  const start = Date.parse("2026-10-12T06:00:00+08:00");
+  const end = Date.parse("2026-10-12T07:00:00+08:00");
+  q.setClock(start);
+  const permit = {
+    kind: "reply",
+    executorId: "follow",
+    userAuthorized: true,
+    evidenceRef: q.f.proof,
+    startsAt: new Date(start).toISOString(),
+    expiresAt: new Date(end).toISOString(),
+  };
+  await q.f.store.transaction(({ state }) => {
+    state.executions.follow.id = "follow";
+    state.executions.follow.scopeKinds = ["follow", "reply"];
+    state.executions.follow.windowAuthorization = permit;
+    return state;
+  });
+  const before = await q.f.store.load();
+  const selection = await q.priority.inspect("round-1", "follow");
+  assert.equal(selection.ready, false);
+  assert.equal(selection.blocked, undefined);
+  assert.equal(selection.reason, "follow-window-not-open");
+  const api = createBusinessHarness({
+    store: q.f.store,
+    platform: {},
+    clock: q.clock,
+  });
+  let calls = 0;
+  api.replyToPost = async () => {
+    calls++;
+    return { status: "verified" };
+  };
+  const result = await api.replyBatch({
+    taskId: "round-1",
+    followPriorityExecutorId: "follow",
+    actions: [{ id: "early-reply", kind: "reply" }],
+  });
+  assert.equal(calls, 1);
+  assert.equal(result.results[0].status, "verified");
+  assert.deepEqual(
+    (await q.f.store.load()).state.actions,
+    before.state.actions,
+  );
+  for (const patch of [
+    { userAuthorized: false },
+    { executorId: "foreign" },
+    { evidenceRef: "missing" },
+    { expiresAt: new Date(start).toISOString() },
+    { startsAt: new Date(start + 1).toISOString() },
+  ]) {
+    await q.f.store.transaction(({ state }) => {
+      state.executions.follow.windowAuthorization = { ...permit, ...patch };
+      return state;
+    });
+    assert.equal(
+      (await q.priority.inspect("round-1", "follow")).reason,
+      "night-platform-window",
+    );
+  }
+});

@@ -24,8 +24,15 @@ export class FollowPriority {
       !executorWindowAllowed(state, executor, "follow", now, (ref) =>
         this.store.evidenceExists(ref),
       )
-    )
+    ) {
+      if (
+        executorWindowAllowed(state, executor, "reply", now, (ref) =>
+          this.store.evidenceExists(ref),
+        )
+      )
+        return { ready: false, reason: "follow-window-not-open" };
       return { ready: false, blocked: true, reason: "night-platform-window" };
+    }
     if (
       state.batchId !== taskId ||
       !executor?.scopeKinds?.includes("follow") ||
