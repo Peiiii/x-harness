@@ -622,12 +622,13 @@ export const readXObservation = (query) => {
             .map((el) => el.innerText),
     };
 };
-  const readNavigation = function readNavigation({ targetLabel, bookmarkNavigation = false, } = {}) {
+  const readNavigation = function readNavigation({ targetLabel, bookmarkNavigation = false, timelineNavigation = false, } = {}) {
     const visible = (el) => el.getClientRects().length > 0 && !el.closest('[aria-hidden="true"]');
     const primary = document.querySelector('[data-testid="primaryColumn"]') ??
         document.querySelector("main");
     // Feed cards outside articles are content, not navigation evidence.
     const scopedNavigation = bookmarkNavigation ||
+        timelineNavigation ||
         /^\/(?:home|explore)\/?$/.test(new URL(location.href).pathname);
     const nodes = [
         ...new Set([
