@@ -604,7 +604,11 @@ export interface CuaTab {
     pages?: number,
   ): Promise<unknown>;
   playwright: {
-    evaluate<T, A>(fn: (arg: A) => T, arg: A): Promise<T>;
+    evaluate<T, A>(
+      fn: (arg: A) => T,
+      arg: A,
+      options?: { timeoutMs?: number },
+    ): Promise<T>;
     getByRole?(role: string, options?: unknown): LocatorPort;
     getByText?(text: string, options?: unknown): LocatorPort;
     locator?(selector: string): LocatorPort;

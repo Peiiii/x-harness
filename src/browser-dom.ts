@@ -90,10 +90,12 @@ export class DOMXBrowser {
       this.#tab.playwright,
     );
     if (!evaluate) throw new Error("缺playwright.evaluate能力");
-    const result = await evaluate(this.#readDOM, {
-      ...query,
-      limit: query.limit ?? 1,
-    });
+    const result = await evaluate(
+      this.#readDOM,
+      { ...query, limit: query.limit ?? 1 },
+      // Include host scope setup in the bounded read budget; never retry a write.
+      { timeoutMs: 60_000 },
+    );
     const raw = result;
     // Exact informational messages are retained; any added refusal text stays
     // an alert. A send toast alone never proves publication.
