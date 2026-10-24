@@ -394,3 +394,107 @@ for (const count of [0, 2])
     );
     assert.equal(gotos, 0);
   });
+
+for (const [visible, namedCount, forced] of [
+  [0, 0, false],
+  [1, 0, false],
+  [2, 1, false],
+  [2, 2, false],
+  [1, 0, true],
+]) {
+  test(`one navigation reuses URL and exact-link reads: ${visible}/${namedCount}/${forced}`, async () => {
+    let page = "https://x.com/search?q=people",
+      urlReads = 0,
+      linkReads = 0,
+      nameReads = 0;
+    const calls = [];
+    const named = {
+      count: async () => {
+        nameReads++;
+        return namedCount;
+      },
+      click: async () => {
+        calls.push("named");
+        page = "https://x.com/peer";
+      },
+    };
+    const link = {
+      filter: (options) => (options.hasText ? named : link),
+      count: async () => {
+        linkReads++;
+        return visible;
+      },
+      click: async () => {
+        calls.push("link");
+        page = "https://x.com/peer";
+      },
+      waitFor: async () => {},
+    };
+    const browser = createDOMXBrowser({
+      url: async () => {
+        urlReads++;
+        return page;
+      },
+      goto: async (url) => {
+        calls.push("goto");
+        page = url;
+      },
+      playwright: {
+        locator: () => link,
+        waitForURL: async (url) => assert.equal(page, url),
+      },
+    });
+    await browser.act({
+      operation: "openObserved",
+      view: "person",
+      handle: "peer",
+      url: "https://x.com/peer",
+      evidenceRef: "observed-person",
+      forceNavigation: forced,
+    });
+    assert.equal(urlReads, 1);
+    assert.equal(linkReads, forced ? 0 : 1);
+    assert.equal(nameReads, !forced && visible > 1 ? 1 : 0);
+    assert.deepEqual(calls, [
+      forced || visible === 0 || (visible > 1 && namedCount !== 1)
+        ? "goto"
+        : visible === 1
+          ? "link"
+          : "named",
+    ]);
+  });
+}
+
+test("missing live URL never makes a retained observation a same-page shortcut", async () => {
+  const target = "https://x.com/peer";
+  let page = target;
+  const calls = [];
+  const link = {
+    filter() {
+      return this;
+    },
+    count: async () => 0,
+    waitFor: async () => {},
+  };
+  const browser = createDOMXBrowser({
+    goto: async (url) => {
+      calls.push("goto");
+      page = url;
+    },
+    playwright: {
+      locator: () => link,
+      waitForURL: async (url) => assert.equal(page, url),
+      evaluate: async () => ({ page, accountHandle: "owner", alerts: [] }),
+    },
+  });
+  await browser.observe({ view: "person", handle: "peer" });
+  page = "https://x.com/home";
+  await browser.act({
+    operation: "openObserved",
+    view: "person",
+    handle: "peer",
+    url: target,
+    evidenceRef: "observed-peer",
+  });
+  assert.deepEqual(calls, ["goto"]);
+});

@@ -285,10 +285,14 @@ export class DOMNavigation {
     if (!command.evidenceRef) throw new Error("导航缺已观察证据");
     // A direct adapter caller must also preserve a page already at the target.
     // Explicit recovery uses forceNavigation; durable verification uses refreshPerson.
+    const originalPage =
+      typeof this.#tab.url === "function"
+        ? await this.#tab.url()
+        : this.#session.current?.result?.page;
     if (
       !command.forceNavigation &&
       typeof this.#tab.url === "function" &&
-      (await this.#tab.url()) === xURL(command.url).href
+      originalPage === xURL(command.url).href
     ) {
       if (command.view === "person")
         await this.handleWaitProfileContent(
@@ -300,16 +304,13 @@ export class DOMNavigation {
       return;
     }
     if (await this.handleQuoteClientReturn(command)) return;
-    const originalPage =
-      typeof this.#tab.url === "function"
-        ? await this.#tab.url()
-        : this.#session.current?.result?.page;
     this.#session.replyBinding = null;
     this.#session.current = null;
     // Keep the loaded X client when the exact observed permalink is already visible.
     // An ambiguous/missing link retains the existing navigation path, never an arbitrary click.
     const path = xURL(command.url).pathname + xURL(command.url).search;
-    let link: any;
+    let link: any,
+      linkCount = 0;
     if (
       !command.forceNavigation &&
       (command.view !== "posts" ||
@@ -327,10 +328,11 @@ export class DOMNavigation {
       link = this.#tab.playwright
         .locator(`a[href=${JSON.stringify(path)}]`)
         .filter({ visible: true });
+      linkCount = await link.count();
       if (
         command.view === "posts" &&
         /^\/[A-Za-z0-9_]{1,15}\/?$/.test(xURL(command.url).pathname) &&
-        (await link.count()) > 1
+        linkCount > 1
       ) {
         // Self-profile avatar and navigation links share the same href. Only
         // the unique visible profile navigation anchor is safe to disambiguate.
@@ -339,22 +341,28 @@ export class DOMNavigation {
             `[data-testid="AppTabBar_Profile_Link"][href=${JSON.stringify(path)}]`,
           )
           .filter({ visible: true });
-        if ((await navigation.count()) === 1) link = navigation;
+        if ((await navigation.count()) === 1) {
+          link = navigation;
+          linkCount = 1;
+        }
       }
       if (
         command.view === "person" &&
         /^[A-Za-z0-9_]{1,15}$/.test(command.handle ?? "") &&
-        (await link.count()) > 1
+        linkCount > 1
       ) {
         // Avatar and name often share a profile href. Use the exact observed
         // handle token to select the name link, never the arbitrary first match.
         const named = link.filter({
           hasText: new RegExp(`@${command.handle}(?![A-Za-z0-9_])`, "i"),
         });
-        if ((await named.count()) === 1) link = named;
+        if ((await named.count()) === 1) {
+          link = named;
+          linkCount = 1;
+        }
       }
     }
-    const clickedLink = link && (await link.count()) === 1;
+    const clickedLink = link && linkCount === 1;
     if (command.preferObservedLink && !clickedLink)
       throw Error("original-receipt-link-not-currently-visible");
     try {
