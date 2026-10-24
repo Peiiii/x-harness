@@ -567,3 +567,106 @@ for (const thread of [true, false]) {
     if (!thread) assert.equal(r.resumeAt, new Date(NOW + 29000).toISOString());
   });
 }
+
+for (const mode of [
+  "expired",
+  "expires-before-intent",
+  "valid",
+  "wrong-scope",
+  "missing-proof",
+  "no-permit",
+  "old-unknown",
+]) {
+  test(`received likes honor explicit daytime expiry: ${mode}`, async (t) => {
+    const f = fixture(t);
+    const end = Date.parse("2026-10-11T23:00:00+08:00");
+    let now = mode === "expired" || mode === "old-unknown" ? end : end - 1000;
+    let reads = 0,
+      clicks = 0;
+    const executor = {
+      id: "window-reader",
+      tabId: "window-tab",
+      scopeKinds: ["reply"],
+      evidenceRef: f.proof,
+    };
+    await f.store.transaction(({ state }) => {
+      state.executions ??= {};
+      state.executions[executor.id] = {
+        windowAuthorization: {
+          kind: mode === "wrong-scope" ? "follow" : "reply",
+          executorId: executor.id,
+          userAuthorized: true,
+          evidenceRef:
+            mode === "missing-proof" ? "/missing-test-proof" : f.proof,
+          startsAt: "2026-10-11T06:00:00+08:00",
+          expiresAt: new Date(end).toISOString(),
+        },
+      };
+      if (mode === "no-permit")
+        delete state.executions[executor.id].windowAuthorization;
+      if (mode === "old-unknown")
+        state.reactions = [
+          {
+            postId: "100",
+            status: "unknown",
+            intentAt: new Date(end - 60000).toISOString(),
+          },
+        ];
+      return state;
+    });
+    const api = createBusinessHarness({
+      store: f.store,
+      executor,
+      clock: () => now,
+      platform: {
+        preflight: () => ({ covered: true }),
+        captureProof: ({ observation }) => ({ observation }),
+        readAccount: async () => {
+          reads++;
+          return { accountHandle: "Pei" };
+        },
+        readPost: async () => {
+          reads++;
+          return { complete: true, context: [{ author: "Pei" }] };
+        },
+        likePost: async (args) => {
+          if (mode === "expires-before-intent") now = end;
+          await args.beforeSubmit();
+          clicks++;
+          return { liked: true };
+        },
+      },
+    });
+    const result = await api.likeIncomingBatch({
+      batchId: "expiry-likes",
+      sampleRate: 1,
+      targets: [
+        {
+          postId: "100",
+          author: "Reader",
+          url: "https://x.com/Reader/status/100",
+          evidenceRef: f.proof,
+          incomingEvidenceRef: f.proof,
+        },
+      ],
+    });
+    const allowed = ["valid", "no-permit"].includes(mode);
+    assert.equal(clicks, allowed ? 1 : 0);
+    assert.equal(
+      result.status,
+      allowed
+        ? "verified"
+        : mode === "expires-before-intent"
+          ? "needsDecision"
+          : "waiting",
+    );
+    const state = (await f.store.load()).state;
+    assert.equal(
+      (state.reactions ?? []).length,
+      allowed || mode === "old-unknown" ? 1 : 0,
+    );
+    if (!allowed && mode !== "expires-before-intent") assert.equal(reads, 0);
+    if (mode === "old-unknown")
+      assert.equal(state.reactions[0].status, "unknown");
+  });
+}

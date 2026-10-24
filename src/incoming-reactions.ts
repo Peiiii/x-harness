@@ -239,7 +239,9 @@ export class IncomingReactions {
   }
   private inWindow(state: any) {
     const now = this.#clock();
-    if (new Date(now + 8 * 3600000).getUTCHours() >= 7) return true;
+    const permit =
+      state.executions?.[this.#deps.executor?.id]?.windowAuthorization;
+    if (permit == null) return new Date(now + 8 * 3600000).getUTCHours() >= 7;
     return ["reply", "follow"].some((kind) =>
       executorWindowAllowed(state, this.#deps.executor, kind, now, (ref) =>
         this.#deps.store.evidenceExists(ref),
