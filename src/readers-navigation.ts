@@ -29,6 +29,7 @@ export function readMenu(): any {
 export function readNavigation({
   targetLabel,
   bookmarkNavigation = false,
+  timelineNavigation = false,
 }: any = {}): any {
   const visible = (el: any) =>
     el.getClientRects().length > 0 && !el.closest('[aria-hidden="true"]');
@@ -38,6 +39,7 @@ export function readNavigation({
   // Feed cards outside articles are content, not navigation evidence.
   const scopedNavigation =
     bookmarkNavigation ||
+    timelineNavigation ||
     /^\/(?:home|explore)\/?$/.test(new URL(location.href).pathname);
   const nodes = [
     ...new Set([

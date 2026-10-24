@@ -445,7 +445,10 @@ export class PlatformCollections {
           missing: ["creator-profile-unconfirmed"],
         };
     }
-    let nav = await this.#ready({ view: "navigation" });
+    let nav = await this.#ready({
+      view: "navigation",
+      timelineNavigation: true,
+    });
     const base = "/" + args.handle.toLowerCase(),
       path = base + "/with_replies";
     const matches = (c: any) => {
@@ -475,7 +478,7 @@ export class PlatformCollections {
     if (!(nav.controls ?? []).some((c: any) => matches(c) && c.selected)) {
       if (args.navigate === false || !(await this.#choose(nav, matches)))
         return failed();
-      nav = await this.#ready({ view: "navigation" });
+      nav = await this.#ready({ view: "navigation", timelineNavigation: true });
     }
     const selected = (nav.controls ?? []).filter(
       (c: any) => matches(c) && c.selected,
