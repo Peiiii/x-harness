@@ -368,10 +368,16 @@ export class DOMNavigation {
     try {
       if (clickedLink) await link.click();
       else await this.#tab.goto(command.url);
-      await this.#tab.playwright.waitForURL(command.url, {
-        timeoutMs: command.view === "posts" ? 15000 : 5000,
-        ...(command.view === "posts" ? { waitUntil: "commit" as const } : {}),
-      });
+      // Live URL readiness does not replace content or caller account checks.
+      if (
+        command.view !== "composer" ||
+        typeof this.#tab.url !== "function" ||
+        (await this.#tab.url()) !== command.url
+      )
+        await this.#tab.playwright.waitForURL(command.url, {
+          timeoutMs: command.view === "posts" ? 15000 : 5000,
+          ...(command.view === "posts" ? { waitUntil: "commit" as const } : {}),
+        });
     } catch (error: unknown) {
       if (
         !/Timed out waiting for URL/.test(

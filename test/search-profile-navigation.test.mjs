@@ -498,3 +498,46 @@ test("missing live URL never makes a retained observation a same-page shortcut",
   });
   assert.deepEqual(calls, ["goto"]);
 });
+
+for (const live of ["committed", "uncommitted", "missing"]) {
+  test(`composer navigation skips only a proven committed URL wait: ${live}`, async () => {
+    let page = "https://x.com/Example",
+      waits = 0,
+      navigations = 0,
+      contentWaits = 0;
+    const loc = {
+      filter() {
+        return this;
+      },
+      count: async () => 0,
+      waitFor: async () => {
+        contentWaits++;
+      },
+    };
+    const tab = {
+      goto: async (url) => {
+        navigations++;
+        if (live !== "uncommitted") page = url;
+      },
+      playwright: {
+        locator: () => loc,
+        getByRole: () => loc,
+        waitForURL: async (url) => {
+          waits++;
+          page = url;
+        },
+      },
+    };
+    if (live !== "missing") tab.url = async () => page;
+    const b = createDOMXBrowser(tab);
+    await b.act({
+      operation: "openObserved",
+      view: "composer",
+      url: "https://x.com/compose/post",
+      evidenceRef: "observed",
+    });
+    assert.equal(navigations, 1);
+    assert.equal(waits, live === "committed" ? 0 : 1);
+    assert.equal(contentWaits, 1);
+  });
+}
