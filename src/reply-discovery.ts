@@ -56,6 +56,7 @@ export class ReplyDiscovery {
       return "source-time";
     if ((args.chineseOnly ?? true) && !/[\u3400-\u9fff]/u.test(p.body))
       return "source-language";
+    if (args.minLikes === null) return;
     const raw = p.metrics?.find((m) => /喜欢|点赞|likes?\b/i.test(m));
     const match = raw?.match(/([\d,]+(?:\.\d+)?)\s*([万千KM])?/i);
     const multiplier: Record<string, number> = {

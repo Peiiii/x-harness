@@ -301,7 +301,8 @@ export interface ReplyDiscoveryOptions {
   maxWindows?: number;
   processedIds?: string[];
   excludedHandles?: string[];
-  minLikes?: number;
+  /** Omitted: 20 likes. Explicit null disables only the likes gate. */
+  minLikes?: number | null;
   maxAgeHours?: number;
   chineseOnly?: boolean;
 }

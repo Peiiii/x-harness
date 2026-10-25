@@ -442,3 +442,59 @@ test("anonymous received records remain separate and caller author exclusions st
     [],
   );
 });
+
+test("explicit null disables only likes while default and numeric thresholds remain", async (t) => {
+  for (const [label, options, expected] of [
+    ["default", {}, ["3"]],
+    ["zero", { minLikes: 0 }, ["1", "3"]],
+    ["positive", { minLikes: 10 }, ["3"]],
+    ["disabled", { minLikes: null }, ["1", "2", "3"]],
+  ]) {
+    await t.test(label, async (t) => {
+      const f = fixture(t);
+      const sources = [
+        post(1, { metrics: ["0 likes"] }),
+        post(2, { metrics: [] }),
+        post(3),
+        post(4, { body: "hello" }),
+        post(5, { datetime: new Date(NOW - 13 * 3600000).toISOString() }),
+        post(6, { needsExpansion: true }),
+      ];
+      const d = new ReplyDiscovery(
+        async () => ({ status: "observed", evidenceRef: f.proof, sources }),
+        f.store,
+        () => NOW,
+      );
+      const result = await d.run({
+        queries: ["互关"],
+        target: 10,
+        maxWindows: 1,
+        ...options,
+      });
+      assert.deepEqual(
+        result.candidates.map((c) => c.post.id),
+        expected,
+      );
+      assert.equal(result.rejections["source-language"], 1);
+      assert.equal(result.rejections["source-time"], 1);
+      assert.equal(result.rejections["incomplete-source"], 1);
+      if (label === "disabled") {
+        assert.deepEqual(result.candidates[1].post.metrics, []);
+        assert.ok(result.candidates.every((c) => c.requiresReview));
+      }
+    });
+  }
+});
+
+test("invalid likes thresholds are rejected before searching", async (t) => {
+  const f = fixture(t);
+  const d = new ReplyDiscovery(
+    async () => assert.fail("invalid options must not reach browser"),
+    f.store,
+    () => NOW,
+  );
+  for (const minLikes of [-1, NaN, Infinity, "0"]) {
+    const result = await d.run({ queries: ["互关"], minLikes });
+    assert.equal(result.reason, "discovery-options-invalid");
+  }
+});

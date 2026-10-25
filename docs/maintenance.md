@@ -198,3 +198,7 @@ The full check passes833 tests and all existing type/build/maintainability/forma
 ## Received-like explicit expiry (2026-10-24)
 
 IncomingReactions now applies an existing executor window during daytime as well as early hours, including the final beforeSubmit check. Five failing assembled cases reproduce the old expiry/scope/proof/unknown-read gap; seven new cases and40 directed incoming/manual/reply-window tests pass after repair, with type/build/format/maintainability checks. See `docs/designs/2026-10-24-incoming-like-expiry.design.md`. Exact frozen-module consumer adoption is permitted after local hash validation; source delivery does not claim a live night test or npm publication. Include this correction in the next consolidated reaction/window release.
+
+## Reply discovery optional likes gate
+
+The original discovery API accepts explicit `minLikes: null` to disable its likes gate. Omission preserves the 20-like default and numeric zero still requires a measured count; missing metrics are never synthesized. Time, completeness, language, author history and semantic review remain enforced. The assembled regression fails before repair; directed discovery tests, typecheck, build and maintainability validate the correction. See `docs/designs/2026-10-25-discovery-null-likes.design.md`. Validated local consumer adoption is supported; include packaging in the next consolidated discovery release.
