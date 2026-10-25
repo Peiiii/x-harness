@@ -1,3 +1,4 @@
+import { PostMedia } from "./post-media.js";
 import { XUsageJournal } from "./usage.js";
 import { createBusinessHarness } from "./api.js";
 import { AccountScreenshots } from "./account-screenshots.js";
@@ -24,6 +25,7 @@ export function bindXGrowthHarness(options: HarnessOptions): XGrowthHarness {
   const harness = createBusinessHarness({
     platform: createXPlatform(browser, { clock }),
     store,
+    media: tab ? new PostMedia(tab, store, clock, executor) : undefined,
     screenshots: tab
       ? new AccountScreenshots({ tab, store, proofDirectory, clock })
       : undefined,

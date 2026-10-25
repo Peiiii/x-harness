@@ -202,3 +202,7 @@ IncomingReactions now applies an existing executor window during daytime as well
 ## Reply discovery optional likes gate
 
 The original discovery API accepts explicit `minLikes: null` to disable its likes gate. Omission preserves the 20-like default and numeric zero still requires a measured count; missing metrics are never synthesized. Time, completeness, language, author history and semantic review remain enforced. The assembled regression fails before repair; directed discovery tests, typecheck, build and maintainability validate the correction. See `docs/designs/2026-10-25-discovery-null-likes.design.md`. Validated local consumer adoption is supported; include packaging in the next consolidated discovery release.
+
+## Original post image acquisition
+
+`readPostMedia` composes the original fresh post read with the host's documented pageAssets inventory/bundle capability, returning original image files and source/export proofs. It exports only exact source-image URLs, rejects quote ambiguity, route drift and partial acquisition, and honors explicit executor expiry before each acquisition step. No screenshots or direct URL transport is added. Native/missing capability stays explicit. Design and review: `docs/designs/2026-10-25-post-media-read.design.md`. Validated local adoption is allowed; include public packaging with the next consolidated reader release.

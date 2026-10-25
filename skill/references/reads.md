@@ -18,7 +18,7 @@ Proof required. Native: selected profile, navigate:false, unknown time; stop on 
 
 Bookmarks resume:true: same folder, finite tail.
 
-`pageComplete:false`: finite scope; keep full text, view media first.
+`pageComplete:false`: finite scope; view [images](post-media.md) first.
 
 Incoming: ledger processedIds; skip settled/intent/unknown. Parents: readPost(includeContext:true), deduplicate.
 

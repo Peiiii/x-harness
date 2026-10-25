@@ -295,6 +295,19 @@ export interface SearchOptions extends WindowOptions {
   /** Continue only the currently confirmed exact query without reopening its top. */
   resume?: boolean;
 }
+export interface PostMediaOptions {
+  target: PostTarget;
+  maxImages?: number;
+}
+export interface PostMediaResult {
+  status: "observed" | "needsDecision" | "needsCapability";
+  complete: boolean;
+  images: { src: string; path: string; contentType: string }[];
+  sourceEvidenceRef?: EvidenceRef;
+  evidenceRef?: EvidenceRef;
+  reason?: string;
+  error?: string;
+}
 export interface ReplyDiscoveryOptions {
   queries: string[];
   target?: number;
@@ -593,6 +606,7 @@ export interface LocatorPort {
   getByRole?(role: string, options?: unknown): LocatorPort;
 }
 export interface CuaTab {
+  capabilities?: { get(id: string): Promise<unknown> };
   id?: string;
   url(): Promise<string>;
   goto?(url: string): Promise<unknown>;
@@ -740,6 +754,7 @@ export interface XGrowthHarness {
   ): Promise<VerifiedTargetPlanResult>;
   replyBatch(args: ReplyBatchOptions): Promise<ReplyBatchResult>;
   likeIncomingBatch(args: IncomingLikeOptions): Promise<IncomingLikeResult>;
+  readPostMedia(options: PostMediaOptions): Promise<PostMediaResult>;
   readCreator(args: CreatorOptions): Promise<ReadResult>;
   readPeople(args: PeopleOptions): Promise<ReadResult>;
   readFollowbackAudit(

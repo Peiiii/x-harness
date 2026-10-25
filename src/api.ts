@@ -26,6 +26,7 @@ import type { BoundaryRecord } from "./boundary.js";
 
 /** Internal dependencies; only the normal X factory is exported from the root. */
 export interface BusinessDependencies {
+  media?: import("./post-media.js").PostMedia;
   screenshots?: import("./account-screenshots.js").AccountScreenshots;
   platform: BoundaryRecord;
   store: import("./store.js").RoundStore;
@@ -37,6 +38,7 @@ export interface BusinessDependencies {
 export class BusinessHarness implements XGrowthHarness {
   configureOriginalCadence: OriginalPostCadence["configure"];
   captureAccountScreenshot: XGrowthHarness["captureAccountScreenshot"];
+  #media?: import("./post-media.js").PostMedia;
   #threadReactions: ThreadReactions;
   #replyThreadBatch: ReplyThreadBatch;
   #reactions!: IncomingReactions;
@@ -48,6 +50,8 @@ export class BusinessHarness implements XGrowthHarness {
   #clock!: () => number;
   #executor?: import("./types.js").Executor;
   constructor(dependencies: BusinessDependencies) {
+    this.#media = dependencies.media;
+    this.readPostMedia = this.readPostMedia.bind(this);
     this.captureAccountScreenshot =
       dependencies.screenshots?.capture ||
       (async () => ({
@@ -794,6 +798,18 @@ export class BusinessHarness implements XGrowthHarness {
     args: import("./types.js").HomeRecommendationOptions = {},
   ) {
     return this.read("readHomeRecommendations", args, args.mode);
+  }
+  public async readPostMedia(
+    options: import("./types.js").PostMediaOptions,
+  ): Promise<import("./types.js").PostMediaResult> {
+    return this.#media
+      ? this.#media.read(options, this.readPost)
+      : {
+          status: "needsCapability",
+          complete: false,
+          images: [],
+          reason: "page-assets-unavailable",
+        };
   }
   public readPost({
     target,

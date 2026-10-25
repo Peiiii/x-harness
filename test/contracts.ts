@@ -4,6 +4,7 @@ import {
   type XGrowthHarness,
   type CuaTab,
   type ReadResult,
+  type PostMediaResult,
 } from "../dist/index.js";
 declare const policyProof: string;
 declare const membershipProof: string;
@@ -100,3 +101,13 @@ api
   });
 // @ts-expect-error No precollected target list is needed/accepted.
 api.likePostAndComments({ targets: [] });
+
+const media: Promise<PostMediaResult> = api.readPostMedia({
+  target: {
+    postId: "123",
+    url: "https://x.com/peer/status/123",
+    evidenceRef: "/proof",
+  },
+  maxImages: 4,
+});
+void media;
