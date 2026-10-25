@@ -1,3 +1,4 @@
+import { open } from "node:fs/promises";
 import { executorWindowAllowed } from "./growth-policy.js";
 import type { RoundStore } from "./store.js";
 import type {
@@ -6,6 +7,7 @@ import type {
   PostMediaOptions,
   PostMediaResult,
   ReadResult,
+  PostEvidence,
   XGrowthHarness,
 } from "./types.js";
 
@@ -69,6 +71,80 @@ export class PostMedia {
       return false;
     }
   }
+  private async imageType(path: string) {
+    const file = await open(path, "r");
+    try {
+      const bytes = Buffer.alloc(12);
+      await file.read(bytes, 0, 12, 0);
+      const hex = bytes.toString("hex");
+      if (hex.startsWith("ffd8ff")) return "image/jpeg";
+      if (hex.startsWith("89504e470d0a1a0a")) return "image/png";
+      if (/^GIF8[79]a/.test(bytes.toString("ascii"))) return "image/gif";
+      if (
+        bytes.toString("ascii", 0, 4) === "RIFF" &&
+        bytes.toString("ascii", 8, 12) === "WEBP"
+      )
+        return "image/webp";
+      return null;
+    } finally {
+      await file.close();
+    }
+  }
+  private async fromDOM(
+    p: PostEvidence,
+    images: string[],
+    result: PostMediaResult,
+    timeoutMs: number,
+  ) {
+    result.acquisition = "dom-media";
+    if (!this.tab.playwright?.locator) {
+      result.status = "needsCapability";
+      result.reason = "dom-media-unavailable";
+      return result;
+    }
+    for (const src of images) {
+      if (!(await this.allowed())) {
+        result.reason = "night-platform-boundary";
+        return result;
+      }
+      if (!this.route(await this.tab.url(), p)) {
+        result.reason = "media-route-changed";
+        return result;
+      }
+      const href = new URL(p.url!).pathname;
+      const locator = this.tab.playwright.locator(
+        `article:has(a[href=${JSON.stringify(href)}]) img[src=${JSON.stringify(src)}]`,
+      );
+      if (!locator.downloadMedia) {
+        result.status = "needsCapability";
+        result.reason = "dom-media-unavailable";
+        return result;
+      }
+      if ((await locator.count()) !== 1) {
+        result.reason = "media-dom-image-unconfirmed";
+        return result;
+      }
+      if (!(await this.allowed())) {
+        result.reason = "night-platform-boundary";
+        return result;
+      }
+      const path = await locator.downloadMedia({ timeoutMs });
+      const contentType = await this.imageType(path);
+      if (!contentType) {
+        result.reason = "media-format-unconfirmed";
+        return result;
+      }
+      result.images.push({ src, path, contentType });
+    }
+    if (!(await this.allowed())) {
+      result.reason = "night-platform-boundary";
+      return result;
+    }
+    result.complete = this.route(await this.tab.url(), p);
+    result.status = result.complete ? "observed" : "needsDecision";
+    if (!result.complete) result.reason = "media-route-changed";
+    return result;
+  }
   async read(
     options: PostMediaOptions,
     readPost: XGrowthHarness["readPost"],
@@ -78,17 +154,27 @@ export class PostMedia {
       complete: false,
       images: [],
     };
+    let assetInventory: unknown;
     const finish = async () => ({
       ...result,
       evidenceRef: await this.store.recordProof({
         operation: "readPostMedia",
+        assetInventory,
         capturedAt: new Date(this.clock()).toISOString(),
         result,
       }),
     });
     try {
       const max = options.maxImages ?? 4;
-      if (!Number.isInteger(max) || max < 1 || max > 4) {
+      const timeoutMs = options.timeoutMs ?? 10000;
+      if (
+        !Number.isInteger(max) ||
+        max < 1 ||
+        max > 4 ||
+        !Number.isFinite(timeoutMs) ||
+        timeoutMs < 1000 ||
+        timeoutMs > 30000
+      ) {
         result.reason = "media-options-invalid";
         return finish();
       }
@@ -100,7 +186,7 @@ export class PostMedia {
         result.reason = "media-target-invalid";
         return finish();
       }
-      if (!this.tab.capabilities?.get) {
+      if (!this.tab.capabilities?.get && !this.tab.playwright?.locator) {
         result.status = "needsCapability";
         result.reason = "page-assets-unavailable";
         return finish();
@@ -166,6 +252,10 @@ export class PostMedia {
         result.reason = "media-image-origin-unconfirmed";
         return finish();
       }
+      if (!this.tab.capabilities?.get) {
+        result = await this.fromDOM(p, images, result, timeoutMs);
+        return finish();
+      }
       const cap = (await this.tab.capabilities.get("pageAssets")) as AssetPort;
       if (
         typeof cap?.list !== "function" ||
@@ -180,6 +270,7 @@ export class PostMedia {
         return finish();
       }
       const inventory = await cap.list();
+      assetInventory = inventory;
       if (
         !this.route(inventory.pageUrl, p) ||
         !this.route(await this.tab.url(), p)
@@ -191,13 +282,14 @@ export class PostMedia {
         inventory.assets.find((a) => a.kind === "image" && a.url === src),
       );
       if (selected.some((a) => !a)) {
-        result.reason = "media-inventory-incomplete";
+        result = await this.fromDOM(p, images, result, timeoutMs);
         return finish();
       }
       if (!(await this.allowed())) {
         result.reason = "night-platform-boundary";
         return finish();
       }
+      result.acquisition = "page-assets";
       const exported = await cap.bundle({
         inventoryId: inventory.id,
         assetIds: selected.map((a) => a!.id),

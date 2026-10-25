@@ -298,11 +298,14 @@ export interface SearchOptions extends WindowOptions {
 export interface PostMediaOptions {
   target: PostTarget;
   maxImages?: number;
+  /** Per-image host download budget, 1–30 seconds; defaults to 10 seconds. */
+  timeoutMs?: number;
 }
 export interface PostMediaResult {
   status: "observed" | "needsDecision" | "needsCapability";
   complete: boolean;
   images: { src: string; path: string; contentType: string }[];
+  acquisition?: "page-assets" | "dom-media";
   sourceEvidenceRef?: EvidenceRef;
   evidenceRef?: EvidenceRef;
   reason?: string;
@@ -596,6 +599,7 @@ export interface Executor {
 }
 /** Structural host ports: the package reuses the provided CUA connection. */
 export interface LocatorPort {
+  downloadMedia?(options: { timeoutMs?: number }): Promise<string>;
   count(): Promise<number>;
   click(options?: unknown): Promise<unknown>;
   fill(value: string): Promise<unknown>;

@@ -109,5 +109,6 @@ const media: Promise<PostMediaResult> = api.readPostMedia({
     evidenceRef: "/proof",
   },
   maxImages: 4,
+  timeoutMs: 10000,
 });
 void media;

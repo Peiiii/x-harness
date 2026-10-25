@@ -1,3 +1,5 @@
+import { writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { PostMedia } from "../dist/post-media.js";
@@ -90,7 +92,7 @@ function setup(
     calls.push(["read", args]);
     return source;
   };
-  return { ...f, source, reader, target, calls, read };
+  return { ...f, source, reader, target, calls, read, tab };
 }
 test("root media method delegates one fresh read and exports only exact observed image", async (t) => {
   const f = setup(t);
@@ -163,7 +165,7 @@ for (const [label, inventoryPatch, reason] of [
     { currentURL: "https://x.com/peer/status/124" },
     "media-route-changed",
   ],
-  ["missing image", { assets: [] }, "media-inventory-incomplete"],
+  ["missing image", { assets: [] }, "dom-media-unavailable"],
 ])
   test("asset scope guard: " + label, async (t) => {
     const f = setup(t, { inventoryPatch });
@@ -282,4 +284,103 @@ test("quoted media stays unconfirmed rather than exporting another author image"
   const out = await f.reader.read({ target: f.target }, f.read);
   assert.equal(out.reason, "quoted-media-scope-unconfirmed");
   assert.ok(!f.calls.includes("list"));
+});
+
+function domFallback(
+  f,
+  {
+    count = 1,
+    bytes = Buffer.from("ffd8ffe00000000000000000", "hex"),
+    onCount,
+    onDownload,
+  } = {},
+) {
+  const path = join(dirname(f.proof), "observed-image.jpg");
+  writeFileSync(path, bytes);
+  f.tab.playwright = {
+    locator(selector) {
+      f.calls.push(["selector", selector]);
+      return {
+        async count() {
+          await onCount?.();
+          return count;
+        },
+        async downloadMedia(options) {
+          f.calls.push(["download", options]);
+          await onDownload?.();
+          return path;
+        },
+      };
+    },
+  };
+  return path;
+}
+test("empty host inventory falls back only to the unique exact source image element", async (t) => {
+  const f = setup(t, { inventoryPatch: { assets: [] } });
+  const path = domFallback(f);
+  const out = await f.reader.read({ target: f.target }, f.read);
+  assert.equal(out.complete, true);
+  assert.equal(out.acquisition, "dom-media");
+  assert.equal(out.images[0].path, path);
+  assert.equal(out.images[0].contentType, "image/jpeg");
+  assert.equal(
+    f.calls.find((x) => Array.isArray(x) && x[0] === "selector")[1],
+    `article:has(a[href="/peer/status/123"]) img[src="${src}"]`,
+  );
+  assert.deepEqual(
+    f.calls.find((x) => Array.isArray(x) && x[0] === "download"),
+    ["download", { timeoutMs: 10000 }],
+  );
+});
+test("ambiguous DOM image never downloads", async (t) => {
+  const f = setup(t, { inventoryPatch: { assets: [] } });
+  domFallback(f, { count: 2 });
+  const out = await f.reader.read({ target: f.target }, f.read);
+  assert.equal(out.reason, "media-dom-image-unconfirmed");
+  assert.ok(!f.calls.some((x) => Array.isArray(x) && x[0] === "download"));
+});
+test("a downloaded non-image file never receives image approval", async (t) => {
+  const f = setup(t, { inventoryPatch: { assets: [] } });
+  domFallback(f, { bytes: Buffer.from("not an image") });
+  const out = await f.reader.read({ target: f.target }, f.read);
+  assert.equal(out.reason, "media-format-unconfirmed");
+  assert.equal(out.complete, false);
+  assert.deepEqual(out.images, []);
+});
+test("DOM export still obeys cutoff between lookup and download", async (t) => {
+  let now = Date.parse("2026-10-11T23:59:59+08:00");
+  const f = setup(t, { inventoryPatch: { assets: [] }, clock: () => now });
+  domFallback(f, {
+    onCount() {
+      now += 2000;
+    },
+  });
+  const out = await f.reader.read({ target: f.target }, f.read);
+  assert.equal(out.reason, "night-platform-boundary");
+  assert.ok(!f.calls.some((x) => Array.isArray(x) && x[0] === "download"));
+});
+test("DOM download errors retain proof and never switch to broad acquisition", async (t) => {
+  const f = setup(t, { inventoryPatch: { assets: [] } });
+  domFallback(f, {
+    onDownload() {
+      throw Error("host transport refused");
+    },
+  });
+  const out = await f.reader.read({ target: f.target }, f.read);
+  assert.equal(out.reason, "media-read-failed");
+  assert.equal(
+    f.calls.filter((x) => Array.isArray(x) && x[0] === "download").length,
+    1,
+  );
+  assert.ok(!f.calls.some((x) => Array.isArray(x) && x[0] === "bundle"));
+});
+
+test("invalid image budgets stop before any platform read", async (t) => {
+  const f = setup(t);
+  for (const timeoutMs of [0, 999, 30001, Infinity, NaN])
+    assert.equal(
+      (await f.reader.read({ target: f.target, timeoutMs }, f.read)).reason,
+      "media-options-invalid",
+    );
+  assert.deepEqual(f.calls, []);
 });
