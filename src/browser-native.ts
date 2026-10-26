@@ -175,6 +175,7 @@ export class NativeXBrowser {
       ...base,
       posts: (raw.posts ?? []).map((p: any) => ({
         ...p,
+        primary: p.primary ? xURL(valueOf(p.primary) ?? p.primary).href : null,
         body: p.text,
         replyToId: null,
       })),
@@ -213,10 +214,23 @@ export class NativeXBrowser {
     return operation === "attachAssets"
       ? ["native.attachAssets"]
       : operation === "refreshPosts"
-        ? ["native.refreshPosts"]
+        ? missingMethods(this.#app, ["getAXState", "click"])
         : missingMethods(this.#app, names);
   }
   public async act(command: any): Promise<any> {
+    if (command.operation === "refreshPosts") {
+      const raw = await this.#low.observe({ mode: "navigation" });
+      this.#current = { raw };
+      const index = this.one((e: any) =>
+        /^按钮 (?:重新加载|刷新)(?:,|$)/.test(e.label),
+      );
+      this.#current = null;
+      return this.#low.act({
+        index,
+        operation: "click",
+        read: { mode: "posts", limit: 5 },
+      });
+    }
     if (command.operation === "waitForPosts") {
       this.#current = null;
       return this.#low.observe({ mode: "posts", limit: 5 });

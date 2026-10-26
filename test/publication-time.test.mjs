@@ -58,3 +58,26 @@ test("short legacy IDs retain the existing rendered-time lower bound", () => {
     second,
   );
 });
+
+test("absolute native minute is refined only by a public ID in that exact minute", () => {
+  const at = second + 21736,
+    minute = Math.floor(at / 60000) * 60000;
+  const post = {
+    id: idAt(at),
+    datetime: new Date(minute).toISOString(),
+    datetimePrecision: "minute",
+  };
+  assert.equal(publicationTime(post), at);
+  for (const changed of [
+    { datetime: new Date(minute + 60000).toISOString() },
+    { datetime: new Date(minute + 1000).toISOString() },
+    { id: "11" },
+    { datetime: null },
+    { datetimePrecision: undefined },
+  ])
+    assert.ok(Number.isNaN(publicationTime({ ...post, ...changed })));
+  assert.ok(
+    publicationTime(post) < at + 1,
+    "an older ID must still fail a later intent",
+  );
+});

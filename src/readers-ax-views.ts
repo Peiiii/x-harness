@@ -230,18 +230,41 @@ export function projectAXPosts(tree: AXTree, context: AXProjection) {
     );
     const source = primary ?? (edited.length === 1 ? edited[0] : null);
     const match = source?.label.match(/x\.com\/(\w+)\/status\/(\d+)/);
-    const text = postNodes
+    let text = postNodes
       .filter((n: any) => {
         if (!/^(?:文本 |text )/.test(n.label)) return false;
         let parent = n.parent;
         while (parent !== null && parent !== i) {
-          if (/^(?:按钮|button)(?: |$)/.test(nodes[parent].label)) return false;
+          if (/^(?:按钮|button|弹出式按钮)(?: |$)/.test(nodes[parent].label))
+            return false;
           parent = nodes[parent].parent;
         }
         return true;
       })
       .map((n: any) => n.label.replace(/^(?:文本 |text )/, ""))
-      .join("\n");
+      .join("\n")
+      .trim();
+    const hashtags = postNodes.filter((n: any) =>
+      /^link #[^,]+, Value: x\.com\/hashtag\//.test(n.label),
+    );
+    let hashtagLayoutUnconfirmed = false;
+    if (hashtags.length) {
+      const first = postNodes.indexOf(hashtags[0]);
+      const preceding = postNodes
+        .slice(0, first)
+        .filter((n: any) => /^(?:文本 |text )/.test(n.label))
+        .at(-1);
+      hashtagLayoutUnconfirmed =
+        !preceding ||
+        !/\n$/.test(preceding.label) ||
+        hashtags.some((n: any) => n.parent !== preceding.parent);
+      if (!hashtagLayoutUnconfirmed)
+        text +=
+          "\n\n" +
+          hashtags
+            .map((n: any) => n.label.match(/^link (#[^,]+), Value:/)[1])
+            .join(" ");
+    }
     const absolute = source?.label.match(
       /link (上午|下午)?(\d{1,2}):(\d{2}) · (\d{4})年(\d{1,2})月(\d{1,2})日/,
     );
@@ -270,10 +293,12 @@ export function projectAXPosts(tree: AXTree, context: AXProjection) {
       text,
       evidence: items,
       needsExpansion:
+        hashtagLayoutUnconfirmed ||
         /显示更多|Show more/i.test(text) ||
         items.some((n: any) => /显示更多|Show more/i.test(n.label)),
       missing: [
         !match && "id",
+        hashtagLayoutUnconfirmed && "hashtag-layout-unconfirmed",
         !text && "text",
         !datetime && "datetime",
       ].filter(Boolean),

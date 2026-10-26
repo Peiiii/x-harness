@@ -159,3 +159,67 @@ for (const mode of [
     );
   });
 }
+
+test("native public body preserves paragraphs and excludes popup metric text", () => {
+  const ax = `0 标准窗口 X, URL: x.com/sample/status/456
+  1 container sample @sample
+    2 link 下午1:05 · 2026年10月11日, Value: x.com/sample/status/456
+    3 文本 first
+
+third
+
+    4 弹出式按钮 2 次转帖。转帖
+      5 文本 2
+    6 按钮 3 喜欢次数。喜欢
+      7 文本 3
+`;
+  const p = readAX(ax, { mode: "posts", targetId: "456" }).posts[0];
+  assert.equal(p.text, "first\n\nthird");
+  assert.equal(p.datetime, "2026-10-11T05:05:00.000Z");
+});
+
+test("native refresh executes an observed reload and exposes an actual public URL", async () => {
+  let clicks = 0;
+  const ax = `0 标准窗口 X, URL: x.com/sample
+  1 按钮 重新加载
+  2 HTML 内容 X, URL: x.com/sample
+    3 container sample @sample
+      4 link 上午8:42 · 2026年10月26日, Value: x.com/sample/status/456
+      5 文本 Body
+`;
+  const b = createNativeXBrowser({
+    getAXState: async () => ax,
+    click: async (index) => {
+      assert.equal(index, 1);
+      clicks++;
+    },
+  });
+  assert.deepEqual(b.capabilities("refreshPosts"), []);
+  await b.act({ operation: "refreshPosts" });
+  assert.equal(clicks, 1);
+  const result = await b.observe({ view: "posts", limit: 5 });
+  assert.equal(result.posts[0].primary, "https://x.com/sample/status/456");
+});
+
+test("native trailing hashtag paragraph is complete only with observed sibling layout", () => {
+  const ax = `0 标准窗口 X, URL: x.com/sample/status/456
+  1 container sample @sample
+    2 link 下午1:05 · 2026年10月11日, Value: x.com/sample/status/456
+    3 container
+      4 文本 first
+
+third
+
+      5 link #one, Value: x.com/hashtag/one
+      6 link #two, Value: x.com/hashtag/two
+    7 按钮 0 回复。回复
+`;
+  const p = readAX(ax, { mode: "posts", targetId: "456" }).posts[0];
+  assert.equal(p.text, "first\n\nthird\n\n#one #two");
+  assert.equal(p.needsExpansion, false);
+  const bad = readAX(ax.replace("third\n\n", "third\n"), {
+    mode: "posts",
+    targetId: "456",
+  }).posts[0];
+  assert.equal(bad.needsExpansion, true);
+});
