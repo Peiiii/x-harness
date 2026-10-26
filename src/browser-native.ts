@@ -167,6 +167,7 @@ export class NativeXBrowser {
       return {
         ...base,
         editorText: editors.length === 1 ? valueOf(editors[0].label) : null,
+        editorTextRepresentation: "native-ax-lines",
         replyToId: ids.length === 1 ? ids[0] : null,
       };
     }
@@ -280,10 +281,72 @@ export class NativeXBrowser {
     const read: BoundaryRecord = {
       mode: command.operation === "follow" ? "profile" : "composer",
     };
+    if (
+      command.activation === "keyboard" &&
+      ["submitPost", "submitReply"].includes(command.operation)
+    )
+      return this.activateKeyboard(command);
     if (["submitPost", "submitReply"].includes(command.operation))
       await command.beforeSubmit?.();
     this.#current = null;
     return this.#low.act({ index, operation, value, read });
+  }
+  private async activateKeyboard(command: any) {
+    const editor = this.#current.raw.evidence.filter((e: any) =>
+      /^(?:文本输入区(?:域)?|文本区域|文本栏) /.test(e.label),
+    );
+    const identity = () =>
+      readAX(this.#latestAX, { mode: "navigation" }).evidence.filter((e: any) =>
+        /^link 个人资料, Value: x\.com\/\w+$/.test(e.label),
+      );
+    const actor = identity();
+    if (editor.length !== 1 || actor.length !== 1)
+      throw Error("native-keyboard-context-unconfirmed");
+    // Focus the observed button, never click then press Enter (double activation).
+    // Escape without an autocomplete can open X's irreversible discard dialog.
+    if (
+      /列表框/.test(this.#latestAX) &&
+      /文本 \(selected\) #/.test(this.#latestAX)
+    )
+      await this.#app.pressKey("Escape");
+    for (let step = 0; step < 24; step++) {
+      await this.#app.pressKey("Tab");
+      const observed = await this.#low.observe({ mode: "composer" });
+      this.#current = { raw: observed };
+      const focused = this.#latestAX.match(
+        /The focused UI element is (\d+) (.*)/,
+      );
+      const button = observed.evidence?.find(
+        (e: any) =>
+          e.index === Number(focused?.[1]) &&
+          new RegExp(
+            command.operation === "submitReply"
+              ? "^按钮 (回复|Reply)(?:,|$)"
+              : "^按钮 (发帖|发布|Post)(?:,|$)",
+            "i",
+          ).test(e.label),
+      );
+      const currentEditor = observed.evidence?.filter((e: any) =>
+        /^(?:文本输入区(?:域)?|文本区域|文本栏) /.test(e.label),
+      );
+      const currentActor = identity();
+      if (
+        observed.needsStateCheck ||
+        observed.alerts?.length ||
+        currentEditor?.length !== 1 ||
+        currentEditor[0].label !== editor[0].label ||
+        currentActor.length !== 1 ||
+        currentActor[0].label !== actor[0].label
+      )
+        throw Error("native-keyboard-composer-unconfirmed");
+      if (button) {
+        await command.beforeSubmit?.();
+        this.#current = null;
+        await this.#app.pressKey("Return");
+        return this.#low.observe({ mode: "composer" });
+      }
+    }
+    throw Error("native-submit-button-focus-unconfirmed");
   }
   public screenshot() {
     this.#current = null;

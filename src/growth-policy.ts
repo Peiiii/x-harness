@@ -251,7 +251,9 @@ export class GrowthPolicy {
       if (
         action.kind === "original" &&
         (!this.#evidenceExists(action.composeEvidenceRef) ||
-          xURL(action.composeURL).pathname !== "/compose/post")
+          !["/compose/post", "/home"].includes(
+            xURL(action.composeURL).pathname,
+          ))
       )
         return "observed-composer-proof-missing";
       if (

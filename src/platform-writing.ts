@@ -75,8 +75,15 @@ export class PlatformWriting {
       });
     await this.#browser.act({ operation: "fillComposer", text: action.text });
     value = await this.#observed({ view: "composer" });
+    const editorMatches =
+      value.editorTextRepresentation === "native-ax-lines"
+        ? sameText(
+            value.editorText?.replace(/\n{2,}/g, "\n"),
+            action.text.replace(/\n{2,}/g, "\n"),
+          )
+        : sameText(value.editorText, action.text);
     if (
-      !sameText(value.editorText, action.text) ||
+      !editorMatches ||
       value.needsStateCheck ||
       value.alerts?.length ||
       (action.kind === "reply" && value.replyToId !== action.postId) ||
@@ -86,7 +93,7 @@ export class PlatformWriting {
         !sameHandle(value.accountHandle, action.accountHandle))
     )
       throw new Error(
-        `提交前账号/正文/目标未核实 ${JSON.stringify({ textMatches: sameText(value.editorText, action.text), needsStateCheck: value.needsStateCheck, alerts: value.alerts, accountHandle: value.accountHandle, replyToId: value.replyToId })}`,
+        `提交前账号/正文/目标未核实 ${JSON.stringify({ textMatches: editorMatches, needsStateCheck: value.needsStateCheck, alerts: value.alerts, accountHandle: value.accountHandle, replyToId: value.replyToId })}`,
       );
     return this.#browser.act({
       operation: action.kind === "reply" ? "submitReply" : "submitPost",

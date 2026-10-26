@@ -14,7 +14,7 @@ export function parseAXNodes(state: string) {
     ) {
       if (
         nodes.length &&
-        line.trim() &&
+        (line.trim() || /, Value:/.test(nodes.at(-1).label)) &&
         !/^The focused UI|Window:|Wall time:|Output:/.test(line)
       )
         nodes.at(-1).label += "\n" + line;

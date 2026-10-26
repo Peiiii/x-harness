@@ -1,0 +1,161 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readAX } from "../dist/diagnostics.js";
+import { createNativeXBrowser } from "../dist/browser-native.js";
+import { fixture } from "./fixtures.mjs";
+const home = `0 标准窗口 X, URL: x.com/home
+  1 HTML 内容 X, URL: x.com/home
+    2 link 个人资料, Value: x.com/sample
+    3 文本输入区 (settable) 帖子文本, Value: first
+
+third
+    4 按钮 发帖
+    5 container Feed @other
+      6 link post, Value: x.com/other/status/123
+      7 按钮 回复
+`;
+test("native home isolates composer from feed and preserves exact paragraphs", async () => {
+  const r = readAX(home, { mode: "composer" });
+  assert.equal(r.needsStateCheck, false);
+  assert.deepEqual(
+    r.evidence.map((e) => e.index),
+    [3, 4],
+  );
+  const browser = createNativeXBrowser({ getAXState: async () => home });
+  const observation = await browser.observe({ view: "composer" });
+  assert.equal(observation.accountHandle, "sample");
+  assert.equal(observation.editorText, "first\n\nthird");
+  assert.equal(observation.replyToId, null);
+});
+test("home refuses missing identity, missing submit, ambiguous editor and arbitrary route", () => {
+  for (const s of [
+    home.replace("2 link 个人资料", "2 link other"),
+    home.replace("4 按钮 发帖", "4 文本 发帖"),
+    home + "    8 文本输入区 (settable) 帖子文本, Value: other\n",
+    home.replaceAll("/home", "/explore"),
+  ]) {
+    assert.equal(readAX(s, { mode: "composer" }).needsStateCheck, true);
+  }
+});
+test("original accepts observed home but refuses an arbitrary compose URL", async (t) => {
+  for (const route of ["home", "explore"]) {
+    const f = fixture(t, { planned: [0, 1, 0], actionKinds: ["original"] });
+    f.edit((s) => {
+      s.actions[0].composeURL = "https://x.com/" + route;
+    });
+    const result = await f.harness.publishPost({
+      taskId: "round-1",
+      draftPath: f.draft,
+    });
+    assert.equal(f.writes.length, route === "home" ? 1 : 0);
+    if (route === "explore") assert.equal(result.status, "needsDecision");
+  }
+});
+
+import { PlatformWriting } from "../dist/platform-writing.js";
+for (const mode of [
+  "native-lines",
+  "wrong-character",
+  "joined-lines",
+  "wrong-account",
+  "dom-lines",
+]) {
+  test(`native editor representation retains content and account guards: ${mode}`, async () => {
+    let filled = false,
+      writes = 0;
+    const writing = new PlatformWriting({
+      observed: async () => ({
+        editorText: !filled
+          ? ""
+          : mode === "wrong-character"
+            ? "first\nchanged"
+            : mode === "joined-lines"
+              ? "firstthird"
+              : "first\nthird",
+        accountHandle: mode === "wrong-account" ? "other" : "sample",
+        editorTextRepresentation:
+          mode === "dom-lines" ? undefined : "native-ax-lines",
+        needsStateCheck: false,
+        alerts: [],
+      }),
+      browser: {
+        act: async (q) => {
+          if (q.operation === "fillComposer") filled = true;
+          else if (q.operation === "submitPost") writes++;
+        },
+      },
+    });
+    const action = {
+      kind: "original",
+      text: "first\n\nthird",
+      accountHandle: "sample",
+    };
+    if (mode === "native-lines") await writing.compose(action);
+    else await assert.rejects(writing.compose(action), /提交前账号/);
+    assert.equal(writes, mode === "native-lines" ? 1 : 0);
+  });
+}
+
+for (const mode of [
+  "focused",
+  "autocomplete",
+  "absent",
+  "actor-changed",
+  "body-changed",
+  "guard-refused",
+]) {
+  test(`native keyboard activates only fresh unchanged focused submit: ${mode}`, async () => {
+    const calls = [];
+    let tabs = 0;
+    const app = {
+      getAXState: async () => {
+        let ax =
+          home +
+          (mode === "autocomplete"
+            ? "    8 列表框\n      9 文本 (selected) #sample\n"
+            : "");
+        if (tabs && mode === "actor-changed")
+          ax = ax.replace("x.com/sample", "x.com/other");
+        if (tabs && mode === "body-changed")
+          ax = ax.replace("Value: first", "Value: changed");
+        return (
+          ax +
+          `\nThe focused UI element is ${tabs && mode !== "absent" ? "4 按钮 发帖" : "3 文本输入区 (settable) 帖子文本"}`
+        );
+      },
+      pressKey: async (key) => {
+        calls.push(key);
+        if (key === "Tab") tabs++;
+      },
+      click: async () => {
+        throw Error("must never click");
+      },
+      paste: async () => {},
+    };
+    const b = createNativeXBrowser(app);
+    await b.observe({ view: "composer" });
+    const run = () =>
+      b.act({
+        operation: "submitPost",
+        activation: "keyboard",
+        beforeSubmit: async () => {
+          calls.push("guard");
+          if (tabs && mode === "guard-refused") throw Error("guard refused");
+        },
+      });
+    if (["focused", "autocomplete"].includes(mode)) {
+      await run();
+      assert.deepEqual(calls.slice(-2), ["guard", "Return"]);
+    } else await assert.rejects(run());
+    assert.equal(
+      calls.filter((x) => x === "Escape").length,
+      mode === "autocomplete" ? 1 : 0,
+    );
+    if (["absent", "actor-changed", "body-changed"].includes(mode))
+      assert.equal(calls.filter((x) => x === "guard").length, 0);
+    assert.equal(
+      calls.filter((x) => x === "Return").length,
+      ["focused", "autocomplete"].includes(mode) ? 1 : 0,
+    );
+  });
+}

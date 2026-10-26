@@ -361,6 +361,34 @@ export function projectAXComposer(tree: AXTree, context: AXProjection) {
     unknown,
     alertLines,
   } = context;
+  if (/x\.com\/home(?:[?#]|$)/.test(page ?? "")) {
+    const web = nodes.findIndex((n: any) =>
+      /^(?:HTML 内容|AXWebArea) .*URL: (?:https?:\/\/)?x\.com\/home(?:,|$)/.test(
+        n.label,
+      ),
+    );
+    const items = web < 0 ? [] : evidence(descendants(web));
+    const own = items.filter((n: any) =>
+      /^link 个人资料, Value: x\.com\/\w+$/.test(n.label),
+    );
+    const editors = items.filter((n: any) =>
+      /^(?:文本输入区(?:域)?|文本区域) .*帖子文本/.test(n.label),
+    );
+    const submits = items.filter((n: any) =>
+      /^按钮 (?:\(disabled\) )?(?:发帖|Post)(?:,|$)/i.test(n.label),
+    );
+    if (own.length === 1 && editors.length === 1 && submits.length === 1)
+      return {
+        mode,
+        page,
+        posts: [],
+        evidence: [...editors, ...submits],
+        alerts,
+        pageComplete: false,
+        needsStateCheck: false,
+      };
+    return { ...unknown("home-composer-boundary-unconfirmed"), page, alerts };
+  }
   const dialog = nodes.findIndex((n: any) =>
     /^(?:对话框|dialog)(?: |$)/.test(n.label),
   );
