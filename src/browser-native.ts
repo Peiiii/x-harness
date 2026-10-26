@@ -1,4 +1,5 @@
 import type { BoundaryRecord } from "./boundary.js";
+import { NativeBookmarkCollector } from "./bookmark-native.js";
 import { collectCreatorNative } from "./creator-native.js";
 import { createAXHarness } from "./readers-ax-host.js";
 import { readAX } from "./readers-ax-parser.js";
@@ -57,6 +58,7 @@ export class NativeXBrowser {
     Object.assign(
       this,
       serialized({
+        collectBookmarks: (args: unknown) => new NativeBookmarkCollector(this.#low, () => this.#latestAX).collect(args),
         collectCreator: (args: import("./types.js").CreatorOptions) =>
           collectCreatorNative(this.#low, args),
         capabilities: this.capabilities,
@@ -196,7 +198,6 @@ export class NativeXBrowser {
     if (operation === "readPeople") return ["native-people-blue-evidence"];
     if (
       [
-        "readBookmarks",
         "searchSources",
         "readExploreRecommendations",
         "readHomeRecommendations",
