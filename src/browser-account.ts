@@ -31,9 +31,9 @@ export type AccountBrowserHost = {
 /** Serializable, read-only identity observation from the account's own navigation. */
 export function readBrowserAccountIdentity() {
   const visible = (element: Element) => element.getClientRects().length > 0;
-  if (location.hostname !== "x.com") throw Error("unexpected-platform");
+  if (location.hostname !== "x.com") return { error: "unexpected-platform" };
   if (/^\/(?:login|i\/flow|account\/access)(?:\/|$)/.test(location.pathname))
-    throw Error("login-required");
+    return { error: "login-required" };
   const alerts = [...document.querySelectorAll('[role="alert"]')]
     .filter(visible)
     .map((element) => (element as HTMLElement).innerText);
@@ -44,7 +44,7 @@ export function readBrowserAccountIdentity() {
       ),
     )
   )
-    throw Error("platform-alert");
+    return { error: "platform-alert" };
   const links = [
     ...document.querySelectorAll('a[data-testid="AppTabBar_Profile_Link"]'),
   ]
@@ -82,7 +82,9 @@ export class BrowserAccountReader {
       args,
     });
     if (results.length !== 1) throw Error("ambiguous-frame");
-    return results[0].result;
+    const result = results[0].result;
+    if (result?.error) throw Error(result.error);
+    return result;
   }
   async #identity(tabId: number, profile?: string) {
     const deadline = Date.now() + 20000;

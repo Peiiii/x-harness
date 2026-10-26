@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { BrowserAccountReader } from "../dist/browser-account.js";
+import {
+  BrowserAccountReader,
+  readBrowserAccountIdentity,
+} from "../dist/browser-account.js";
 function fixture(overrides = {}) {
   const calls = [];
   const profile = {
@@ -97,4 +100,25 @@ test("concurrent calls do not open a second reader tab", async () => {
   await assert.rejects(reader.read(), /account-read-busy/);
   finish({ id: 77 });
   await first;
+});
+
+test("login routes return a serializable refusal without relying on injected exceptions", () => {
+  const previous = globalThis.location;
+  globalThis.location = { hostname: "x.com", pathname: "/i/flow/login" };
+  try {
+    assert.deepEqual(readBrowserAccountIdentity(), { error: "login-required" });
+  } finally {
+    if (previous === undefined) delete globalThis.location;
+    else globalThis.location = previous;
+  }
+});
+test("serialized page refusals stop immediately and clean up the reader tab", async () => {
+  const f = fixture();
+  f.results[0] = { error: "login-required" };
+  await assert.rejects(
+    new BrowserAccountReader(f.host).read(),
+    /login-required/,
+  );
+  assert.equal(f.calls.filter((c) => c[0] === "read").length, 1);
+  assert.deepEqual(f.calls.at(-1), ["remove", 77]);
 });
