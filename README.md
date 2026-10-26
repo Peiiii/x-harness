@@ -71,3 +71,8 @@ The private parent content repository consumes the published npm package. These 
 ### Selected thread likes
 
 `likePostAndComments({url, sampleRate:0.6})` discovers the selected post and its loaded replies internally, likes the root and a stable sample of comments, skips existing likes and persists intent/recovery in the original ledger. No caller comment list is needed. Serial submissions use a 1–2 second load interval including verification; no detection-evasion techniques are used. Default per-call bounds are 20 new likes, 40 advances and 120 seconds; checkpoint/waiting resumes the same batch, and scopeComplete is always false. See Skill [Thread likes](skill/references/writes.md#thread-likes) for exact limits and statuses. X rules prohibit automated likes; sampling and pacing do not guarantee permission or avoidance of restrictions.
+
+
+### Creator history and metrics
+
+Use readCreatorHistory({ handle, from, maxWindows: 4 }) for bounded bulk profile reads instead of model-driven per-post navigation. Its compact receipt returns unique counts, incomplete coverage and immutable per-window evidenceRefs for batch ingestion. Resume with the returned evidenceRef on the same profile viewport; wrong scope or cursor changes refuse. The checkpoint contains IDs and proof references, while the original window proofs retain full text, metrics and actual observation times. This capability performs no writes to X and does not infer hidden or deleted content.

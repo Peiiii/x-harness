@@ -1,0 +1,11 @@
+# Bounded creator history scan
+
+Flow standard, risk L2; design-review passed before implementation. Reuse existing readCreator/profile/alert/proof guards. One root readCreatorHistory call collects up to a bounded window budget (default4, max100), filtering an explicit absolute from/to range. No new platform transport or network API. A new orchestration class owns deduplication and checkpoint references; existing per-window immutable proofs own full bodies, counts and actual observation times. No synthesized common timestamp for old windows.
+
+A caller starts at a confirmed profile through normal navigation, consumes all returned original proof refs in one deterministic ingestion batch, and resumes with the last checkpoint when budget ends. Resume requires the same handle/range and overlapping live viewport IDs; moved cursor refuses instead of silently claiming coverage. A fresh start can explicitly replay from the top. Date boundary or finite stagnation stops, alerts/unconfirmed pages stop without discarding earlier proof refs. Incomplete text is reported separately and never used to claim complete collection. This is bounded observed coverage, never proof that hidden/deleted posts do not exist.
+
+Acceptance: multiple overlapping windows produce unique IDs and retain per-window times; wrong profile/range/checkpoint and moved cursor refuse; expanded-text gaps preserve other rows; alerts/transport failures preserve last durable checkpoint; budget exit resumes without duplicate counts; compact receipt omits all full text. Existing creator reads and write behavior remain unchanged. Synthetic fixtures plus one authorized live profile scan verify the public root method; measured host calls/windows and elapsed time are reported without promising host latency.
+
+Plan not-required: one bounded implementation batch. Public package release follows consolidated maintenance; verified local build may be adopted now. Consumer account data and live proofs remain outside this repository.
+
+Validation:48 directed tests and one live root call completed4windows in48.7s; resume completed one window in6.3s,127 unique range posts, observed date boundary and no text gaps. Consumer evidence remains private. Full formatting check is blocked by7 pre-existing files; changed files formatted. Full runtime tests/type contracts checked separately.

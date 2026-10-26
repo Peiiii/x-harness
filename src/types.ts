@@ -346,6 +346,24 @@ export interface ReplyDiscoveryResult {
 }
 export interface ExploreRecommendationOptions extends WindowOptions {}
 export interface HomeRecommendationOptions extends WindowOptions {}
+export interface CreatorHistoryOptions {
+  handle: string;
+  from: string;
+  to?: string;
+  maxWindows?: number;
+  resumeEvidenceRef?: EvidenceRef;
+}
+export interface CreatorHistoryResult {
+  status: "observed" | "partial" | "needsDecision";
+  complete: boolean;
+  reason: string;
+  count: number;
+  windowsRead: number;
+  evidenceRefs: EvidenceRef[];
+  evidenceRef?: EvidenceRef;
+  incompleteCount: number;
+  boundaryReached?: boolean;
+}
 export interface CreatorOptions {
   handle: string;
   /** Explicitly select the observed profile Replies tab; default remains Posts. */
@@ -759,6 +777,9 @@ export interface XGrowthHarness {
   replyBatch(args: ReplyBatchOptions): Promise<ReplyBatchResult>;
   likeIncomingBatch(args: IncomingLikeOptions): Promise<IncomingLikeResult>;
   readPostMedia(options: PostMediaOptions): Promise<PostMediaResult>;
+  readCreatorHistory(
+    args: CreatorHistoryOptions,
+  ): Promise<CreatorHistoryResult>;
   readCreator(args: CreatorOptions): Promise<ReadResult>;
   readPeople(args: PeopleOptions): Promise<ReadResult>;
   readFollowbackAudit(

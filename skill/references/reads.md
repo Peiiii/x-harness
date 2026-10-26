@@ -1,5 +1,7 @@
 # Reads
 
+[Bulk profile metrics](creator-history.md).
+
 | API | Required | Optional |
 | --- | --- | --- |
 | readIncomingReplies | none | processedIds, limit (5), maxPages (3), mode |
@@ -24,13 +26,13 @@ Incoming: ledger processedIds; skip settled/intent/unknown. Parents: readPost(in
 
 `readIncomingConversations({targets?,...window})`: ≤5 chains per call. Nodes, ancestors, edges, unknown parents, attempts. `rootCandidateId` may not be root. Missing context blocks review; don't infer edges or clearance.
 
-resolveQuote:true: one observed card; quoteSource requires destination/body/author/time binding.
+resolveQuote binds one observed card: destination/body/author/time.
 
-readPeople: selected followers/following; offset reuses cells, advance scrolls. Bio/blue/relationship; dedup. Unknowns need profiles; no Native.
+readPeople: selected followers/following; offset reuses cells, advance scrolls. Dedup; unknown bio/blue/relationship needs profiles; no Native.
 
 
 sourceOrigin needs selected For you on actual /explore or /home; keep kinds distinct. Exclude trends/search. Absent counts unknown.
 
 [Batch + author-card evidence](batch-discovery.md).
 
-`timeline:"replies"`: unique observed same-profile tab; `navigate:false` requires it already selected. Finite receipt candidates still need exact-parent verification; unknown never resends.
+`timeline:"replies"`: unique selected same-profile tab; `navigate:false` requires selection. Verify exact parent; unknown never resends.

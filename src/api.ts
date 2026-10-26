@@ -1,3 +1,4 @@
+import { CreatorHistory } from "./creator-history.js";
 import { ReplyThreadBatch } from "./reply-thread-batch.js";
 import { ReplyReceiptRecovery } from "./reply-receipt-recovery.js";
 import { OriginalPostCadence } from "./original-post-cadence.js";
@@ -38,6 +39,7 @@ export interface BusinessDependencies {
 export class BusinessHarness implements XGrowthHarness {
   configureOriginalCadence: OriginalPostCadence["configure"];
   captureAccountScreenshot: XGrowthHarness["captureAccountScreenshot"];
+  #creatorHistory: CreatorHistory;
   #media?: import("./post-media.js").PostMedia;
   #threadReactions: ThreadReactions;
   #replyThreadBatch: ReplyThreadBatch;
@@ -109,6 +111,12 @@ export class BusinessHarness implements XGrowthHarness {
       this.#clock,
       (ref) => store.evidenceExists(ref),
     );
+    this.#creatorHistory = new CreatorHistory(
+      (args) => this.readCreator(args),
+      store,
+      this.#clock,
+    );
+    this.readCreatorHistory = this.readCreatorHistory.bind(this);
     this.#readCache = new Map<string, string>();
   }
   private async invoke(
@@ -576,6 +584,9 @@ export class BusinessHarness implements XGrowthHarness {
   }
   public likeIncomingBatch(args: import("./types.js").IncomingLikeOptions) {
     return this.#reactions.run(args);
+  }
+  public readCreatorHistory(args: import("./types.js").CreatorHistoryOptions) {
+    return this.#creatorHistory.run(args);
   }
   public readCreator(args: import("./types.js").CreatorOptions) {
     return this.read("readCreator", args, args.mode);
