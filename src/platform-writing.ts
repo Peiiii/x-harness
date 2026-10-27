@@ -197,6 +197,7 @@ export class PlatformWriting {
       !observedReply &&
       !(action.kind === "original" && observedReceipt) &&
       !value.needsStateCheck &&
+      !value.alerts?.length &&
       !(this.#browser.capabilities?.("refreshPosts") ?? ["refreshPosts"]).length
     ) {
       await this.#browser.act({

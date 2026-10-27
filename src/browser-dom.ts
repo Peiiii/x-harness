@@ -102,6 +102,7 @@ export class DOMXBrowser {
     // an alert. A send toast alone never proves publication.
     const informational = (text: string) =>
       text.trim() === "检测到 AI 生成内容" ||
+      text.trim() === "你的帖子已发送。\n查看" ||
       text.trim() === "你的帖子已发送。你有 1 小时时间进行任何编辑。\n查看";
     result.notices = (result.alerts ?? []).filter(informational);
     if (this.#session.refreshNotice) {

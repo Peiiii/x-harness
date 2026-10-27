@@ -58,3 +58,27 @@ test("a send toast combined with unknown extra text stays blocking", async () =>
   assert.deepEqual(result.alerts, [combined]);
   assert.deepEqual(result.notices, []);
 });
+
+test("current short sent notice is informational but simultaneous429 remains blocking", async () => {
+  const short = "你的帖子已发送。\n查看";
+  const browser = createDOMXBrowser({
+    playwright: {
+      evaluate: async () => ({
+        alerts: [short, "Too many requests"],
+        posts: [],
+      }),
+    },
+  });
+  const r = await browser.observe({ view: "posts" });
+  assert.deepEqual(r.notices, [short]);
+  assert.deepEqual(r.alerts, ["Too many requests"]);
+});
+test("short sent notice with appended unknown refusal remains blocking", async () => {
+  const text = "你的帖子已发送。\n查看\n操作受限";
+  const browser = createDOMXBrowser({
+    playwright: { evaluate: async () => ({ alerts: [text], posts: [] }) },
+  });
+  const r = await browser.observe({ view: "posts" });
+  assert.deepEqual(r.notices, []);
+  assert.deepEqual(r.alerts, [text]);
+});

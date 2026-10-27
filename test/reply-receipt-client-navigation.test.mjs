@@ -75,7 +75,7 @@ for (const outcome of [
     });
     const r = await writing.findSubmission(action);
     assert.equal(r.verified, outcome === "correct");
-    if (["correct", "parentless", "wrong-parent"].includes(outcome))
+    if (["correct", "parentless", "wrong-parent", "alert"].includes(outcome))
       assert.equal(commands.includes("refreshPosts"), false);
     assert.equal(opens[0].preferClientNavigation, true);
     assert.equal(
