@@ -240,3 +240,90 @@ for (const mode of ["inert", "alert", "wrong-route", "transport"])
       assert.deepEqual(calls, ["click"]);
     }
   });
+
+test("first normal reply verification acquires the observed candidate before any refresh", async () => {
+  let opens = 0;
+  const commands = [],
+    queries = [];
+  const current = {
+    page: action.url,
+    accountHandle: "Owner",
+    alerts: [],
+    needsStateCheck: false,
+    posts: [{ ...post, replyToId: null }],
+  };
+  const detail = { ...current, page: action.observedPublicURL, posts: [post] };
+  const writing = createPlatformWriting({
+    open: async (_target, q) => {
+      queries.push(q);
+      return ++opens === 1 ? current : detail;
+    },
+    observed: async () => current,
+    browser: {
+      capabilities: () => [],
+      act: async (c) => {
+        commands.push(c.operation);
+      },
+    },
+    clock: () => Date.parse("2026-10-12T08:01:00Z"),
+    readPost: async () => detail,
+    readPerson: async () => {
+      throw Error("No person");
+    },
+    followStage: async () => {
+      throw Error("No follow");
+    },
+  });
+  const r = await writing.findSubmission({
+    ...action,
+    observedPublicURL: undefined,
+    observedPublicEvidenceRef: undefined,
+  });
+  assert.equal(r.verified, true);
+  assert.equal(commands.includes("refreshPosts"), false);
+  assert.equal(queries[1].preferClientNavigation, true);
+});
+
+test("a later changed detail preserves the originally observed receipt without success", async () => {
+  const initial = {
+    page: action.url,
+    accountHandle: "Owner",
+    alerts: [],
+    needsStateCheck: false,
+    posts: [{ ...post, replyToId: null }],
+  };
+  const changed = {
+    ...initial,
+    page: action.observedPublicURL,
+    posts: [{ ...post, body: "changed", replyToId: "10" }],
+  };
+  let opens = 0;
+  const writing = createPlatformWriting({
+    open: async () => (++opens === 1 ? initial : changed),
+    observed: async () => changed,
+    browser: {
+      capabilities: () => ["refreshPosts"],
+      act: async () => {
+        throw Error("No writes");
+      },
+    },
+    clock: () => Date.parse("2026-10-12T08:01:00Z"),
+    readPost: async () => changed,
+    readPerson: async () => {
+      throw Error("No person");
+    },
+    followStage: async () => {
+      throw Error("No follow");
+    },
+  });
+  const r = await writing.findSubmission({
+    ...action,
+    observedPublicURL: undefined,
+    observedPublicEvidenceRef: undefined,
+  });
+  assert.equal(r.verified, false);
+  assert.deepEqual(r.receiptCandidate, {
+    url: action.observedPublicURL,
+    id: "11",
+  });
+});

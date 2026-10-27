@@ -174,6 +174,13 @@ export class PlatformWriting {
         receiptTarget,
         this.receiptQuery(action, observedReceipt, receiptPath),
       ));
+    let receiptCandidate = this.replyReceiptCandidate(
+      action,
+      value,
+      matchesContent,
+    );
+    if (action.kind === "reply")
+      value = await this.readReplyCandidate(action, value, matchesContent);
     const observedOriginal =
       action.kind === "original" &&
       !value.needsStateCheck &&
@@ -182,7 +189,6 @@ export class PlatformWriting {
     const observedReply = this.isObservedReplyReceipt(
       action,
       value,
-      receiptPath,
       matchesContent,
     );
     if (
@@ -200,45 +206,15 @@ export class PlatformWriting {
         evidenceRef: receiptTarget.evidenceRef,
       });
       value = await this.#observed({ view: "posts", limit: 5 });
+      if (action.kind === "reply")
+        value = await this.readReplyCandidate(action, value, matchesContent);
     }
     let matches = (value.posts ?? []).filter(matchesContent);
-    const receiptCandidate =
-      action.kind === "reply" &&
-      matches.length === 1 &&
-      !value.needsStateCheck &&
-      !value.alerts?.length &&
-      matches[0].primary
-        ? {
-            url: new URL(matches[0].primary, value.page).href,
-            id: matches[0].id,
-          }
-        : undefined;
-
-    if (
-      action.kind === "reply" &&
-      matches.length === 1 &&
-      matches[0].replyToId == null &&
-      matches[0].primary
-    ) {
-      // The candidate URL comes from this fresh public observation, not from a guessed ID path.
-      const candidate = matches[0];
-      const url = xURL(
-        new URL(candidate.primary, xURL(value.page).origin).href,
-      );
-      if (
-        url.pathname.toLowerCase() ===
-        `/${action.accountHandle}/status/${candidate.id}`.toLowerCase()
-      ) {
-        value = await this.readCandidateDetail(
-          value,
-          url.href,
-          candidate,
-          action.postId,
-          matchesContent,
-        );
-        matches = (value.posts ?? []).filter(matchesContent);
-      }
-    }
+    receiptCandidate ??= this.replyReceiptCandidate(
+      action,
+      value,
+      matchesContent,
+    );
     if (action.quoteTarget && matches.length === 1) {
       value = await this.readQuotedReceipt(value, action, matches[0]);
       matches = (value.posts ?? [])
@@ -272,23 +248,62 @@ export class PlatformWriting {
           : {}),
     };
   }
+  private replyReceiptCandidate(
+    action: any,
+    value: any,
+    matchesContent: (post: any) => boolean,
+  ) {
+    const matches = (value.posts ?? []).filter(matchesContent);
+    return action.kind === "reply" &&
+      matches.length === 1 &&
+      !value.needsStateCheck &&
+      !value.alerts?.length &&
+      matches[0].primary
+      ? { url: new URL(matches[0].primary, value.page).href, id: matches[0].id }
+      : undefined;
+  }
   private isObservedReplyReceipt(
     action: any,
     value: any,
-    receiptPath: string[],
     matchesContent: (post: any) => boolean,
   ): boolean {
     const matches = (value.posts ?? []).filter(matchesContent);
     return !!(
       action.kind === "reply" &&
-      action.observedPublicURL &&
-      action.observedPublicEvidenceRef &&
-      value.page === action.observedPublicURL &&
       sameHandle(value.accountHandle, action.accountHandle) &&
       !value.needsStateCheck &&
       !value.alerts?.length &&
       matches.length === 1 &&
-      matches[0].id === receiptPath[3]
+      value.page?.toLowerCase() ===
+        `https://x.com/${action.accountHandle}/status/${matches[0].id}`.toLowerCase()
+    );
+  }
+  private async readReplyCandidate(
+    action: any,
+    value: any,
+    matchesContent: (post: any) => boolean,
+  ): Promise<any> {
+    const matches = (value.posts ?? []).filter(matchesContent);
+    if (
+      value.needsStateCheck ||
+      value.alerts?.length ||
+      matches.length !== 1 ||
+      !matches[0].primary
+    )
+      return value;
+    const candidate = matches[0];
+    const url = xURL(new URL(candidate.primary, xURL(value.page).origin).href);
+    if (
+      url.pathname.toLowerCase() !==
+      `/${action.accountHandle}/status/${candidate.id}`.toLowerCase()
+    )
+      return value;
+    return this.readCandidateDetail(
+      value,
+      url.href,
+      candidate,
+      action.postId,
+      matchesContent,
     );
   }
   private observedReceiptPath(action: any, observedReceipt: any): string[] {
