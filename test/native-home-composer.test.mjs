@@ -234,12 +234,19 @@ const redactedHome = `0 标准窗口 主页 / X, URL: …
 The focused UI element is 4 文本输入区 (settable) 帖子文本, Value: hello
 `;
 test("redacted native route requires same-frame address, selected title and blurred omnibox", () => {
-  assert.equal(readAX(redactedHome,{mode:"composer"}).needsStateCheck,false);
+  assert.equal(
+    readAX(redactedHome, { mode: "composer" }).needsStateCheck,
+    false,
+  );
   for (const value of [
     redactedHome.replace("主页 / X - memory", "other / X - memory"),
-    redactedHome.replace("is 4 文本输入区", "is 1 文本栏 (settable) 地址和搜索栏"),
+    redactedHome.replace(
+      "is 4 文本输入区",
+      "is 1 文本栏 (settable) 地址和搜索栏",
+    ),
     redactedHome + "  7 HTML 内容 主页 / X, URL: …\n",
     redactedHome + "  7 按钮 停止\n",
     redactedHome.replace("Value: x.com/home", "Value: other.example/home"),
-  ]) assert.equal(readAX(value,{mode:"composer"}).needsStateCheck,true);
+  ])
+    assert.equal(readAX(value, { mode: "composer" }).needsStateCheck, true);
 });

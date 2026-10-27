@@ -58,7 +58,10 @@ export class NativeXBrowser {
     Object.assign(
       this,
       serialized({
-        collectBookmarks: (args: unknown) => new NativeBookmarkCollector(this.#low, () => this.#latestAX).collect(args),
+        collectBookmarks: (args: unknown) =>
+          new NativeBookmarkCollector(this.#low, () => this.#latestAX).collect(
+            args,
+          ),
         collectCreator: (args: import("./types.js").CreatorOptions) =>
           collectCreatorNative(this.#low, args),
         capabilities: this.capabilities,

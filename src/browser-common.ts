@@ -18,7 +18,9 @@ export class SerializedBrowser {
     this.observe = SerializedBrowser.prototype.observe.bind(this);
     this.act = SerializedBrowser.prototype.act.bind(this);
     this.screenshot = SerializedBrowser.prototype.screenshot.bind(this);
-    if (port.collectBookmarks) this.collectBookmarks = (args: unknown) => this.run(() => this.#port.collectBookmarks(args));
+    if (port.collectBookmarks)
+      this.collectBookmarks = (args: unknown) =>
+        this.run(() => this.#port.collectBookmarks(args));
     if (port.collectCreator) this.collectCreator = this.collect.bind(this);
   }
 

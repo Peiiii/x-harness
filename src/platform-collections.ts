@@ -47,8 +47,10 @@ export class PlatformCollections {
     this.#choose = choose;
     this.collectSources = this.handleCollectSources.bind(this);
     this.readCreator = this.handleReadCreator.bind(this);
-    this.readBookmarks = (args = {}) => this.#browser.collectBookmarks
-      ? this.#browser.collectBookmarks(args) : this.handleReadBookmarks(args);
+    this.readBookmarks = (args = {}) =>
+      this.#browser.collectBookmarks
+        ? this.#browser.collectBookmarks(args)
+        : this.handleReadBookmarks(args);
     this.searchSources = this.handleSearchSources.bind(this);
     this.readExploreRecommendations = this.handleReadRecommendations.bind(this);
     this.readHomeRecommendations = (args = {}) =>
