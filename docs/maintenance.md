@@ -224,5 +224,6 @@ use a visible search input/Latest tab instead of document navigation where
 supported. No cross-tab or durable identity cache; fresh target/account/refusal
 guards remain. See `docs/designs/2026-10-27-session-identity-reuse.design.md`.
 Local checked build is the current consumer delivery route. Consolidated npm
-delivery remains pending the unchanged baseline global-check failures; source
-commit is not a package publication or a claimed platform429 cure.
+delivery joins the next related maintenance release; final integrated938 tests
+and full checks passed after preserving the current AX compatibility baseline.
+Source commit is not a package publication or a claimed platform429 cure.

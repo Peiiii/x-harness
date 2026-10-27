@@ -1,6 +1,6 @@
 # Reuse the bound account session and avoid document search reloads
 
-flow: standard; risk: L3; retrospective_state: pending
+flow: standard; risk: L3; retrospective_state: completed
 active-contract: session-identity-reuse-20261027-r1
 plan: not-required (one implementation and validation batch)
 
@@ -59,7 +59,7 @@ All IDs are Required. Current status is not-run until evidence is recorded.
 | R4 | Supported visible search UI changes two queries with zero document navigations, exact requested query and Latest confirmed | passed |
 | R5 | Missing input has one direct fallback; ambiguous/inert/wrong-route/warning/transport branches never introduce extra reloads or source success | passed |
 | R6 | Type checks, relevant regression tests, implementation review and maintainability pass | passed |
-| R7 | Original consumer adopts the verified build; real authorized root read and normal business continuation are recorded separately from theoretical speed or 429 cure | not-run |
+| R7 | Original consumer adopts the verified build; real authorized root read and normal business continuation are recorded separately from theoretical speed or 429 cure | passed |
 
 Scope is the existing task API/Chrome adapter and original consumer adoption.
 The public package API, account permissions and platform restrictions do not
@@ -101,3 +101,34 @@ warnings invalidate it; explicit root inspection is forced fresh. The duplicate
 account-read owner was removed from PlatformTargets. Existing exact target and
 public verification remain. R7 remains pending original-consumer adoption and
 a normal authorized business result.
+
+## Final integrated delivery
+
+The consumer's newer verified AX compatibility baseline57fd453 was incorporated
+before production adoption; it closes the unrelated AX serialization failures.
+The isolated worktree recovered the declared fake-indexeddb dependency with
+`npm ci --ignore-scripts`. Final `npm run check` is green:938 tests, full
+format/type/build/maintainability checks,16 Skill examples and generated-program
+consistency. Diff-only source maintenance:7 files, zero findings. The unavailable
+local Qingtian installation was not misreported as a passing checker.
+
+R7 passed through the original consumer manifest/executor/two pages: the new
+source builda88e61b was actually bound, an original unknown was verified without
+resending, a new recommendation-sourced comment was publicly verified, and a
+normal received reply was publicly verified. The earlier two-query live result
+remains a read-only speed sample. Direct profile document fallback can still
+request Viewer; a later reader-only refusal was retained while the healthy writer
+completed independent reviewed work. No claim of a stable429 cure or ten
+comments/minute.
+
+Implementation review after integration: no findings; the original source
+compatibility patch, incoming/unknown/parent guards and changed-scope evidence
+are retained. Source main delivery and local consumer adoption are separate from
+a public npm release; the latter joins the next related consolidated maintenance
+release under the existing maintenance contract. No version/deployment change
+is implied.
+
+Retrospective decision: keep the executable call-count/invalidation and delayed
+Latest-control regressions in the original owners. Retain explicit cached-versus-
+fresh identity metadata and exact query confirmation. No additional global
+prompt or parallel account/session store is needed. All Required IDs passed.
