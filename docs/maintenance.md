@@ -228,3 +228,9 @@ Local checked build is the current consumer delivery route. Consolidated npm
 delivery joins the next related maintenance release; final integrated938 tests
 and full checks passed after preserving the current AX compatibility baseline.
 Source commit is not a package publication or a claimed platform429 cure.
+
+## Text composer readiness (2026-10-27)
+
+On a bounded browser host, a compound selector wait timed out after filling text while the exact semantic submit button was visibly enabled. Text preparation now checks the unique semantic button, visibility and enabled state separately. Video processing retains its bounded enabled waits; preparation never activates submission. Three synthetic regressions fail on the prior runtime and pass after repair; 31 focused tests, TypeScript build, formatting and maintainability checks pass. The original pending publication then verified through the root API within its existing window.
+
+Source fix `d0d40ea` is committed and pushed; a verified local build is adopted by the consumer with a full file manifest, preserving the preceding scope-isolation repair. npm remains unchanged; include this stable fix in the next related consolidated release. This is a text readiness repair, not a claim that all host navigation latency is resolved.
