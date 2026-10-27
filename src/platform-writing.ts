@@ -170,21 +170,25 @@ export class PlatformWriting {
         receiptTarget,
         matchesContent,
       )) ??
-      (await this.#open(receiptTarget, {
-        view: "posts",
-        limit: 5,
-        ...(action.kind === "original" && observedReceipt
-          ? { preferObservedLink: true, targetId: receiptPath[3] }
-          : {}),
-      }));
+      (await this.#open(
+        receiptTarget,
+        this.receiptQuery(action, observedReceipt, receiptPath),
+      ));
     const observedOriginal =
       action.kind === "original" &&
       !value.needsStateCheck &&
       !value.alerts?.length &&
       (value.posts ?? []).filter(matchesContent).length === 1;
+    const observedReply = this.isObservedReplyReceipt(
+      action,
+      value,
+      receiptPath,
+      matchesContent,
+    );
     if (
       context.phase !== "baseline" &&
       !observedOriginal &&
+      !observedReply &&
       !(action.kind === "original" && observedReceipt) &&
       !value.needsStateCheck &&
       !(this.#browser.capabilities?.("refreshPosts") ?? ["refreshPosts"]).length
@@ -252,6 +256,40 @@ export class PlatformWriting {
       missing:
         matches.length === 1 ? [] : ["unique-public-submission-unconfirmed"],
     };
+  }
+  private receiptQuery(
+    action: any,
+    observedReceipt: any,
+    receiptPath: string[],
+  ) {
+    return {
+      view: "posts",
+      limit: 5,
+      ...(action.kind === "original" && observedReceipt
+        ? { preferObservedLink: true, targetId: receiptPath[3] }
+        : action.kind === "reply" && observedReceipt
+          ? { preferClientNavigation: true, targetId: receiptPath[3] }
+          : {}),
+    };
+  }
+  private isObservedReplyReceipt(
+    action: any,
+    value: any,
+    receiptPath: string[],
+    matchesContent: (post: any) => boolean,
+  ): boolean {
+    const matches = (value.posts ?? []).filter(matchesContent);
+    return !!(
+      action.kind === "reply" &&
+      action.observedPublicURL &&
+      action.observedPublicEvidenceRef &&
+      value.page === action.observedPublicURL &&
+      sameHandle(value.accountHandle, action.accountHandle) &&
+      !value.needsStateCheck &&
+      !value.alerts?.length &&
+      matches.length === 1 &&
+      matches[0].id === receiptPath[3]
+    );
   }
   private observedReceiptPath(action: any, observedReceipt: any): string[] {
     const receiptPath = observedReceipt
@@ -322,6 +360,7 @@ export class PlatformWriting {
           view: "posts",
           targetId: candidate.id,
           replyTargetId: parentId,
+          preferClientNavigation: true,
         },
       );
       return await this.readLoadedReplyReceipt(

@@ -97,6 +97,9 @@ export class PlatformObservation {
           ...(query.preferObservedLink === true
             ? { preferObservedLink: true }
             : {}),
+          ...(query.preferClientNavigation === true
+            ? { preferClientNavigation: true }
+            : {}),
           // Thread membership is scoped to its root. An in-page permalink can
           // leave an unrelated thread mounted; open the evidenced route once.
           ...(query.view === "posts" && query.threadRootId

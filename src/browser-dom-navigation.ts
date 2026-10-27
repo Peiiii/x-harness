@@ -377,7 +377,8 @@ export class DOMNavigation {
     if (
       !command.forceNavigation &&
       (command.view !== "posts" ||
-        (command.preferObservedLink === true &&
+        ((command.preferObservedLink === true ||
+          command.preferClientNavigation === true) &&
           /^\/[A-Za-z0-9_]{1,15}\/status\/\d+$/.test(
             xURL(command.url).pathname,
           ) &&
