@@ -751,8 +751,20 @@ export const readXObservation = (query) => {
     }
     if (view === "posts") {
         const all = [...document.querySelectorAll("article")].filter(visible);
+        const submissionLinks = Array.from(document.querySelectorAll('[role="alert"]'))
+            .filter(visible)
+            .filter((node) => node.innerText.trim() ===
+            "你的帖子已发送。你有 1 小时时间进行任何编辑。\n查看")
+            .flatMap((node) => Array.from(node.querySelectorAll("a[href]"))
+            .filter(visible)
+            .map((link) => ({
+            href: link.getAttribute("href"),
+            notice: node.innerText,
+        })))
+            .slice(0, 5);
         return {
             ...base,
+            submissionLinks,
             bodies: posts.map((post) => {
                 const articles = all.filter((article) => [...article.querySelectorAll("time")]
                     .filter(visible)

@@ -327,3 +327,180 @@ test("a later changed detail preserves the originally observed receipt without s
     id: "11",
   });
 });
+
+for (const mode of [
+  "valid",
+  "foreign",
+  "ambiguous",
+  "alert",
+  "account",
+  "route",
+])
+  test(`transient reply receipt captured before idle: ${mode}`, async () => {
+    const { createDOMSubmission } =
+      await import("../dist/browser-dom-submission.js");
+    const events = [];
+    const finish = createDOMSubmission({
+      session: {},
+      observe: async () => {
+        events.push("capture");
+        return {
+          page: mode === "route" ? "https://x.com/home" : action.url,
+          accountHandle: mode === "account" ? "Other" : "Owner",
+          alerts: mode === "alert" ? ["challenge"] : [],
+          needsStateCheck: false,
+          submissionLinks: [
+            {
+              href:
+                mode === "foreign" ? "/Other/status/11" : "/Owner/status/11",
+            },
+            ...(mode === "ambiguous" ? [{ href: "/Owner/status/12" }] : []),
+          ],
+        };
+      },
+      tab: {
+        playwright: { waitForLoadState: async () => events.push("idle") },
+      },
+      submitAX: null,
+      unique: () => {
+        throw Error("No extra control");
+      },
+      locator: () => {
+        throw Error("No extra control");
+      },
+    });
+    const r = await finish(
+      { operation: "submitReply", actionId: "reply-1", activation: "keyboard" },
+      {
+        loc: { press: async () => events.push("submit") },
+        submittedEditor: { waitFor: async () => events.push("editor-clear") },
+      },
+      { view: "composer" },
+      {
+        page: action.url,
+        accountHandle: "Owner",
+        editorText: action.text,
+        replyToId: action.postId,
+      },
+    );
+    assert.deepEqual(events, ["submit", "editor-clear", "capture", "idle"]);
+    if (mode === "valid") {
+      assert.equal(r.actionId, "reply-1");
+      assert.deepEqual(r.receiptCandidate, {
+        id: "11",
+        url: action.observedPublicURL,
+      });
+      assert.notEqual(r.verified, true);
+    } else assert.equal(r, undefined);
+  });
+for (const outcome of ["verified", "read-error"])
+  test(`original receipt is persisted before first verification: ${outcome}`, async (t) => {
+    const { fixture, NOW } = await import("./fixtures.mjs");
+    const { createBusinessHarness } = await import("../dist/diagnostics.js");
+    const f = fixture(t, { actionKinds: ["reply"], planned: [0, 0, 1] });
+    const submit = f.platform.submitReply;
+    const find = f.platform.findSubmission;
+    let submittedId,
+      verifiedReads = 0;
+    f.platform.submitReply = async (a) => {
+      await submit(a);
+      submittedId = f.posts.at(-1).id;
+      return {
+        actionId: a.id,
+        accountHandle: a.accountHandle,
+        page: a.url,
+        capturedAt: new Date(NOW).toISOString(),
+        receiptCandidate: {
+          id: submittedId,
+          url: `https://x.com/Pei/status/${submittedId}`,
+        },
+      };
+    };
+    f.platform.findSubmission = async (a, c) => {
+      if (c?.phase === "baseline") return find(a, c);
+      verifiedReads++;
+      const state = (await f.store.load()).state;
+      const persisted = state.actions.find((x) => x.id === a.id);
+      assert.equal(persisted.status, "unknown");
+      assert.equal(
+        persisted.observedPublicURL,
+        `https://x.com/Pei/status/${submittedId}`,
+      );
+      assert.equal(a.observedPublicURL, persisted.observedPublicURL);
+      assert.ok(persisted.observedPublicEvidenceRef);
+      if (outcome === "read-error") throw Error("public read unavailable");
+      return {
+        verified: true,
+        publicId: submittedId,
+        posts: [f.posts.at(-1)],
+        alerts: [],
+        needsStateCheck: false,
+      };
+    };
+    const api = createBusinessHarness({
+      store: f.store,
+      platform: f.platform,
+      clock: () => NOW,
+    });
+    const r = await api.replyToPost({
+      taskId: "round-1",
+      postId: "123",
+      text: "有具体贡献的回复",
+    });
+    assert.equal(f.writes.length, 1);
+    assert.equal(verifiedReads, 1);
+    assert.equal(r.status, outcome === "verified" ? "verified" : "unknown");
+    const s = (await f.store.load()).state;
+    assert.equal(
+      s.actions[0].observedPublicURL,
+      `https://x.com/Pei/status/${submittedId}`,
+    );
+    assert.equal(
+      s.items.find((i) => i.kind === "reply").verified,
+      outcome === "verified" ? 1 : 0,
+    );
+  });
+
+test("receipt links come only from a visible exact informational sent notice", async (t) => {
+  const { readXSurface } = await import("../dist/browser.js");
+  const sent = "你的帖子已发送。你有 1 小时时间进行任何编辑。\n查看";
+  const link = {
+    getClientRects: () => [{}],
+    getAttribute: (n) => (n === "href" ? "/Owner/status/11" : null),
+  };
+  const notice = (text, visible = true) => ({
+    innerText: text,
+    getClientRects: () => (visible ? [{}] : []),
+    querySelectorAll: () => [link],
+  });
+  const profile = {
+    innerText: "Profile",
+    getClientRects: () => [{}],
+    getAttribute: (n) =>
+      n === "aria-label" ? "Profile" : n === "href" ? "/Owner" : null,
+  };
+  for (const [key, value] of Object.entries({
+    document: {
+      querySelectorAll: (s) =>
+        s === "a[href]"
+          ? [profile]
+          : s === '[role="alert"]'
+            ? [notice(sent), notice(sent, false), notice(sent + "\n操作受限")]
+            : [],
+    },
+    location: { href: action.url },
+  })) {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, key);
+    Object.defineProperty(globalThis, key, { value, configurable: true });
+    t.after(() =>
+      descriptor
+        ? Object.defineProperty(globalThis, key, descriptor)
+        : delete globalThis[key],
+    );
+  }
+  const r = readXSurface({ view: "posts", posts: [] });
+  assert.deepEqual(r.submissionLinks, [
+    { href: "/Owner/status/11", notice: sent },
+  ]);
+  assert.ok(r.alerts.includes(sent + "\n操作受限"));
+});

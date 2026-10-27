@@ -291,6 +291,30 @@ export class GrowthExecution {
       return this.#platform.findSubmission(action, context);
     }
   }
+  private async retainReplyReceipt(snapshot: any, action: any, receipt: any) {
+    const candidate = receipt?.receiptCandidate;
+    if (
+      action.kind !== "reply" ||
+      receipt?.actionId !== action.id ||
+      !same(receipt.accountHandle, action.accountHandle) ||
+      !/^\d+$/.test(candidate?.id ?? "") ||
+      candidate.url?.toLowerCase() !==
+        `https://x.com/${action.accountHandle}/status/${candidate.id}`.toLowerCase() ||
+      action.beforeIds?.includes(candidate.id) ||
+      !(Date.parse(receipt.capturedAt) >= Date.parse(action.intentAt))
+    )
+      return { snapshot, action };
+    snapshot = await this.#settleProof(
+      snapshot,
+      action,
+      { ...receipt, verified: false },
+      { preserveStatus: true },
+    );
+    return {
+      snapshot,
+      action: snapshot.state.actions.find((a: any) => a.id === action.id),
+    };
+  }
   private async handleExecute(
     snapshot: any,
     action: any,
@@ -381,7 +405,7 @@ export class GrowthExecution {
     let observation: any,
       submissionMayHaveStarted = false;
     try {
-      await this.#platform[operations[action.kind]]({
+      const submitted = await this.#platform[operations[action.kind]]({
         ...entry,
         beforeSubmit: async () => {
           const latest = await this.#store.load();
@@ -444,7 +468,13 @@ export class GrowthExecution {
           submissionMayHaveStarted = true;
         },
       });
-      observation = await this.#platform.findSubmission(entry);
+      const retained = await this.retainReplyReceipt(
+        snapshot,
+        entry,
+        submitted,
+      );
+      snapshot = retained.snapshot;
+      observation = await this.#platform.findSubmission(retained.action);
     } catch (error: any) {
       if (!submissionMayHaveStarted) {
         const proof = await this.#store.recordProof({

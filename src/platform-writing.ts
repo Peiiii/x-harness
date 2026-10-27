@@ -98,6 +98,7 @@ export class PlatformWriting {
     return this.#browser.act({
       operation: action.kind === "reply" ? "submitReply" : "submitPost",
       beforeSubmit: action.beforeSubmit,
+      ...(action.kind === "reply" ? { actionId: action.id } : {}),
       ...(action.activation ? { activation: action.activation } : {}),
     });
   }

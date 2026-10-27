@@ -129,6 +129,10 @@ export class DOMSubmission {
         result,
         activationStartedAt,
       );
+    const receipt =
+      command.operation === "submitReply" && command.actionId
+        ? await this.captureReplyReceipt(command, result)
+        : undefined;
     if (["submitPost", "submitReply"].includes(command.operation)) {
       try {
         await this.#tab.playwright.waitForLoadState({
@@ -142,6 +146,42 @@ export class DOMSubmission {
           throw error;
       }
     }
+    return receipt;
+  }
+  private async captureReplyReceipt(command: any, submitted: any) {
+    const value = await this.#observe({ view: "posts", limit: 1 });
+    if (
+      value.needsStateCheck ||
+      value.alerts?.length ||
+      value.page !== submitted.page ||
+      !sameHandle(value.accountHandle, submitted.accountHandle)
+    )
+      return;
+    const candidates = new Map<string, any>();
+    for (const link of value.submissionLinks ?? []) {
+      try {
+        const url = xURL(new URL(link.href, value.page).href);
+        const match = url.pathname.match(/^\/(\w{1,15})\/status\/(\d+)$/);
+        if (
+          !url.search &&
+          !url.hash &&
+          match &&
+          sameHandle(match[1], submitted.accountHandle)
+        )
+          candidates.set(url.href, { id: match[2], url: url.href });
+      } catch {
+        /* Invalid visible links are not receipts. */
+      }
+    }
+    if (candidates.size !== 1) return;
+    return {
+      actionId: command.actionId,
+      accountHandle: value.accountHandle,
+      page: value.page,
+      capturedAt: new Date().toISOString(),
+      receiptCandidate: [...candidates.values()][0],
+      submissionLinks: value.submissionLinks,
+    };
   }
   private async waitSubmittedEditor(
     editor: any,
