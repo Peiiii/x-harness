@@ -877,17 +877,23 @@ export class DOMEditing {
       /^(回复|Reply|发帖|发布|Post|更新|Update)$/i.test(b.label),
     );
     if (submits.length !== 1) throw new Error("编辑后提交入口不唯一");
-    const enabled = this.#locator("button", submits[0].label).and(
-      this.#tab.playwright.locator(
-        ':not([disabled]):not([aria-disabled="true"])',
-      ),
+    const submit = await this.#unique(
+      this.#locator("button", submits[0].label),
     );
+    const enabled = result.videos?.length
+      ? submit.and(
+          this.#tab.playwright.locator(
+            'button:not([disabled]):not([aria-disabled="true"])',
+          ),
+        )
+      : submit;
     // Some hosts cap each locator wait at 5s. Bound video processing to 12 waits;
     // this never retries a submission and every subsequent step re-observes.
     const waits = result.videos?.length ? 12 : 1;
     for (let attempt = 0; attempt < waits; attempt++) {
       try {
         await enabled.waitFor({ state: "visible", timeoutMs: 5000 });
+        if (!(await submit.isEnabled())) throw new Error("提交按钮尚未启用");
         break;
       } catch (error: any) {
         if (
