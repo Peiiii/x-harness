@@ -4,6 +4,8 @@ import { fixture, NOW } from "./fixtures.mjs";
 import { createBusinessHarness } from "../dist/diagnostics.js";
 for (const mode of [
   "different",
+  "different-kind",
+  "unregistered-scope",
   "same",
   "global",
   "missing-proof",
@@ -21,7 +23,12 @@ for (const mode of [
     const primary = {
       id: "primary",
       status: "BLOCKED",
-      scopeKinds: ["reply"],
+      scopeKinds:
+        mode === "different-kind"
+          ? ["follow"]
+          : mode === "unregistered-scope"
+            ? []
+            : ["reply"],
       evidenceRef: f.proof,
       activity: "independent read failure",
     };
@@ -57,7 +64,7 @@ for (const mode of [
     });
     const state = (await f.store.load()).state;
     assert.equal(state.items[2].actionable, false);
-    if (mode === "different") {
+    if (["different", "different-kind"].includes(mode)) {
       assert.equal(result.status, "verified");
       assert.equal(f.writes.length, 1);
       assert.deepEqual(state.executions.primary, primary);

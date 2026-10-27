@@ -18,6 +18,8 @@ export function actionableForExecutor(
     executor.scopeKinds?.includes(kind) &&
     evidenceExists(executor.evidenceRef) &&
     evidenceExists(restriction.evidenceRef) &&
-    state.executions?.[restriction.executorId]?.scopeKinds?.includes(kind),
+    state.executions?.[restriction.executorId]?.scopeKinds?.some(
+      (scope: string) => ["follow", "reply", "original"].includes(scope),
+    ),
   );
 }
