@@ -629,6 +629,41 @@ export interface LocatorPort {
 }
 export interface CuaTab {
   capabilities?: { get(id: string): Promise<unknown> };
+  ax?: {
+    get?(
+      mode: "state",
+      options?: { disableDiffing?: boolean },
+    ): Promise<unknown>;
+    scroll?(
+      target: number | [number, number],
+      direction: string,
+      pages?: number,
+    ): Promise<unknown>;
+    click?(
+      target: number | [number, number],
+      options?: unknown,
+    ): Promise<unknown>;
+    pressKey?(
+      elementIndex: number | null,
+      key: string,
+      options?: unknown,
+    ): Promise<unknown>;
+    typeText?(elementIndex: number | null, text: string): Promise<unknown>;
+    paste?(
+      elementIndex: number | null,
+      text: string,
+      options?: unknown,
+    ): Promise<unknown>;
+    selectText?(
+      elementIndex: number,
+      text: string,
+      options?: unknown,
+    ): Promise<unknown>;
+    performSecondaryAction?(
+      elementIndex: number,
+      action: string,
+    ): Promise<unknown>;
+  };
   id?: string;
   url(): Promise<string>;
   goto?(url: string): Promise<unknown>;

@@ -12,7 +12,7 @@ import {
   projectAXComposer,
 } from "./readers-ax-views.js";
 /** Corroborate a redacted web-area URL only from the same full native frame. */
-function corroborateNativeURL(state: string): string {
+export function corroborateNativeURL(state: string): string {
   const lines = state.split("\n");
   const web = lines.filter((x) =>
     /^\s*\d+ (?:HTML 内容|AXWebArea) .*, URL: …$/.test(x),

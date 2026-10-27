@@ -95,6 +95,37 @@ const make = (t, options) => {
     }),
   };
 };
+test("creator accepts the official nested AX tab without mutating it", async (t) => {
+  const f = fixture(t);
+  const v = tabFixture();
+  const { getAXState, scroll, ...other } = v.tab;
+  const tab = {
+    ...other,
+    ax: {
+      get: async (mode, options) => {
+        assert.equal(mode, "state");
+        return getAXState(options);
+      },
+      scroll,
+    },
+  };
+  const api = createXGrowthHarness({
+    tab,
+    ledgerPath: f.ledger,
+    proofDirectory: f.dir,
+  });
+  const result = await api.readCreator({
+    handle: "creator",
+    target: 1,
+    maxScrolls: 0,
+    mode: "decision",
+  });
+  assert.equal(result.status, "observed");
+  assert.equal(result.person.handle, "creator");
+  assert.ok(v.calls.includes("AX"));
+  assert.equal(tab.getAXState, undefined);
+  assert.equal(tab.scroll, undefined);
+});
 for (const widths of [
   [310, 310],
   [1440, 310],

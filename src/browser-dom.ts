@@ -9,6 +9,7 @@ import { createDOMCapabilities } from "./browser-dom-capabilities.js";
 import { createDOMNavigation } from "./browser-dom-navigation.js";
 import { createDOMEditing } from "./browser-dom-editing.js";
 import { createDOMSubmission } from "./browser-dom-submission.js";
+import { compatibleTab } from "./browser-tab-compat.js";
 import type { DOMSession } from "./browser-dom-dependencies.js";
 export { readXNetworkDiagnostics } from "./browser-dom-network.js";
 export class DOMXBrowser {
@@ -29,7 +30,7 @@ export class DOMXBrowser {
     this.act = this.act.bind(this);
     this.screenshot = this.screenshot.bind(this);
     this.collectCreator = this.collectCreator.bind(this);
-    this.#tab = tab;
+    this.#tab = compatibleTab(tab);
     this.#readDOM = readDOM;
     this.#nativeSubmit = nativeSubmit;
     this.#session = {};

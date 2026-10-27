@@ -45,3 +45,35 @@ test("serialized native harness includes its class and detached instance methods
   );
   assert.equal(reads, 1);
 });
+
+test("serialized parser applies the same redacted URL corroboration and refusal", () => {
+  const context = vm.createContext({});
+  vm.runInContext(setupCode(), context);
+  const state = `0 标准窗口 主页 / X, URL: …
+  1 文本栏 (settable) 地址和搜索栏, Value: x.com/home, Placeholder: search
+  2 HTML 内容 主页 / X, URL: …
+    3 link 个人资料, Value: x.com/sample
+    4 文本输入区 (settable) 帖子文本, Value: hello
+    5 按钮 发帖
+  6 标签 (selected, settable, boolean) 主页 / X - memory, Value: on
+The focused UI element is 4 文本输入区 (settable) 帖子文本, Value: hello`;
+  for (const input of [
+    state,
+    state.replace("主页 / X - memory", "other / X - memory"),
+  ]) {
+    assert.deepEqual(
+      JSON.parse(JSON.stringify(context.xReadAX(input, { mode: "composer" }))),
+      JSON.parse(JSON.stringify(readAX(input, { mode: "composer" }))),
+    );
+  }
+  assert.equal(
+    context.xReadAX(state, { mode: "composer" }).needsStateCheck,
+    false,
+  );
+  assert.equal(
+    context.xReadAX(state.replace("主页 / X - memory", "other / X - memory"), {
+      mode: "composer",
+    }).needsStateCheck,
+    true,
+  );
+});
