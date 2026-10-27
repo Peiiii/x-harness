@@ -115,7 +115,7 @@ export class PlatformObservation {
         if (
           query.view !== "posts" ||
           !/Timed out waiting for URL/.test(
-            error instanceof Error ? error.message : "",
+            error instanceof Error ? error.message : String(error),
           )
         )
           throw error;

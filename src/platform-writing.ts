@@ -98,7 +98,6 @@ export class PlatformWriting {
     return this.#browser.act({
       operation: action.kind === "reply" ? "submitReply" : "submitPost",
       beforeSubmit: action.beforeSubmit,
-      ...(action.kind === "reply" ? { actionId: action.id } : {}),
       ...(action.activation ? { activation: action.activation } : {}),
     });
   }
@@ -389,7 +388,7 @@ export class PlatformWriting {
       // Missing parent evidence still fails the exact-parent gate below.
       if (
         !/Timed out waiting for URL/.test(
-          error instanceof Error ? error.message : "",
+          error instanceof Error ? error.message : String(error),
         )
       )
         throw error;
