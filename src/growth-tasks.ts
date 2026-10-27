@@ -144,7 +144,7 @@ export class GrowthTasks {
     return this.#readTask("readCreator", args);
   }
   public inspectAccount(args: any) {
-    return this.#readTask("readAccount", args);
+    return this.#readTask("readAccount", { ...args, force: true });
   }
   public readPost(args: any) {
     return this.#readTask("readPost", { ...args, expand: true });

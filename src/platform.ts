@@ -67,12 +67,7 @@ export class XPlatform {
     ) => Promise<any>;
   }["choose"];
   #createPlatformTargetsResult!: ReturnType<typeof createPlatformTargets>;
-  #readAccount!: {
-    readAccount: () => Promise<any>;
-    readFeedback: ({ targets, replyLimit }?: any) => Promise<any>;
-    readPerson: (target: any) => Promise<any>;
-    readPost: (target: any) => Promise<any>;
-  }["readAccount"];
+  #readAccount!: ReturnType<typeof createPlatformObservation>["readAccount"];
   #readFeedback!: {
     readAccount: () => Promise<any>;
     readFeedback: ({ targets, replyLimit }?: any) => Promise<any>;
@@ -226,7 +221,7 @@ export class XPlatform {
   preflight!: ({ operation, input }: any) => any;
   readCreator!: (args: import("./types.js").CreatorOptions) => Promise<any>;
   readPeople!: (args: any) => Promise<any>;
-  readAccount!: () => Promise<any>;
+  readAccount!: ReturnType<typeof createPlatformObservation>["readAccount"];
   readBookmarks!: ({ folder, ...window }?: any) => Promise<any>;
   searchSources!: ({
     query,
@@ -285,10 +280,10 @@ export class XPlatform {
       browser: browser,
       ready: this.#ready,
     });
-    const { readAccount, readFeedback, readPerson, readPost } =
+    const { readFeedback, readPerson, readPost } =
       this.#createPlatformTargetsResult;
     this.likePost = this.#createPlatformTargetsResult.likePost;
-    this.#readAccount = readAccount;
+    this.#readAccount = this.#createPlatformObservationResult.readAccount;
     this.#readFeedback = readFeedback;
     this.#readPerson = readPerson;
     this.#readPost = readPost;

@@ -144,12 +144,75 @@ export class DOMNavigation {
       throw new Error("需一条有效搜索词");
     this.#session.current = null;
     const destination = `https://x.com/search?q=${encodeURIComponent(command.query)}&src=typed_query&f=live`;
+    const current =
+      typeof this.#tab.url === "function" ? await this.#tab.url() : null;
+    if (current && this.isSearchRoute(current, command.query, true)) return;
+    const check = await this.#observe({
+      view: "navigation",
+      timelineNavigation: true,
+      limit: 1,
+    });
+    if (check.alerts?.length || check.needsStateCheck)
+      throw Error("search-client-session-unconfirmed");
+    const input = this.#tab.playwright
+      ?.locator?.('input[data-testid="SearchBox_Search_Input"]')
+      ?.filter({ visible: true });
+    const count = input ? await input.count() : 0;
+    if (count > 1) throw Error("search-input-ambiguous");
     if (
-      typeof this.#tab.url !== "function" ||
-      (await this.#tab.url()) !== destination
-    )
+      count !== 1 ||
+      typeof input.fill !== "function" ||
+      typeof input.press !== "function"
+    ) {
       await this.#tab.goto(destination);
-    return;
+      return;
+    }
+    await input.fill(command.query);
+    await input.press("Enter");
+    await this.waitSearchRoute(command.query, false);
+    if (!this.isSearchRoute(await this.#tab.url(), command.query, true)) {
+      const latest = this.#tab.playwright
+        .getByRole("tab", { name: /^(最新|Latest)$/i })
+        .filter({ visible: true });
+      await latest.waitFor({ state: "visible", timeoutMs: 5000 });
+      if ((await latest.count()) !== 1)
+        throw Error("search-latest-tab-unconfirmed");
+      await latest.click();
+      await this.waitSearchRoute(command.query, true);
+    }
+  }
+  private isSearchRoute(page: string, query: string, latest: boolean) {
+    try {
+      const url = xURL(page);
+      return (
+        url.pathname === "/search" &&
+        url.searchParams.get("q") === query &&
+        (!latest || url.searchParams.get("f") === "live")
+      );
+    } catch {
+      return false;
+    }
+  }
+  private async waitSearchRoute(query: string, latest: boolean) {
+    try {
+      await this.#tab.playwright.waitForURL(
+        latest
+          ? "https://x.com/search?*f=live*"
+          : `https://x.com/search?q=${encodeURIComponent(query)}*`,
+        { timeoutMs: 5000 },
+      );
+    } catch (error: unknown) {
+      if (
+        !/timed out|timeout|deadline exceeded/i.test(
+          error instanceof Error ? error.message : String(error),
+        )
+      )
+        throw error;
+      // A host wait may time out after the client route already committed.
+      // Only the exact live route can proceed; never retry via document navigation.
+    }
+    if (!this.isSearchRoute(await this.#tab.url(), query, latest))
+      throw Error("search-client-route-unconfirmed");
   }
   private async handleOpenExploreRecommendations() {
     this.#session.current = null;

@@ -4,6 +4,8 @@ export class PlatformObservation {
   #browser!: PlatformDependencies["browser"];
   #clock!: PlatformDependencies["clock"];
   #methods!: string[];
+  #account: any = null;
+  readAccount!: (options?: { force?: boolean }) => Promise<any>;
   missing!: (operation: any) => any[];
   observed!: (query: any) => Promise<any>;
   open!: (target: any, query: any) => Promise<any>;
@@ -23,14 +25,47 @@ export class PlatformObservation {
     this.open = this.handleOpen.bind(this);
     this.ready = this.handleReady.bind(this);
     this.choose = this.handleChoose.bind(this);
+    this.readAccount = this.handleReadAccount.bind(this);
   }
   private async handleObserved(query: any): Promise<any> {
-    const value = await this.#browser.observe(query);
-    return {
-      ...value,
-      observedAt: new Date(this.#clock()).toISOString(),
-      fresh: true,
-    };
+    try {
+      const value = {
+        ...(await this.#browser.observe(query)),
+        observedAt: new Date(this.#clock()).toISOString(),
+        fresh: true,
+      };
+      this.#account = null;
+      if (
+        value.accountHandle &&
+        !value.needsStateCheck &&
+        !value.alerts?.length &&
+        !value.diagnostic &&
+        value.page
+      ) {
+        try {
+          xURL(value.page);
+          this.#account = {
+            page: value.page,
+            accountHandle: value.accountHandle,
+            accountURL: value.accountURL,
+            observedAt: value.observedAt,
+            alerts: [],
+            needsStateCheck: false,
+          };
+        } catch {
+          /* A non-X surface never establishes the account session. */
+        }
+      }
+      return value;
+    } catch (error) {
+      this.#account = null;
+      throw error;
+    }
+  }
+  private async handleReadAccount({ force = false } = {}): Promise<any> {
+    if (!force && this.#account)
+      return { ...this.#account, fresh: false, identityReused: true };
+    return this.handleObserved({ view: "account" });
   }
   private async handleOpen(target: any, query: any): Promise<any> {
     const url = xURL(target.url);

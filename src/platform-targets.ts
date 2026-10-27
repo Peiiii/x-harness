@@ -7,7 +7,6 @@ export class PlatformTargets {
   #browser!: PlatformDependencies["browser"];
   #ready!: PlatformDependencies["ready"];
   likePost!: (target: any) => Promise<any>;
-  readAccount!: () => Promise<any>;
   readFeedback!: ({ targets, replyLimit }?: any) => Promise<any>;
   readPerson!: (target: any) => Promise<any>;
   readPeople!: (args: any) => Promise<any>;
@@ -24,7 +23,6 @@ export class PlatformTargets {
     this.#browser = browser;
     this.#ready = ready;
     this.likePost = this.handleLikePost.bind(this);
-    this.readAccount = this.handleReadAccount.bind(this);
     this.readFeedback = this.handleReadFeedback.bind(this);
     this.readPerson = this.handleReadPerson.bind(this);
     this.readPeople = this.handleReadPeople.bind(this);
@@ -339,19 +337,13 @@ export class PlatformTargets {
     };
   }
   private async handleLikePost(target: any) {
-    const identity = await this.handleReadAccount();
-    if (
-      identity.needsStateCheck ||
-      identity.alerts?.length ||
-      !sameHandle(identity.accountHandle, target.accountHandle)
-    )
-      throw Error("like-account-unconfirmed");
     const value = await this.handleReadPost({ ...target, expand: true });
     const post = value.posts?.[0];
     if (
       !value.complete ||
       value.needsStateCheck ||
       value.alerts?.length ||
+      !sameHandle(value.accountHandle, target.accountHandle) ||
       !sameHandle(post?.author, target.author)
     )
       throw Error("like-target-unconfirmed");
@@ -360,9 +352,6 @@ export class PlatformTargets {
       postId: target.postId,
       beforeSubmit: target.beforeSubmit,
     });
-  }
-  private handleReadAccount() {
-    return this.#observed({ view: "account" });
   }
 }
 export function createPlatformTargets(

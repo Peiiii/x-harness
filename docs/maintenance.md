@@ -215,3 +215,14 @@ The current Chrome host returned an empty external-asset inventory. A source-bou
 Implemented readCreatorHistory as a bounded public profile scan with date scope, deduplication, immutable per-window proof refs and validated same-viewport continuation. The current consumer adopted the verified local build and batches ingestion without model-driven per-post navigation. Live4-window call48.7s plus6.3s continuation:127 unique range posts and observed lower boundary; a separate consumer scan+ingestion call also passed. Actual data stays private.
 
 48 directed tests, runtime/type contracts/build/maintainability and16 Skill examples passed. Full tests:901 pass,2 existing native serialization failures; running the original HEAD without this patch reproduces both (missing corroborateNativeURL in serialized AX closure). Full formatting also flags7 pre-existing unrelated files. Changed files are formatted. Do not claim full check passed or publish npm on this evidence; use the verified DOM local build for current collection, and consolidate publication after the native serialization owner is repaired and the full release checks pass.
+
+## Session identity reuse and client search (2026-10-27)
+
+Current necessary consumer repair: reuse healthy identity in the existing
+PlatformObservation instance, preserve forced explicit recovery checks, and
+use a visible search input/Latest tab instead of document navigation where
+supported. No cross-tab or durable identity cache; fresh target/account/refusal
+guards remain. See `docs/designs/2026-10-27-session-identity-reuse.design.md`.
+Local checked build is the current consumer delivery route. Consolidated npm
+delivery remains pending the unchanged baseline global-check failures; source
+commit is not a package publication or a claimed platform429 cure.
