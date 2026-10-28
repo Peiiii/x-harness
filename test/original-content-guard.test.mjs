@@ -86,6 +86,7 @@ test("admitted original publishes once and preserves the normal business result"
   assert.deepEqual(f.writes, ["submitPost"]);
 });
 test("root binding forwards admission and does not read the browser for a rejected draft", async (t) => {
+  assert.equal(createXGrowthHarness.originalContentGuardVersion, 1);
   const f = scenario(t),
     tab = {
       id: "own-tab",

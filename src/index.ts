@@ -23,3 +23,7 @@ export function createXGrowthHarness(
     ? new HostConnection(options).connect()
     : bindXGrowthHarness(options);
 }
+// Project binders can refuse older factories that silently ignore this guard.
+Object.defineProperty(createXGrowthHarness, "originalContentGuardVersion", {
+  value: 1,
+});
