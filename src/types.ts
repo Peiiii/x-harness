@@ -727,6 +727,12 @@ export type HarnessOptions = (
   originalContentGuard?: OriginalContentGuard;
   /** Default activation for original posts; an explicit action value takes precedence. */
   originalPostActivation?: "click" | "keyboard";
+  /** Optional lazy, already-authorized native snapshot port. Never focuses or navigates. */
+  nativeReadFallback?: {
+    getApp(): Promise<CuaApp>;
+    slowThresholdMs?: number;
+    timeoutMs?: number;
+  };
   /** Restore the same owned tab through the host's documented claim/rebind API. */
   tabReadRecovery?: {
     rebind(tabId: string): Promise<CuaTab>;
@@ -741,6 +747,7 @@ export type HostConnectionOptions = Pick<
   | "executor"
   | "originalContentGuard"
   | "runtimeIdentity"
+  | "nativeReadFallback"
   | "originalPostActivation"
 > & {
   tab?: never;

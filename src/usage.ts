@@ -13,6 +13,7 @@ interface UsageTraceContext {
   sessionId: string;
   callId: string;
   rootCallId: string;
+  rootOperation: string;
 }
 const usageContext = new AsyncLocalStorage<UsageTraceContext>();
 
@@ -44,6 +45,7 @@ interface UsageRecord {
   rootCallId?: string;
   parentCallId?: string;
   binding?: UsageBindingContext;
+  readTransport?: "native-fallback";
   startedAt: string;
   finishedAt?: string;
   durationMs?: number;
@@ -171,6 +173,7 @@ export class XUsageJournal {
         status?: unknown;
         reason?: unknown;
         diagnostic?: { code?: unknown };
+        readTransport?: unknown;
       } | null;
       const reason = threw
         ? result instanceof Error
@@ -184,6 +187,9 @@ export class XUsageJournal {
         status: threw ? "threw" : (label(raw?.status) ?? "returned"),
         reason: threw ? undefined : label(raw?.diagnostic?.code),
         threw,
+        ...(raw?.readTransport === "native-fallback"
+          ? { readTransport: "native-fallback" as const }
+          : {}),
         http429:
           typeof reason === "string" &&
           /(?:HTTP[- :]*429|\b429\b)/i.test(reason),
@@ -191,7 +197,12 @@ export class XUsageJournal {
       return result;
     };
     return usageContext.run(
-      { sessionId: this.#sessionId, callId, rootCallId: record.rootCallId! },
+      {
+        sessionId: this.#sessionId,
+        callId,
+        rootCallId: record.rootCallId!,
+        rootOperation: parent?.rootOperation ?? operation,
+      },
       () => {
         try {
           const result = invoke();

@@ -1,6 +1,6 @@
 import { PostMedia } from "./post-media.js";
 import { existsSync } from "node:fs";
-import { XUsageJournal } from "./usage.js";
+import { XUsageJournal, currentXUsageTrace } from "./usage.js";
 import { createBusinessHarness } from "./api.js";
 import { AccountScreenshots } from "./account-screenshots.js";
 import { createFileRoundStore } from "./store.js";
@@ -54,15 +54,53 @@ export function bindXGrowthHarness(options: HarnessOptions): XGrowthHarness {
     (!tab?.id || typeof options.tabReadRecovery.rebind !== "function")
   )
     throw Error("tab-read-recovery-requires-owned-tab-and-rebind");
+  if (
+    options.nativeReadFallback &&
+    (!tab?.id || typeof options.nativeReadFallback.getApp !== "function")
+  )
+    throw Error("native-read-fallback-requires-owned-tab-and-app-provider");
+  let nativeBrowser: any;
+  const nativeRead =
+    options.nativeReadFallback && tab
+      ? {
+          allowed: () =>
+            /^(?:read|search|inspectAccount$)/.test(
+              currentXUsageTrace()?.rootOperation ?? "",
+            ),
+          slowThresholdMs: options.nativeReadFallback.slowThresholdMs,
+          timeoutMs: options.nativeReadFallback.timeoutMs,
+          isolate: () => createDOMXBrowser(tab, domOptions),
+          read: async (query: any) => {
+            if (typeof tab.url !== "function")
+              throw Error("native-read-fallback-url-unavailable");
+            const [snapshot, expectedURL] = await Promise.all([
+              store.load(),
+              tab.url(),
+            ]);
+            nativeBrowser ??= createNativeXBrowser(
+              await options.nativeReadFallback!.getApp(),
+            );
+            return {
+              observation: await nativeBrowser.observe(query),
+              expectedURL,
+              expectedAccount: snapshot.state.accountHandle,
+            };
+          },
+        }
+      : undefined;
   const browser = usage.wrap(
-    options.tabReadRecovery
+    options.tabReadRecovery || nativeRead
       ? new BrowserReadFallback(
           primary,
           {
             tabId: tab!.id!,
-            readTimeoutMs: options.tabReadRecovery.readTimeoutMs,
+            readTimeoutMs: options.tabReadRecovery?.readTimeoutMs,
+            nativeRead,
+            legacyRecoveryEnabled: Boolean(options.tabReadRecovery),
             recover: async (tabId: string) => {
-              const rebound = await options.tabReadRecovery!.rebind(tabId);
+              const rebound = options.tabReadRecovery
+                ? await options.tabReadRecovery.rebind(tabId)
+                : tab!;
               if (rebound?.id !== tabId)
                 throw Error("tab-read-recovery-target-mismatch");
               return createDOMXBrowser(rebound, domOptions);
