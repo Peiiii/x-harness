@@ -100,7 +100,20 @@ export class GrowthReading {
           next.updatedAt = this.#stamp();
           return next;
         });
-      const value = await this.#platform[operation](input);
+      let value = await this.#platform[operation](input);
+      if (
+        operation === "readAccount" &&
+        (typeof value.accountHandle !== "string" ||
+          !/^[A-Za-z0-9_]{1,15}$/.test(value.accountHandle))
+      ) {
+        value = {
+          ...value,
+          status: "needsDecision",
+          complete: false,
+          needsStateCheck: true,
+          missing: [...new Set([...(value.missing ?? []), "accountHandle"])],
+        };
+      }
       const evidenceRef = await this.#store.recordProof(
         await this.#platform.captureProof({ observation: value }),
       );
