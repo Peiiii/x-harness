@@ -434,7 +434,7 @@ export class DOMNavigation {
       else await this.#tab.goto(command.url);
       // Live URL readiness does not replace content or caller account checks.
       if (
-        command.view !== "composer" ||
+        !["composer", "posts"].includes(command.view) ||
         typeof this.#tab.url !== "function" ||
         (await this.#tab.url()) !== command.url
       )

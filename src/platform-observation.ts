@@ -71,9 +71,14 @@ export class PlatformObservation {
     const url = xURL(target.url);
     if (!target.evidenceRef) throw new Error("目标URL缺已观察证据");
     // A cached actor route can choose navigation, never stand in for target content.
-    // Avoid parsing an unrelated home feed before opening the evidenced own profile.
+    // Evidenced non-thread posts also need only a fresh destination read.
+    // Thread alerts and current-target content must still be freshly observed.
     let value =
-      query.identityRoute &&
+      (query.identityRoute ||
+        (query.view === "posts" &&
+          !query.threadRootId &&
+          /^\/[A-Za-z0-9_]{1,15}\/status\/\d+$/.test(url.pathname) &&
+          url.pathname.endsWith("/status/" + query.targetId))) &&
       this.#account?.page &&
       this.#account.page !== url.href
         ? this.#account

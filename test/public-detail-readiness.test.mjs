@@ -58,7 +58,7 @@ async function open(t, fault) {
       url: async () => page,
       goto: async (destination) => {
         calls.push(["goto", destination]);
-        if (!["url-timeout", "goto-wrong-route"].includes(fault))
+        if (!["url-timeout", "goto-wrong-route", "interrupted"].includes(fault))
           page = destination;
         if (fault?.startsWith("goto-"))
           throw Error(`Timed out waiting for URL ${destination}`);
@@ -93,7 +93,7 @@ test("cold detail uses CUA timeoutMs, URL commit and the exact public permalink 
   assert.equal(r.error, undefined);
   assert.deepEqual(
     r.calls.map((x) => x[0]),
-    ["goto", "url", "target", "article"],
+    ["goto", "target", "article"],
   );
   assert.equal(r.calls.at(-1)[1].timeoutMs, 5000);
 });
@@ -139,3 +139,17 @@ for (const fault of ["goto-committed", "goto-wrong-route", "goto-alert"])
       assert.equal(r.waits, 0);
     }
   });
+
+test("an exact committed route skips URL waiting but never skips target visibility", async (t) => {
+  const r = await open(t, "committed-url-timeout");
+  assert.equal(r.error, undefined);
+  assert.equal(
+    r.calls.some((c) => c[0] === "url"),
+    false,
+  );
+  assert.equal(
+    r.calls.some((c) => c[0] === "target"),
+    true,
+  );
+  assert.equal(r.waits, 1);
+});

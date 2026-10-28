@@ -94,6 +94,14 @@ for (const mode of ["committed", "wrong-route", "alert", "other-error"]) {
     };
     const tab = {
       async url() {
+        // A live URL already at the target needs no wait. Keep error cases
+        // genuinely unconfirmed until the wait/fallback observes the route.
+        if (
+          ["alert", "other-error"].includes(mode) &&
+          calls.includes("goto") &&
+          !waits
+        )
+          return "https://x.com/home";
         return page;
       },
       async goto(url) {
@@ -140,7 +148,7 @@ for (const mode of ["committed", "wrong-route", "alert", "other-error"]) {
       assert.equal(contentWaits, 0);
     }
     assert.deepEqual(calls, ["goto"]);
-    assert.equal(waits, 1);
+    assert.equal(waits, mode === "committed" ? 0 : 1);
   });
 }
 
