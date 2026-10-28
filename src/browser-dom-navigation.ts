@@ -485,13 +485,28 @@ export class DOMNavigation {
         .first()
         .waitFor({ state: "visible", timeoutMs: 5000 });
     } else if (command.view === "composer") {
-      await this.#tab.playwright
-        .getByRole("textbox", { name: /^(帖子文本|Post text)$/i })
-        .waitFor({ state: "visible", timeoutMs: 5000 });
+      await this.waitComposer(command.url);
     } else if (command.view === "posts") {
       await this.waitObservedPost(command.url);
     }
     return;
+  }
+  private async waitComposer(url: string) {
+    const editor = this.#tab.playwright.getByRole("textbox", {
+      name: /^(帖子文本|Post text)$/i,
+    });
+    try {
+      await editor.waitFor({ state: "visible", timeoutMs: 5000 });
+    } catch (error: any) {
+      // One extra readiness wait on the same route; never reload or submit.
+      if (
+        !/timed out|timeout|deadline exceeded/i.test(error.message) ||
+        typeof this.#tab.url !== "function" ||
+        (await this.#tab.url()) !== xURL(url).href
+      )
+        throw error;
+      await editor.waitFor({ state: "visible", timeoutMs: 5000 });
+    }
   }
   private async waitObservedPost(url: string) {
     // URL commit alone is not content readiness, including same-page reads.
