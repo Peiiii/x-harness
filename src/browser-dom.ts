@@ -22,6 +22,7 @@ export class DOMXBrowser {
   #editing!: ReturnType<typeof createDOMEditing>;
   #finishDOMAction!: ReturnType<typeof createDOMSubmission>;
   #defaultPostActivation?: "click" | "keyboard";
+  #creatorTrace?: <T>(stage: string, run: () => Promise<T>) => Promise<T>;
   capabilities!: (operation: any) => any;
   observe!: (query: any) => Promise<any>;
   constructor(
@@ -30,6 +31,7 @@ export class DOMXBrowser {
       readDOM = readXObservation,
       nativeSubmit = false,
       defaultPostActivation,
+      creatorTrace,
     }: any = {},
   ) {
     this.act = this.act.bind(this);
@@ -39,6 +41,7 @@ export class DOMXBrowser {
     this.#readDOM = readDOM;
     this.#nativeSubmit = nativeSubmit;
     this.#defaultPostActivation = defaultPostActivation;
+    this.#creatorTrace = creatorTrace;
     this.#session = {};
     this.#submitAX = this.#nativeSubmit
       ? createAXHarness({
@@ -179,7 +182,7 @@ export class DOMXBrowser {
     ...options
   }: import("./types.js").CreatorOptions) {
     this.#session.current = null;
-    return collectCreatorDOM(this.#tab, handle, options);
+    return collectCreatorDOM(this.#tab, handle, options, this.#creatorTrace);
   }
   public screenshot() {
     this.#session.current = null;

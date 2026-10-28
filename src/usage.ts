@@ -42,6 +42,7 @@ interface UsageRecord {
   sessionId: string;
   layer: "harness" | "browser";
   operation: string;
+  kind?: "step";
   rootCallId?: string;
   parentCallId?: string;
   binding?: UsageBindingContext;
@@ -135,6 +136,15 @@ export class XUsageJournal {
       this.#failedWrites++;
     }
   }
+  /** Write a durable start before each creator operation; unfinished events identify interruptions. */
+  creatorStage<T>(stage: string, invoke: () => Promise<T>): Promise<T> {
+    return this.#call(
+      invoke,
+      "browser",
+      `creator:${stage}`,
+      "step",
+    ) as Promise<T>;
+  }
   wrap<T extends object>(
     target: T,
     layer: UsageRecord["layer"],
@@ -171,6 +181,7 @@ export class XUsageJournal {
     invoke: () => unknown,
     layer: UsageRecord["layer"],
     operation: string,
+    kind?: "step",
   ): unknown {
     const started = Date.now();
     const active = usageContext.getStore();
@@ -185,9 +196,10 @@ export class XUsageJournal {
       binding: this.#binding,
       layer,
       operation,
+      ...(kind ? { kind } : {}),
       startedAt: new Date(started).toISOString(),
     };
-    this.#calls++;
+    if (!kind) this.#calls++;
     this.#write(record);
     const finish = (result: unknown, threw = false) => {
       const raw = result as {
@@ -207,7 +219,13 @@ export class XUsageJournal {
         finishedAt: new Date().toISOString(),
         durationMs: Math.max(0, Date.now() - started),
         status: threw ? "threw" : (label(raw?.status) ?? "returned"),
-        reason: threw ? undefined : label(raw?.diagnostic?.code),
+        reason: threw
+          ? /timed out|timeout|deadline exceeded/i.test(String(reason))
+            ? "timeout"
+            : /connection|transport|interrupted|extension/i.test(String(reason))
+              ? "connection-failed"
+              : "error"
+          : label(raw?.diagnostic?.code),
         threw,
         ...(raw?.readTransport === "native-fallback"
           ? { readTransport: "native-fallback" as const }
@@ -309,10 +327,14 @@ export function readXUsageReport(
       statuses: Record<string, number>;
     }
   > = {};
+  const creatorSteps: typeof operations = {};
+  let stepRecords = 0;
   const minutes: Record<string, { harness: number; browser: number }> = {};
   for (const r of records.values()) {
-    const key = `${r.layer}:${r.operation}`;
-    const aggregate = (operations[key] ??= {
+    const step = r.kind === "step";
+    if (step) stepRecords++;
+    const key = step ? r.operation : `${r.layer}:${r.operation}`;
+    const aggregate = ((step ? creatorSteps : operations)[key] ??= {
       calls: 0,
       unfinished: 0,
       http429: 0,
@@ -327,13 +349,17 @@ export function readXUsageReport(
     aggregate.durationMs += r.durationMs ?? 0;
     const status = r.status ?? "unfinished";
     aggregate.statuses[status] = (aggregate.statuses[status] ?? 0) + 1;
-    const minute = r.startedAt.slice(0, 16) + "Z";
-    (minutes[minute] ??= { harness: 0, browser: 0 })[r.layer]++;
+    if (!step) {
+      const minute = r.startedAt.slice(0, 16) + "Z";
+      (minutes[minute] ??= { harness: 0, browser: 0 })[r.layer]++;
+    }
   }
   return {
     schema: 1,
     metric: "harness-call-frequency",
-    records: records.size,
+    records: records.size - stepRecords,
+    stepRecords,
+    creatorSteps,
     operations,
     minutes,
     gaps,

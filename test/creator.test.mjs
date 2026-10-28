@@ -467,13 +467,119 @@ for (const scenario of [
       assert.equal(ax, 2);
     } else {
       await assert.rejects(run, (e) => e === failure);
-      assert.equal(ax, scenario === "connection" ? 1 : 2);
+      assert.equal(
+        ax,
+        scenario === "connection" ? 1 : scenario === "still-empty" ? 4 : 2,
+      );
     }
     assert.equal(
       waits,
-      1,
-      "never repeat navigation or waiting in the recovery",
+      scenario === "still-empty" ? 3 : 1,
+      "same-page waits are bounded and never repeat navigation",
     );
     assert.ok(!v.calls.includes("goto") && !v.calls.includes("reload"));
   });
 }
+
+test("creator step journal records a durable pending stage, errors and root correlation without content", async (t) => {
+  const { api, tab } = make(t);
+  let release, signal;
+  const entered = new Promise((resolve) => {
+    signal = resolve;
+  });
+  const pending = new Promise((resolve) => {
+    release = resolve;
+  });
+  tab.url = async () => {
+    signal();
+    return pending;
+  };
+  tab.reload = async () => {
+    throw new Error("private page detail");
+  };
+  const work = api.readCreator({
+    handle: "creator",
+    target: 1,
+    maxScrolls: 0,
+    mode: "decision",
+  });
+  await entered;
+  const { readdirSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const dir = api.usageStatus().directory;
+  const records = () =>
+    readdirSync(dir)
+      .filter((name) => name.endsWith(".json"))
+      .map((name) => JSON.parse(readFileSync(join(dir, name), "utf8")));
+  const initial = records().find(
+    (r) => r.operation === "creator:read-initial-url",
+  );
+  assert(initial && initial.startedAt && !initial.finishedAt);
+  assert(initial.rootCallId && initial.parentCallId);
+  release("https://x.com/creator");
+  const result = await work;
+  assert.equal(result.status, "needsDecision");
+  const all = records();
+  const route = all.find((r) => r.operation === "creator:read-initial-url");
+  const reload = all.find((r) => r.operation === "creator:reload-profile");
+  assert.equal(route.status, "returned");
+  assert.equal(reload.status, "threw");
+  assert.equal(typeof reload.durationMs, "number");
+  assert.equal(reload.rootCallId, route.rootCallId);
+  assert(!JSON.stringify(all).includes("private page detail"));
+});
+
+test("an early host selector timeout does not abandon a profile that becomes ready on the next bounded wait", async () => {
+  const { collectCreatorDOM } = await import("../dist/creator.js");
+  const v = tabFixture();
+  let waits = 0;
+  const locator = v.tab.playwright.locator;
+  const original = v.tab.playwright.evaluate;
+  v.tab.playwright.locator = () => ({
+    ...locator(),
+    first() {
+      return this;
+    },
+    waitFor: async () => {
+      if (++waits === 1) throw Error("selector deadline exceeded");
+    },
+  });
+  v.tab.playwright.evaluate = async (fn, args) =>
+    fn.name === "readCreatorHasVisiblePosts" ? false : original(fn, args);
+  const result = await collectCreatorDOM(v.tab, "creator", {
+    navigate: false,
+    target: 1,
+    maxScrolls: 0,
+  });
+  assert.equal(result.complete, true);
+  assert.equal(waits, 2);
+  assert(!v.calls.includes("reload") && !v.calls.includes("goto"));
+});
+
+test("an explicit page error stops bounded readiness checks without repeated waits", async () => {
+  const { collectCreatorDOM } = await import("../dist/creator.js");
+  const v = tabFixture();
+  let waits = 0;
+  v.tab.getAXState = async () => "出错了。请尝试重新加载";
+  v.tab.playwright.locator = () => ({
+    first() {
+      return this;
+    },
+    waitFor: async () => {
+      waits++;
+      throw Error("selector deadline exceeded");
+    },
+  });
+  const original = v.tab.playwright.evaluate;
+  v.tab.playwright.evaluate = async (fn, args) =>
+    fn.name === "readCreatorHasVisiblePosts" ? false : original(fn, args);
+  await assert.rejects(
+    collectCreatorDOM(v.tab, "creator", {
+      navigate: false,
+      target: 1,
+      maxScrolls: 0,
+    }),
+    /selector deadline/,
+  );
+  assert.equal(waits, 1);
+});

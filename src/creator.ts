@@ -70,26 +70,55 @@ function readCreatorHasVisiblePosts() {
     (article) => article.getClientRects().length > 0,
   );
 }
-async function waitForCreatorPosts(tab: BoundaryRecord, page: string) {
-  try {
-    await tab.playwright
-      .locator("article")
-      .first()
-      .waitFor({ state: "visible", timeoutMs: 15000 });
-  } catch (error: unknown) {
-    if (
-      !(error instanceof Error) ||
-      !/timed out|timeout|deadline exceeded/i.test(error.message)
-    )
-      throw error;
-    await tab.getAXState({ emit: false });
-    if (
-      (await tab.url()) !== page ||
-      !(await tab.playwright.evaluate(readCreatorHasVisiblePosts))
-    )
-      throw error;
+type CreatorTrace = <T>(stage: string, run: () => Promise<T>) => Promise<T>;
+const untraced: CreatorTrace = (_stage, run) => run();
+async function waitForCreatorPosts(
+  tab: BoundaryRecord,
+  page: string,
+  trace: CreatorTrace,
+) {
+  const deadline = Date.now() + 15000;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await trace("wait-visible-post", () =>
+        tab.playwright
+          .locator("article")
+          .first()
+          .waitFor({
+            state: "visible",
+            timeoutMs: Math.max(1, deadline - Date.now()),
+          }),
+      );
+      return;
+    } catch (error: unknown) {
+      if (
+        !(error instanceof Error) ||
+        !/timed out|timeout|deadline exceeded/i.test(error.message)
+      )
+        throw error;
+      const ax = await trace("read-fallback-ax", () =>
+        tab.getAXState({ emit: false }),
+      );
+      if ((await trace("read-fallback-url", () => tab.url())) !== page)
+        throw error;
+      if (
+        await trace("read-fallback-visible", () =>
+          tab.playwright.evaluate(readCreatorHasVisiblePosts),
+        )
+      )
+        return;
+      // A visible platform error is a real failure, not a loading state to poll.
+      if (
+        (typeof ax === "string" &&
+          /出错了。请尝试重新加载|something went wrong/i.test(ax)) ||
+        attempt === 2 ||
+        Date.now() >= deadline
+      )
+        throw error;
+    }
   }
 }
+
 export async function collectCreatorDOM(
   tab: BoundaryRecord,
   handle: string,
@@ -100,6 +129,7 @@ export async function collectCreatorDOM(
     expand = true,
     timeline = "posts",
   }: Omit<CreatorOptions, "handle" | "mode"> = {},
+  trace: CreatorTrace = untraced,
 ): Promise<BoundaryRecord> {
   if (
     !["posts", "replies"].includes(timeline) ||
@@ -115,10 +145,11 @@ export async function collectCreatorDOM(
     throw Error("Invalid creator collection input");
   const url = `https://x.com/${handle}`;
   if (navigate) {
-    if ((await tab.url()) === url) await tab.reload();
-    else await tab.goto(url);
+    if ((await trace("read-initial-url", () => tab.url())) === url)
+      await trace("reload-profile", () => tab.reload());
+    else await trace("navigate-profile", () => tab.goto(url));
   }
-  const current = new URL(await tab.url());
+  const current = new URL(await trace("read-current-url", () => tab.url()));
   if (
     current.origin !== "https://x.com" ||
     current.pathname.toLowerCase() !==
@@ -127,23 +158,29 @@ export async function collectCreatorDOM(
         (timeline === "replies" ? "/with_replies" : "")
   )
     throw Error("creator-url-mismatch");
-  await tab.getAXState({ emit: false });
-  await waitForCreatorPosts(tab, current.href);
-  const profile = await tab.playwright.evaluate(readProfile, { handle });
-  const meta = await tab.playwright.evaluate(readCreatorMeta);
+  await trace("read-initial-ax", () => tab.getAXState({ emit: false }));
+  await waitForCreatorPosts(tab, current.href, trace);
+  const profile = await trace("read-profile", () =>
+    tab.playwright.evaluate(readProfile, { handle }),
+  );
+  const meta = await trace("read-profile-meta", () =>
+    tab.playwright.evaluate(readCreatorMeta),
+  );
   const posts = new Map<string, BoundaryRecord>();
   const windowSize = Math.max(5, target);
   let scrolls = 0;
   let stagnant = 0;
   for (;;) {
     if (expand) {
-      const buttons = await tab.playwright
-        .locator("article")
-        .getByRole("button", { name: "显示更多", exact: true })
-        .all();
+      const buttons = await trace<any>("find-expand-buttons", () =>
+        tab.playwright
+          .locator("article")
+          .getByRole("button", { name: "显示更多", exact: true })
+          .all(),
+      );
       for (const button of buttons) {
         try {
-          await button.click({ timeoutMs: 1000 });
+          await trace("expand-post", () => button.click({ timeoutMs: 1000 }));
         } catch (error: unknown) {
           if (
             !(error instanceof Error) ||
@@ -153,21 +190,26 @@ export async function collectCreatorDOM(
           /* Keep needsExpansion as evidence of incomplete text. */
         }
       }
-      if (buttons.length) await tab.getAXState({ emit: false });
+      if (buttons.length)
+        await trace("read-expanded-ax", () => tab.getAXState({ emit: false }));
     }
     const extras = new Map<string, BoundaryRecord>(
-      (await tab.playwright.evaluate(readCreatorPostExtras)).map(
-        (p: BoundaryRecord) => [p.id, p],
-      ),
+      (
+        await trace<any>("read-post-extras", () =>
+          tab.playwright.evaluate(readCreatorPostExtras),
+        )
+      ).map((p: BoundaryRecord) => [p.id, p]),
     );
     const before = posts.size;
     for (let offset = 0; ; offset += windowSize) {
-      const read = await tab.playwright.evaluate(readXObservation, {
-        view: "posts",
-        offset,
-        limit: windowSize,
-        bulk: true,
-      });
+      const read = await trace<any>("read-post-window", () =>
+        tab.playwright.evaluate(readXObservation, {
+          view: "posts",
+          offset,
+          limit: windowSize,
+          bulk: true,
+        }),
+      );
       if (read.alerts?.length)
         return {
           profile,
@@ -195,15 +237,15 @@ export async function collectCreatorDOM(
     }
     if (posts.size >= target || scrolls >= maxScrolls || stagnant >= 6) break;
     stagnant = posts.size === before ? stagnant + 1 : 0;
-    const scrollPoint = await tab.playwright.evaluate(
-      function readCreatorScrollPoint() {
+    const scrollPoint = await trace("read-scroll-point", () =>
+      tab.playwright.evaluate(function readCreatorScrollPoint() {
         if (innerWidth <= 0 || innerHeight <= 0)
           throw Error("creator-viewport-unavailable");
         return [Math.floor(innerWidth / 2), Math.floor(innerHeight * 0.75)];
-      },
+      }),
     );
-    await tab.scroll(scrollPoint, "down", 4);
-    await tab.getAXState({ emit: false });
+    await trace("scroll", () => tab.scroll(scrollPoint, "down", 4));
+    await trace("read-scrolled-ax", () => tab.getAXState({ emit: false }));
     scrolls++;
   }
   const selected = [...posts.values()]

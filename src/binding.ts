@@ -45,7 +45,10 @@ export function bindXGrowthHarness(options: HarnessOptions): XGrowthHarness {
     !["click", "keyboard"].includes(options.originalPostActivation)
   )
     throw new Error("invalid-original-post-activation");
-  const domOptions = { defaultPostActivation: options.originalPostActivation };
+  const domOptions = {
+    defaultPostActivation: options.originalPostActivation,
+    creatorTrace: usage.creatorStage.bind(usage),
+  };
   const primary = tab
     ? createDOMXBrowser(tab, domOptions)
     : createNativeXBrowser(app);

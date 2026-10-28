@@ -150,3 +150,30 @@ test("separate sessions coexist, interrupted temp files are not counted and abse
     0,
   );
 });
+
+test("creator timeout stages record a safe reason without copying error text", async (t) => {
+  const dir = fixture(t);
+  const usage = new XUsageJournal(dir);
+  await assert.rejects(
+    usage.creatorStage("wait-visible-post", async () => {
+      throw Error("selector deadline exceeded private page text");
+    }),
+    /deadline/,
+  );
+  const entries = readdirSync(usage.status().directory).filter((x) =>
+    x.endsWith(".json"),
+  );
+  assert.equal(entries.length, 1);
+  const record = JSON.parse(
+    readFileSync(join(usage.status().directory, entries[0]), "utf8"),
+  );
+  assert.equal(record.operation, "creator:wait-visible-post");
+  assert.equal(record.reason, "timeout");
+  assert(!JSON.stringify(record).includes("private page text"));
+  const report = readXUsageReport([dir]);
+  assert.equal(report.records, 0);
+  assert.equal(report.stepRecords, 1);
+  assert.equal(report.creatorSteps["creator:wait-visible-post"].calls, 1);
+  assert.deepEqual(report.minutes, {});
+  assert.equal(usage.status().calls, 0);
+});
