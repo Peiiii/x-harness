@@ -13,6 +13,7 @@ import {
 import { dirname, resolve, join } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { readRound } from "./round-state.js";
+import { currentXUsageTrace } from "./usage.js";
 const hash = (text: string | Uint8Array) =>
   createHash("sha256").update(text).digest("hex");
 const block = /```x-round-state\s*\n([\s\S]*?)\n```/;
@@ -59,15 +60,20 @@ export class FileRoundStore implements RoundStore {
   #lockPath!: ReturnType<typeof join>;
   #proofDir!: ReturnType<typeof resolve>;
   #held!: boolean;
+  #lockToken: string | null = null;
+  #storeId = randomUUID();
+  #owner?: { executorId?: string; runtimeId?: string; tabId?: string };
   path!: any;
   evidenceExists!: any;
   processId!: any;
   constructor({
     ledgerPath,
     proofDirectory,
+    lockOwner,
   }: {
     ledgerPath: string;
     proofDirectory: string;
+    lockOwner?: { executorId?: string; runtimeId?: string; tabId?: string };
   }) {
     this.recordProof = this.recordProof.bind(this);
     this.recoverAbandonedLock = this.recoverAbandonedLock.bind(this);
@@ -83,6 +89,7 @@ export class FileRoundStore implements RoundStore {
     this.#lockPath = join(dirname(this.#path), ".x-harness.lock");
     this.#proofDir = resolve(this.#proofDirectory);
     this.#held = false;
+    this.#owner = lockOwner;
     this.path = this.#path;
     this.evidenceExists = existsSync;
     this.processId = typeof process !== "undefined" ? process.pid : null;
@@ -141,7 +148,7 @@ export class FileRoundStore implements RoundStore {
     snapshot: RoundSnapshot,
     state: BoundaryRecord,
   ): Promise<RoundSnapshot> {
-    if (!this.#held) throw new HarnessConflict("保存原台账必须持有账号锁");
+    this.assertOwnedLock();
     const text = readFileSync(this.#path, "utf8");
     if (snapshot.revision !== hash(text))
       throw new HarnessConflict("原台账已变化：重新定向读取，禁止覆盖");
@@ -158,6 +165,7 @@ export class FileRoundStore implements RoundStore {
         mode: statSync(this.#path).mode & 0o777,
       });
       // Other writers must honor the same lock; CAS additionally detects observed external edits.
+      this.assertOwnedLock();
       if (hash(readFileSync(this.#path, "utf8")) !== snapshot.revision)
         throw new HarnessConflict("原台账在结算中变化");
       renameSync(temp, this.#path);
@@ -165,6 +173,18 @@ export class FileRoundStore implements RoundStore {
       if (existsSync(temp)) unlinkSync(temp);
     }
     return { state, revision: hash(next), path: this.#path };
+  }
+  private ownsLock(token: string | null): boolean {
+    if (!token) return false;
+    try {
+      return JSON.parse(readFileSync(this.#lockPath, "utf8")).token === token;
+    } catch {
+      return false;
+    }
+  }
+  private assertOwnedLock() {
+    if (!this.#held || !this.ownsLock(this.#lockToken))
+      throw new HarnessConflict("账号锁持有权已变化：禁止保存台账");
   }
   public async withLock<T>(fn: () => T | Promise<T>): Promise<T> {
     if (this.#held) throw new HarnessConflict("账号操作禁止重入");
@@ -178,21 +198,28 @@ export class FileRoundStore implements RoundStore {
         throw new HarnessConflict("账号锁占用：不并发写、不自动偷锁");
       throw error;
     }
+    const token = randomUUID();
     try {
       writeFileSync(
         fd,
         JSON.stringify({
           pid: typeof process !== "undefined" ? process.pid : null,
+          token,
+          storeId: this.#storeId,
+          ...(this.#owner ? { owner: this.#owner } : {}),
+          ...(currentXUsageTrace() ? { usageTrace: currentXUsageTrace() } : {}),
           acquiredAt: new Date().toISOString(),
           ledgerPath: this.#path,
         }),
       );
       this.#held = true;
+      this.#lockToken = token;
       return await fn();
     } finally {
       this.#held = false;
+      this.#lockToken = null;
       closeSync(fd);
-      unlinkSync(this.#lockPath);
+      if (this.ownsLock(token)) unlinkSync(this.#lockPath);
     }
   }
   public async recoverAbandonedLock(): Promise<{

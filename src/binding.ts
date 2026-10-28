@@ -30,7 +30,16 @@ export function bindXGrowthHarness(options: HarnessOptions): XGrowthHarness {
     executorId: executor?.id,
     runtimeIdentity: options.runtimeIdentity,
   });
-  const store = createFileRoundStore({ ledgerPath, proofDirectory });
+  const store = createFileRoundStore({
+    ledgerPath,
+    proofDirectory,
+    lockOwner: executor
+      ? {
+          executorId: executor.id,
+          tabId: taskTabId,
+        }
+      : undefined,
+  });
   if (
     options.originalPostActivation &&
     !["click", "keyboard"].includes(options.originalPostActivation)

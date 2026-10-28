@@ -1,0 +1,9 @@
+# File lock owner evidence and displaced-holder checks
+
+A shared ledger lock created from a host without process identity previously recorded a null PID and no link to the action or executor. If the runtime stopped unexpectedly, the existing safe recovery could not distinguish its abandoned lock from a live writer. File age or absence of an OS-visible descriptor does not establish termination.
+
+Each new lock now records a random token and store identity; a business harness binding adds its executor and task-tab identifiers, and wrapped calls attach the existing content-free usage trace. Before a ledger save and before a temporary replacement is renamed, the store verifies that the current lock still has its token. Cleanup also checks the token before unlinking. Legacy locks and the existing PID-based recovery remain valid, and a missing PID still cannot authorize recovery.
+
+The checks prevent a holder that observes a different token from saving or deleting that lock. File reads and unlink/rename are separate filesystem operations; these checks are not a substitute for atomic fencing or verified runtime termination. Direct diagnostics stores need explicit lock-owner context for executor attribution, and a store identity is not an independently verifiable host lifecycle. The original live lock predates this metadata; this patch cannot identify or clear it. A further recovery mechanism requires authoritative evidence that the exact execution context has terminated, checked against the same token and ledger revision. Browser/platform waits inside existing locked paths remain a separate work item.
+
+Validation uses synthetic ledgers for unique tokens, owner and trace linkage, token replacement before save and cleanup, and null-PID fail-closed recovery. Full type, contract, formatting and test checks apply. Existing unknown submissions remain unchanged; no X request is made by these tests.
