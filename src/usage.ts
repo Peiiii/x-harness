@@ -7,6 +7,26 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
+
+interface UsageTraceContext {
+  sessionId: string;
+  callId: string;
+  rootCallId: string;
+}
+const usageContext = new AsyncLocalStorage<UsageTraceContext>();
+
+/** Content-free join to an original action-stage proof, isolated per async call. */
+export function currentXUsageTrace(): UsageTraceContext | undefined {
+  const context = usageContext.getStore();
+  return context ? { ...context } : undefined;
+}
+interface UsageBindingContext {
+  transport?: "dom" | "native";
+  tabId?: string;
+  executorId?: string;
+  runtimeIdentity?: { sourceCommit: string; artifactSha256?: string };
+}
 
 export interface XUsageStatus {
   directory: string;
@@ -21,6 +41,9 @@ interface UsageRecord {
   sessionId: string;
   layer: "harness" | "browser";
   operation: string;
+  rootCallId?: string;
+  parentCallId?: string;
+  binding?: UsageBindingContext;
   startedAt: string;
   finishedAt?: string;
   durationMs?: number;
@@ -40,8 +63,32 @@ export class XUsageJournal {
   #sessionId = randomUUID();
   #calls = 0;
   #failedWrites = 0;
-  constructor(proofDirectory: string) {
+  #binding: UsageBindingContext;
+  constructor(proofDirectory: string, binding: UsageBindingContext = {}) {
     this.#directory = join(proofDirectory, "usage", this.#sessionId);
+    const identity = binding.runtimeIdentity;
+    this.#binding = {
+      ...(["dom", "native"].includes(binding.transport ?? "")
+        ? { transport: binding.transport }
+        : {}),
+      ...(typeof binding.tabId === "string" &&
+      /^[A-Za-z0-9][A-Za-z0-9:_-]{0,95}$/.test(binding.tabId)
+        ? { tabId: binding.tabId }
+        : {}),
+      ...(label(binding.executorId) ? { executorId: binding.executorId } : {}),
+      ...(identity &&
+      typeof identity.sourceCommit === "string" &&
+      /^[a-f0-9]{40}$/.test(identity.sourceCommit)
+        ? {
+            runtimeIdentity: {
+              sourceCommit: identity.sourceCommit,
+              ...(/^[a-f0-9]{64}$/.test(identity.artifactSha256 ?? "")
+                ? { artifactSha256: identity.artifactSha256 }
+                : {}),
+            },
+          }
+        : {}),
+    };
   }
   status(): XUsageStatus {
     return {
@@ -103,10 +150,16 @@ export class XUsageJournal {
     operation: string,
   ): unknown {
     const started = Date.now();
+    const active = usageContext.getStore();
+    const parent = active?.sessionId === this.#sessionId ? active : undefined;
+    const callId = randomUUID();
     const record: UsageRecord = {
       schema: 1,
-      id: randomUUID(),
+      id: callId,
       sessionId: this.#sessionId,
+      rootCallId: parent?.rootCallId ?? callId,
+      ...(parent ? { parentCallId: parent.callId } : {}),
+      binding: this.#binding,
       layer,
       operation,
       startedAt: new Date(started).toISOString(),
@@ -137,22 +190,27 @@ export class XUsageJournal {
       });
       return result;
     };
-    try {
-      const result = invoke();
-      return result &&
-        typeof (result as PromiseLike<unknown>).then === "function"
-        ? Promise.resolve(result).then(
-            (value) => finish(value),
-            (error) => {
-              finish(error, true);
-              throw error;
-            },
-          )
-        : finish(result);
-    } catch (error) {
-      finish(error, true);
-      throw error;
-    }
+    return usageContext.run(
+      { sessionId: this.#sessionId, callId, rootCallId: record.rootCallId! },
+      () => {
+        try {
+          const result = invoke();
+          return result &&
+            typeof (result as PromiseLike<unknown>).then === "function"
+            ? Promise.resolve(result).then(
+                (value) => finish(value),
+                (error) => {
+                  finish(error, true);
+                  throw error;
+                },
+              )
+            : finish(result);
+        } catch (error) {
+          finish(error, true);
+          throw error;
+        }
+      },
+    );
   }
 }
 

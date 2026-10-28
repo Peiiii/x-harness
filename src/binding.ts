@@ -24,7 +24,12 @@ export function bindXGrowthHarness(options: HarnessOptions): XGrowthHarness {
           !existsSync(options.nativeTaskTab.evidenceRef))))
   )
     throw new Error("executor-requires-independent-tab");
-  const usage = new XUsageJournal(proofDirectory);
+  const usage = new XUsageJournal(proofDirectory, {
+    transport: tab ? "dom" : "native",
+    tabId: taskTabId,
+    executorId: executor?.id,
+    runtimeIdentity: options.runtimeIdentity,
+  });
   const store = createFileRoundStore({ ledgerPath, proofDirectory });
   if (
     options.originalPostActivation &&

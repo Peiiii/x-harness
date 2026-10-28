@@ -1,0 +1,9 @@
+# Usage与原动作阶段关联
+
+flow:bugfix，risk:L2。问题是调用日志没有父子关系、通道与实际构建信息，不能从一条原动作定位慢调用；原ActionTrace已有actionId/runId，不复制业务状态。
+
+在原XUsageJournal通过AsyncLocalStorage隔离每次根调用，browser子调用记录rootCallId/parentCallId；原ActionTrace阶段证明记录同一usageTrace，连接已有actionId。绑定自动记录DOM/Native、原tabId和executorId；可选runtimeIdentity只接受40位源码SHA/64位artifact哈希，由调用方验证后提供，缺失仍未知，不猜npm版本或查询平台。不记录参数、正文、自由错误消息或凭据，不增加浏览器请求，不改提交/恢复行为。跨journal不伪造父子关系。日志失败沿原failedWrites可见且不改变业务结果。
+
+验收：UC1并发交错两原动作各归其根/子调用与阶段，UC2同步异常/返回/隐私/日志失败语义保持，UC3原v1报告兼容，UC4真实宿主可加载AsyncLocalStorage并自然根调用生成关联证明，UC5实际冻结版本采用单独记录；不把源码通过测试当真实业务性能改善。设计Review：复用原日志/动作证明，无新审批/调度，暂不修改只读降级以免未取消在途请求与新导航重叠。
+
+状态：UC1–UC3通过；全量check 1069项、类型/CLI契约/格式/维护门通过，严格metadata类型补充后重建及6项受影响验证通过。真实宿主已验证AsyncLocalStorage可用。实现Review通过：复用原日志，正确隔离并发/异步/异常，不记录正文或自由错误，旧v1日志仍可读，日志失败不改变业务；未增加平台请求。UC4完整冻结artifact根API冒烟待核，UC5自然业务采用和性能收益未验收。

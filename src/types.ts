@@ -718,6 +718,8 @@ export type HarnessOptions = (
   proofDirectory: string;
   clock?: () => number;
   executor?: Executor;
+  /** Optional caller-verified artifact identity, recorded locally; never a write permit. */
+  runtimeIdentity?: { sourceCommit: string; artifactSha256?: string };
   originalContentGuard?: OriginalContentGuard;
   /** Default activation for original posts; an explicit action value takes precedence. */
   originalPostActivation?: "click" | "keyboard";
@@ -734,6 +736,7 @@ export type HostConnectionOptions = Pick<
   | "clock"
   | "executor"
   | "originalContentGuard"
+  | "runtimeIdentity"
   | "originalPostActivation"
 > & {
   tab?: never;

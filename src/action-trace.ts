@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { currentXUsageTrace } from "./usage.js";
 
 /** Durable, content-free progress evidence; diagnostics never activate an action. */
 export class ActionTrace {
@@ -58,6 +59,7 @@ export class ActionTrace {
       this.evidenceRefs.push(
         await this.store.recordProof({
           kind: "action-stage",
+          ...(currentXUsageTrace() ? { usageTrace: currentXUsageTrace() } : {}),
           runId: this.runId,
           actionId: this.action.id,
           scope: this.action.kind,
