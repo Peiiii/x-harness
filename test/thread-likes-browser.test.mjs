@@ -382,6 +382,12 @@ test("actual DOM reader supports thread bulk windows while ordinary reads keep t
     context,
   );
   assert.equal(out.posts.length, 0);
+  const creator = vm.runInContext(
+    `(${readPosts.toString()})({limit:25,bulk:true})`,
+    context,
+  );
+  assert.equal(creator.posts.length, 0);
+  assert.throws(() => readPosts({ limit: 51, bulk: true }), /limit/);
   assert.throws(() => readPosts({ limit: 1001, threadRootId: "100" }), /limit/);
 });
 

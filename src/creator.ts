@@ -132,6 +132,7 @@ export async function collectCreatorDOM(
   const profile = await tab.playwright.evaluate(readProfile, { handle });
   const meta = await tab.playwright.evaluate(readCreatorMeta);
   const posts = new Map<string, BoundaryRecord>();
+  const windowSize = Math.max(5, target);
   let scrolls = 0;
   let stagnant = 0;
   for (;;) {
@@ -160,11 +161,12 @@ export async function collectCreatorDOM(
       ),
     );
     const before = posts.size;
-    for (let offset = 0; ; offset += 5) {
+    for (let offset = 0; ; offset += windowSize) {
       const read = await tab.playwright.evaluate(readXObservation, {
         view: "posts",
         offset,
-        limit: 5,
+        limit: windowSize,
+        bulk: true,
       });
       if (read.alerts?.length)
         return {

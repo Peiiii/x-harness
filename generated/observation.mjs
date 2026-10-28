@@ -71,12 +71,12 @@ export const readXObservation = (query) => {
         threadExpandControls: controls.slice(0, 20),
     };
 };
-  const readPosts = function readPosts({ offset = 0, limit = 5, targetId = "", threadRootId = "", } = {}) {
+  const readPosts = function readPosts({ offset = 0, limit = 5, targetId = "", threadRootId = "", bulk = false, } = {}) {
     if (!Number.isInteger(offset) ||
         offset < 0 ||
         !Number.isInteger(limit) ||
         limit < 1 ||
-        limit > (threadRootId ? 1000 : 5))
+        limit > (threadRootId ? 1000 : bulk === true ? 50 : 5))
         throw new Error("offset>=0；limit为1～5");
     if (threadRootId && !/^\d+$/.test(threadRootId))
         throw new Error("threadRootId必须是数字公开ID");
