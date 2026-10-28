@@ -56,7 +56,6 @@ export class GrowthPolicy {
       )[operation];
     const required = [
       "preflight",
-      "readAccount",
       "findSubmission",
       "captureProof",
       ...(operation === "read" ? [] : [operations[kind]]),

@@ -252,3 +252,9 @@ The same repair's read-only consumer check exposed a null actor reported as a co
 ### Pending consolidated release: original content admission
 
 Added generic project-owned synchronous original-content guard and ledger hold/required-guard flags. Ordinary, scoped and independent publication share the final boundary; no account-specific editorial policy is included. Validated with full check (1036 tests), including rejection before intent, change before click, reply isolation and root binding. A verified local build may be used before the next consolidated npm release.
+
+### Pending consolidated release: remove routine account prechecks
+
+Independent publishing no longer reads the account before its existing publication baseline. Unknown incoming-like verification uses the account identity already returned by its required post read. Generic business capability no longer depends on readAccount. Ordinary/scoped publishing, reply and follow already use their business observations; callers must not add a separate healthy-state inspectAccount or account-page navigation/reload. Explicit fault diagnostics and real-backoff recovery remain available.
+
+Seven regressions fail on the prior runtime; all 11 directed cases and full check (1047 tests) pass after repair, including a mixed three-write workflow with zero account-only reads, conflicting business identity, original guards and unknown-like no-click recovery. Skill loading decreased by 14 characters rather than raising budgets. Local DOM reads do not themselves make X HTTP requests; redundant page creation/reloads can bootstrap Viewer/settings traffic. Use the verified local build now, then consolidate the public package release.

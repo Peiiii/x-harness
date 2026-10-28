@@ -110,15 +110,13 @@ export class IncomingReactions {
     if (old && !["intent", "unknown"].includes(old.status))
       return { status: "preexisting", evidenceRef: old.evidenceRef };
     if (old) {
-      const identity = await platform.readAccount();
       const view = await platform.readPost({ ...target, expand: true });
       const post = view.posts?.find(
         (p: BoundaryRecord) => p.id === target.postId,
       );
       if (
-        !identity.needsStateCheck &&
-        !identity.alerts?.length &&
-        identity.accountHandle?.toLowerCase() === handle?.toLowerCase() &&
+        !view.needsStateCheck &&
+        view.accountHandle?.toLowerCase() === handle?.toLowerCase() &&
         view.complete &&
         !view.alerts?.length &&
         post?.author?.toLowerCase() === target.author.toLowerCase() &&
@@ -128,7 +126,7 @@ export class IncomingReactions {
       ) {
         const evidenceRef = await store.recordProof(
           await platform.captureProof({
-            observation: { ...view, account: identity },
+            observation: view,
           }),
         );
         await this.settle(target.postId, "verified", evidenceRef, true);

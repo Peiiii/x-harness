@@ -82,3 +82,7 @@ Native Chrome publishing can use the same root APIs when extension page control 
 ### Project-owned original publication admission
 
 A binding may provide a synchronous `originalContentGuard({draftPath, text})`. Return `null` to admit or a stable reason code to reject. The original ledger can require this binding with `execution.originalContentGuardRequired: true`, and can hold all new original submissions with `execution.originalContentHold: true`. These checks run both before intent and again at the shared final submission boundary, including independent/scoped publication. Missing, failing or invalid guards fail closed; reply and follow actions retain their own policies. Put account/editorial policy in the consuming project rather than the SDK. Receipt recovery remains read-only while a content hold is active.
+
+### No routine account precheck
+
+Publishing (including independent calls), replying, following and incoming-like verification use identity already returned by their necessary business observations. They do not perform a separate `readAccount`/`inspectAccount` preflight, and ordinary write capability does not require an account-only reader. Do not add such checks, account-page navigation or reloads in callers. Explicit account diagnostics and recovery after a real failure remain available; they are not per-action or daily prerequisites. Local DOM observation is not itself an X HTTP request; repeated document loads can bootstrap X Viewer/settings requests.

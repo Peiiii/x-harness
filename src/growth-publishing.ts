@@ -135,15 +135,6 @@ export class IndependentPublishing {
           throw Object.assign(new Error(cadence.reason), { cadence });
       });
       const trace = new ActionTrace(this.#store, this.#clock, action);
-      const own: any = await trace.run("account-read", () =>
-        this.#platform.readAccount(),
-      );
-      if (
-        own.needsStateCheck ||
-        own.alerts?.length ||
-        !same(own.accountHandle, action.accountHandle)
-      )
-        throw new Error("fresh-account-unconfirmed");
       const baseline: any = await trace.run("baseline-read", () =>
         this.#platform.findSubmission(
           {
