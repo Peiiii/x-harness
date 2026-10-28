@@ -15,6 +15,7 @@ export class PlatformWriting {
   #open!: PlatformDependencies["open"];
   #clock!: PlatformDependencies["clock"];
   #readPost!: PlatformDependencies["readPost"];
+  #followPostClick?: { actionId: string; capturedAt: number; value: any };
   compose!: (action: any) => Promise<any>;
   findSubmission!: (
     action: any,
@@ -110,15 +111,46 @@ export class PlatformWriting {
       ...(action.activation ? { activation: action.activation } : {}),
     });
   }
+  private async followVerificationStart(action: any) {
+    const recent = this.#followPostClick;
+    this.#followPostClick = undefined;
+    const elapsed = recent ? this.#clock() - recent.capturedAt : Infinity;
+    const sameAction = recent?.actionId === action.id;
+    const fresh = sameAction && elapsed >= 0 && elapsed <= 5000;
+    let matchesTarget = false;
+    if (fresh && recent?.value?.page) {
+      try {
+        matchesTarget =
+          xURL(recent.value.page).pathname.toLowerCase() ===
+            `/${action.handle}`.toLowerCase() &&
+          sameHandle(recent.value.handle, action.handle) &&
+          (!action.accountHandle ||
+            sameHandle(recent.value.accountHandle, action.accountHandle));
+      } catch {
+        /* Invalid or missing page requires a fresh read. */
+      }
+    }
+    const value =
+      fresh && matchesTarget && !recent?.value?.needsStateCheck
+        ? recent!.value
+        : await this.#followStage(action, "verify-read", () =>
+            this.#readPerson(action),
+          );
+    return {
+      value,
+      previousAlerts: sameAction ? (recent?.value?.alerts ?? []) : [],
+    };
+  }
   private async handleFindSubmission(
     action: any,
     context: { phase?: "baseline" } = {},
   ): Promise<any> {
     if (action.kind === "follow") {
-      let value = await this.#followStage(action, "verify-read", () =>
-        this.#readPerson(action),
-      );
-      const verificationAlerts = [...(value.alerts ?? [])];
+      const start = await this.followVerificationStart(action);
+      let value = start.value;
+      const verificationAlerts = [
+        ...new Set([...start.previousAlerts, ...(value.alerts ?? [])]),
+      ];
       if (!value.needsStateCheck) {
         const absent = this.#browser.capabilities?.("refreshPerson") ?? [
           "refreshPerson",
@@ -126,6 +158,7 @@ export class PlatformWriting {
         if (absent.length)
           return {
             ...value,
+            alerts: verificationAlerts,
             verified: false,
             missing: absent,
             needsStateCheck: true,
@@ -547,6 +580,7 @@ export class PlatformWriting {
     });
   }
   private async handleSubmitFollow(action: any): Promise<any> {
+    this.#followPostClick = undefined;
     const value = await this.#followStage(action, "submit-preflight-read", () =>
       this.#readPerson(action),
     );
@@ -566,9 +600,17 @@ export class PlatformWriting {
       this.#browser.act({ operation: "follow", handle: action.handle }),
     );
     try {
-      await this.#followStage(action, "click-ui-observation", () =>
-        this.#observed({ view: "person", handle: action.handle }),
+      const value = await this.#followStage(
+        action,
+        "click-ui-observation",
+        () => this.#observed({ view: "person", handle: action.handle }),
       );
+      if (typeof action.id === "string" && action.id)
+        this.#followPostClick = {
+          actionId: action.id,
+          capturedAt: this.#clock(),
+          value,
+        };
     } catch {
       /* The click may have committed; retain diagnostic failure and use the original fresh receipt path. */
     }
