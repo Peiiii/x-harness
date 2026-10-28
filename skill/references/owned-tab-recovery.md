@@ -1,0 +1,5 @@
+# Owned tab recovery
+
+After a host/kernel interruption, a handle returning a URL does not prove its page controls still work. Recover the same observed tab through the host's documented claim API; do not create another tab or repeatedly call broad browser discovery. `tabReadRecovery:{rebind:async id=>browser.user.claimTab(observedTabWithThatId),readTimeoutMs:15000}` optionally bounds each read and its one same-tab rebind. `observedTabWithThatId` must come from the selected browser's current tab inventory. A different ID, platform refusal, or failed recovery stops with evidence. No write is replayed and late reads cannot restore the old browser instance.
+
+When the extension control path stalls but native Chrome works, bind the supported app adapter directly. A scoped executor also needs `nativeTaskTab:{id,evidenceRef}` for the real independent task tab, with an existing local ownership proof. Select that tab using documented CUA controls and serialize foreground app input. Keep the original ledger, executor ID, scope and unknown actions. An app-bound executor without that proof remains rejected; a native surface never fabricates a tab ID.

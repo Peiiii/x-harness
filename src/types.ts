@@ -695,12 +695,23 @@ export interface CuaApp {
   paste?(value: string): Promise<unknown>;
 }
 export type HarnessOptions = (
-  { tab: CuaTab; app?: never } | { app: CuaApp; tab?: never }
+  | { tab: CuaTab; app?: never; nativeTaskTab?: never }
+  | {
+      app: CuaApp;
+      tab?: never;
+      /** The real independent Chrome tab controlled through this native app surface. */
+      nativeTaskTab?: { id: string; evidenceRef: EvidenceRef };
+    }
 ) & {
   ledgerPath: string;
   proofDirectory: string;
   clock?: () => number;
   executor?: Executor;
+  /** Restore the same owned tab through the host's documented claim/rebind API. */
+  tabReadRecovery?: {
+    rebind(tabId: string): Promise<CuaTab>;
+    readTimeoutMs?: number;
+  };
 };
 export type HostConnectionOptions = Pick<
   HarnessOptions,

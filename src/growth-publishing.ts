@@ -1,3 +1,4 @@
+import { ActionTrace } from "./action-trace.js";
 import { OriginalPostCadence } from "./original-post-cadence.js";
 import { DraftSchedule } from "./draft-schedule.js";
 import type { GrowthDependencies } from "./growth-dependencies.js";
@@ -132,22 +133,34 @@ export class IndependentPublishing {
         if (cadence)
           throw Object.assign(new Error(cadence.reason), { cadence });
       });
-      const own = await this.#platform.readAccount();
+      const trace = new ActionTrace(this.#store, this.#clock, action);
+      const own: any = await trace.run("account-read", () =>
+        this.#platform.readAccount(),
+      );
       if (
         own.needsStateCheck ||
         own.alerts?.length ||
         !same(own.accountHandle, action.accountHandle)
       )
         throw new Error("fresh-account-unconfirmed");
-      const baseline = await this.#platform.findSubmission(
-        {
-          ...action,
-          intentAt: this.#stamp(),
-        },
-        { phase: "baseline" },
+      const baseline: any = await trace.run("baseline-read", () =>
+        this.#platform.findSubmission(
+          {
+            ...action,
+            intentAt: this.#stamp(),
+          },
+          { phase: "baseline" },
+        ),
       );
-      if (baseline.needsStateCheck || baseline.alerts?.length)
+      if (
+        baseline.needsStateCheck ||
+        baseline.alerts?.length ||
+        !same(baseline.accountHandle, action.accountHandle)
+      )
         throw new Error("publication-baseline-unconfirmed");
+      const currentCaps = this.#capability("submitPost", action);
+      if (!currentCaps.covered)
+        return { status: "needsCapability", ...currentCaps };
       token = `${action.id}:${this.#stamp()}:${Math.random()}`;
       await this.#store.withLock(async () => {
         const snapshot = await this.#load(taskId),
@@ -191,39 +204,44 @@ export class IndependentPublishing {
       });
       let observation: any;
       try {
-        await this.#platform.submitPost({
-          ...action,
-          beforeSubmit: async () => {
-            const latest = await this.#load(taskId),
-              target = latest.state.actions.find(
-                (a: any) => a.id === action.id,
+        await trace.run("submit", () =>
+          this.#platform.submitPost({
+            ...action,
+            traceStage: trace.run.bind(trace),
+            beforeSubmit: async () => {
+              const latest = await this.#load(taskId),
+                target = latest.state.actions.find(
+                  (a: any) => a.id === action.id,
+                );
+              if (
+                target?.status !== "intent" ||
+                target.claimToken !== token ||
+                !inWindow()
+              )
+                throw new Error("action-claim-or-window-changed");
+              const error = this.#guardInput(
+                latest.state,
+                target,
+                independentExecution,
               );
-            if (
-              target?.status !== "intent" ||
-              target.claimToken !== token ||
-              !inWindow()
-            )
-              throw new Error("action-claim-or-window-changed");
-            const error = this.#guardInput(
-              latest.state,
-              target,
-              independentExecution,
-            );
-            if (error) throw new Error(error);
-            if (latest.state.execution?.originalCadence) {
-              const reservation = await new OriginalPostCadence(
-                this.#store,
-                this.#clock,
-              ).reserve(target);
-              if (reservation.need)
-                throw Object.assign(new Error(reservation.need.reason), {
-                  cadence: reservation.need,
-                });
-            }
-            submissionStarted = true;
-          },
-        });
-        observation = await this.#platform.findSubmission(action);
+              if (error) throw new Error(error);
+              if (latest.state.execution?.originalCadence) {
+                const reservation = await new OriginalPostCadence(
+                  this.#store,
+                  this.#clock,
+                ).reserve(target);
+                if (reservation.need)
+                  throw Object.assign(new Error(reservation.need.reason), {
+                    cadence: reservation.need,
+                  });
+              }
+              submissionStarted = true;
+            },
+          }),
+        );
+        observation = await trace.run("verify-public", () =>
+          this.#platform.findSubmission(action),
+        );
       } catch (error: any) {
         if (!submissionStarted) throw error;
         observation = {
@@ -235,6 +253,7 @@ export class IndependentPublishing {
           error: error.message.slice(0, 240),
         };
       }
+      observation = trace.annotate(observation);
       return await this.#store.withLock(async () => {
         const snapshot = await this.#load(taskId),
           target = snapshot.state.actions.find((a: any) => a.id === action.id);

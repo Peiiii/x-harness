@@ -52,12 +52,12 @@ async function submit({
   return { clicks, events };
 }
 
-test("network idle timeout after one reply click allows fresh receipt verification", async () => {
+test("editor completion does not wait for unrelated background traffic", async () => {
   const r = await submit({
     idleError: Error("Timed out waiting for networkidle in tab test"),
   });
   assert.equal(r.clicks, 1);
-  assert.deepEqual(r.events, ["gate", "click", "editor-hidden", "idle"]);
+  assert.deepEqual(r.events, ["gate", "click", "editor-hidden"]);
 });
 test("post submissions use the same bounded timeout handling", async () => {
   assert.equal(
@@ -70,9 +70,9 @@ test("post submissions use the same bounded timeout handling", async () => {
     1,
   );
 });
-test("browser disconnection still propagates", async () => {
+test("browser disconnection from the actual completion read propagates", async () => {
   await assert.rejects(
-    submit({ idleError: Error("No tab with id: test") }),
+    submit({ editorError: Error("No tab with id: test") }),
     /No tab/,
   );
 });

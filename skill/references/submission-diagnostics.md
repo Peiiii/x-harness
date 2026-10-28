@@ -1,0 +1,5 @@
+# Submission diagnostics
+
+Each original/reply run writes immutable `action-stage` proofs before and after account/baseline, composer read/fill/validation, activation, editor clearing and public verification. They include a run/action ID, timestamps, duration, compact result/error and supported submission diagnostics. A started stage without a terminal event identifies the interrupted boundary. Read `observation.actionTrace.evidenceRefs` from the action's proof. `resultEvidenceHistory` preserves previous failure/verification proofs when read-only recovery replaces the current result.
+
+The existing `usage/` journal supplies outer browser/root call starts and finishes. Network observation is optional diagnostics, never a prerequisite to publish. Inspect only the captured sanitized request metadata; no cookies, authorization headers or request bodies are required. A click returning, a send notice, or network quiescence is not public acceptance. Receipt verification owns success; background `networkidle` is not awaited.

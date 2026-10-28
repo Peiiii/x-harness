@@ -96,6 +96,7 @@ test("video processing waits for enabled submission before the first click", asy
       count: async () => 1,
       fill: async () => {},
       and: () => locator,
+      isEnabled: async () => true,
       waitFor: async (options) => waits.push(options),
     };
     const editor = new DOMEditing({
@@ -114,6 +115,7 @@ test("a host-capped video wait resumes observation, never the submission", async
   const locator = {
     fill: async () => {},
     and: () => locator,
+    isEnabled: async () => true,
     waitFor: async () => {
       if (++attempts === 1) throw Error("selector deadline exceeded");
     },

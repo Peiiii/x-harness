@@ -94,6 +94,13 @@ for (const mode of ["hinted", "repeated", "unhinted", "missing-proof"]) {
       text: action.text,
     });
     assert.equal(first.status, "verified");
+    const observe = f.browser.observe.bind(f.browser);
+    f.browser.observe = async (query) => {
+      const value = await observe(query);
+      const receipt = f.posts.find((p) => p.id === query.targetId);
+      return receipt ? { ...value, posts: [receipt] } : value;
+    };
+
     f.edit((s) => {
       s.actions[0].status = "unknown";
       s.items[2].verified = 0;

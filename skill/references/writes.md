@@ -12,6 +12,8 @@ Action APIs return status/actionId/publicURL/evidenceRef and reason/missing/resu
 
 ## Publish
 
+[Native](native-publishing.md).
+
 Spacing: [cadence](original-cadence.md).
 
 Original action optional notBefore is an ISO timestamp with timezone. Explicit draft header notBefore or 最早发布窗口 is also enforced; the later constraint wins. Invalid metadata blocks, and before-window independent publishing returns waiting; scoped rounds report draft-not-before-not-reached. Both preserve no intent or submission. Recovery of an already submitted post is unaffected.

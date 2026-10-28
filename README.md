@@ -76,3 +76,5 @@ The private parent content repository consumes the published npm package. These 
 ### Creator history and metrics
 
 Use readCreatorHistory({ handle, from, maxWindows: 4 }) for bounded bulk profile reads instead of model-driven per-post navigation. Its compact receipt returns unique counts, incomplete coverage and immutable per-window evidenceRefs for batch ingestion. Resume with the returned evidenceRef on the same profile viewport; wrong scope or cursor changes refuse. The checkpoint contains IDs and proof references, while the original window proofs retain full text, metrics and actual observation times. This capability performs no writes to X and does not infer hidden or deleted content.
+
+Native Chrome publishing can use the same root APIs when extension page control is unavailable. Scoped native executors supply a real independent `nativeTaskTab:{id,evidenceRef}`; select that owned tab with documented CUA controls before binding. See the installed Skill's connection and publishing references. Submission stage proofs and the original action's `resultEvidenceHistory` retain failures through subsequent read-only recovery; no unknown action is resubmitted.

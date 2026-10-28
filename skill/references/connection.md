@@ -5,3 +5,5 @@ Only load when no valid binding exists. Select the user's real Chrome using curr
 Call `await createXGrowthHarness({connection,ledgerPath,proofDirectory,executor?})` once. `ready` returns `harness`, `tab` and compact `connection`; retain them and run the needed root read in the same script. No model decision belongs between initialization and that read. Reuse valid bindings; no connection check per operation.
 
 Only the exact request-header initialization error is retried once in the read-only check. Other failures stop. Tab creation and business are never replayed. `needsDecision` gives phase, stable reason and diagnostic proof; read only its error/attempts locally. `open-tab` failure may have created a tab: inspect before any new creation. A returned tab is preserved even on bind/proof failure. Restore an unavailable proof directory first. Recovered errors and timings stay local; HTTP errors hidden by the host remain unknown. No fallback search assumption, app reset, vendor patch or policy bypass.
+
+Interrupted control: [owned tab recovery](owned-tab-recovery.md).

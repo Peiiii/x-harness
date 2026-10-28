@@ -178,6 +178,7 @@ export class NativeXBrowser {
     }
     return {
       ...base,
+      loading: !raw.posts?.length && raw.needsStateCheck === true,
       posts: (raw.posts ?? []).map((p: any) => ({
         ...p,
         primary: p.primary ? xURL(valueOf(p.primary) ?? p.primary).href : null,
@@ -237,7 +238,7 @@ export class NativeXBrowser {
     }
     if (command.operation === "waitForPosts") {
       this.#current = null;
-      return this.#low.observe({ mode: "posts", limit: 5 });
+      return this.waitNativePosts(command);
     }
     if (command.operation === "openObserved") {
       return this.navigateNativeTarget(command);
@@ -258,6 +259,12 @@ export class NativeXBrowser {
       });
     }
     if (!this.#current) throw new Error("语义操作必须先observe");
+    const submitting = ["submitPost", "submitReply"].includes(
+      command.operation,
+    );
+    if (submitting && command.activation !== "keyboard")
+      await this.dismissSubmitAutocomplete();
+    const submitted = submitting ? this.submittedContext() : null;
     let index: any,
       operation = "click",
       value: any;
@@ -302,12 +309,127 @@ export class NativeXBrowser {
     if (
       command.activation === "keyboard" &&
       ["submitPost", "submitReply"].includes(command.operation)
-    )
-      return this.activateKeyboard(command);
+    ) {
+      await (
+        command.traceStage ?? ((_s: string, run: () => Promise<any>) => run())
+      )("activate.native-keyboard", () => this.activateKeyboard(command));
+      return this.waitSubmittedNative(submitted, command.traceStage);
+    }
     if (["submitPost", "submitReply"].includes(command.operation))
       await command.beforeSubmit?.();
     this.#current = null;
-    return this.#low.act({ index, operation, value, read });
+    const activated = await (
+      command.traceStage ?? ((_s: string, run: () => Promise<any>) => run())
+    )(
+      ["submitPost", "submitReply"].includes(command.operation)
+        ? "activate.native-click"
+        : command.operation,
+      () => this.#low.act({ index, operation, value, read }),
+    );
+    return submitting
+      ? this.waitSubmittedNative(submitted, command.traceStage)
+      : activated;
+  }
+  private async waitNativePosts(command: any) {
+    const deadline = Date.now() + 5000;
+    let value: any;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      value = await this.#low.observe({
+        mode: "posts",
+        limit: 5,
+        ...(command.targetId ? { targetId: command.targetId } : {}),
+      });
+      if (
+        value.alerts?.length ||
+        (!value.needsStateCheck && value.posts?.length) ||
+        Date.now() >= deadline
+      )
+        break;
+    }
+    return value;
+  }
+  private submittedContext() {
+    const raw = readAX(this.#latestAX, { mode: "composer" });
+    const editors = raw.evidence.filter((e: any) =>
+      /^(?:文本输入区(?:域)?|文本区域|文本栏) /.test(e.label),
+    );
+    const own = readAX(this.#latestAX, { mode: "navigation" }).evidence.filter(
+      (e: any) => /^link 个人资料, Value: x\.com\/\w+$/.test(e.label),
+    );
+    if (editors.length !== 1 || own.length !== 1)
+      throw Error("native-submit-context-unconfirmed");
+    return {
+      text: valueOf(editors[0].label),
+      actor: own[0].label,
+      page: raw.page,
+    };
+  }
+  private async dismissSubmitAutocomplete() {
+    if (
+      !/列表框/.test(this.#latestAX) ||
+      !/文本 \(selected\) #/.test(this.#latestAX)
+    )
+      return;
+    const before = this.submittedContext();
+    await this.#app.pressKey("Escape");
+    const raw = await this.#low.observe({ mode: "composer" });
+    this.#current = { raw };
+    const after = this.submittedContext();
+    if (
+      raw.needsStateCheck ||
+      raw.alerts?.length ||
+      before.text !== after.text ||
+      before.actor !== after.actor ||
+      before.page !== after.page
+    )
+      throw Error("native-autocomplete-context-changed");
+  }
+  private async waitSubmittedNative(submitted: any, trace?: any) {
+    const run = async () => {
+      const deadline = Date.now() + 10000;
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const raw = readAX(this.#latestAX, { mode: "composer" });
+        const editors = raw.evidence.filter((e: any) =>
+          /^(?:文本输入区(?:域)?|文本区域|文本栏) /.test(e.label),
+        );
+        if (raw.alerts?.length)
+          throw Object.assign(Error("native-submit-platform-alert"), {
+            submissionDiagnostic: { alerts: raw.alerts, page: raw.page },
+          });
+        const own = readAX(this.#latestAX, {
+          mode: "navigation",
+        }).evidence.filter((e: any) =>
+          /^link 个人资料, Value: x\.com\/\w+$/.test(e.label),
+        );
+        if (
+          own.length !== 1 ||
+          own[0].label !== submitted.actor ||
+          xURL(raw.page).href !== xURL(submitted.page).href
+        )
+          throw Error("native-submitted-context-changed");
+        if (
+          !raw.needsStateCheck &&
+          editors.length === 1 &&
+          valueOf(editors[0].label)?.trim() === ""
+        )
+          return raw;
+        if (
+          editors.length === 1 &&
+          valueOf(editors[0].label) !== submitted.text
+        )
+          throw Error("native-submitted-editor-changed");
+        if (Date.now() >= deadline) break;
+        await this.#low.observe({ mode: "composer" });
+      }
+      throw Object.assign(Error("native-submitted-editor-clear-unconfirmed"), {
+        submissionDiagnostic: {
+          code: "submitted-editor-clear-unconfirmed",
+          page: submitted.page,
+          editorState: "retained",
+        },
+      });
+    };
+    return trace ? trace("editor-clear.native", run) : run();
   }
   private async activateKeyboard(command: any) {
     const editor = this.#current.raw.evidence.filter((e: any) =>

@@ -32,6 +32,9 @@ export class DOMSubmission {
     result: any,
   ) {
     const { loc, submittedEditor } = prepared;
+    const stage =
+      command.traceStage ??
+      ((_stage: string, run: () => Promise<any>) => run());
     const binding =
       command.operation === "openReply"
         ? {
@@ -77,13 +80,16 @@ export class DOMSubmission {
     this.#session.current = null;
     const activationStartedAt = Date.now();
     if (nativeSubmitIndex !== undefined)
-      await this.#submitAX.act({
-        index: nativeSubmitIndex,
-        operation: "click",
-        read: { mode: "composer" },
-      });
-    else if (command.activation === "keyboard") await loc.press("Enter");
-    else await loc.click();
+      await stage("activate.native-click", () =>
+        this.#submitAX.act({
+          index: nativeSubmitIndex,
+          operation: "click",
+          read: { mode: "composer" },
+        }),
+      );
+    else if (command.activation === "keyboard")
+      await stage("activate.dom-keyboard", () => loc.press("Enter"));
+    else await stage("activate.dom-click", () => loc.click());
     if (binding) {
       this.#session.replyBinding = binding;
       await this.#tab.playwright
@@ -124,24 +130,11 @@ export class DOMSubmission {
     // Inline replies keep the editor mounted. Wait for this submitted text to clear before
     // receipt navigation/reload can interrupt the actual submission request.
     if (submittedEditor)
-      await this.waitSubmittedEditor(
-        submittedEditor,
-        result,
-        activationStartedAt,
+      await stage("editor-clear", () =>
+        this.waitSubmittedEditor(submittedEditor, result, activationStartedAt),
       );
-    if (["submitPost", "submitReply"].includes(command.operation)) {
-      try {
-        await this.#tab.playwright.waitForLoadState({
-          state: "networkidle",
-          timeoutMs: 8000,
-        });
-      } catch (error) {
-        // X background traffic may never become idle after a successful click.
-        // Continue to the caller's fresh receipt verification, never another click.
-        if (!/Timed out waiting for networkidle/i.test(String(error)))
-          throw error;
-      }
-    }
+    // Editor clearing and the caller's fresh public receipt own completion.
+    // X background traffic is unrelated to acceptance; networkidle adds no proof.
   }
   private async waitSubmittedEditor(
     editor: any,

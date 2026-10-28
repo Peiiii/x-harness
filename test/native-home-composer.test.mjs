@@ -114,6 +114,8 @@ for (const mode of [
           (mode === "autocomplete"
             ? "    8 列表框\n      9 文本 (selected) #sample\n"
             : "");
+        if (calls.includes("Return"))
+          ax = ax.replace("Value: first\n\nthird", "Value: ");
         if (tabs && mode === "actor-changed")
           ax = ax.replace("x.com/sample", "x.com/other");
         if (tabs && mode === "body-changed")

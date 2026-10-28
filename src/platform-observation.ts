@@ -70,7 +70,14 @@ export class PlatformObservation {
   private async handleOpen(target: any, query: any): Promise<any> {
     const url = xURL(target.url);
     if (!target.evidenceRef) throw new Error("目标URL缺已观察证据");
-    let value = await this.handleObserved(query);
+    // A cached actor route can choose navigation, never stand in for target content.
+    // Avoid parsing an unrelated home feed before opening the evidenced own profile.
+    let value =
+      query.identityRoute &&
+      this.#account?.page &&
+      this.#account.page !== url.href
+        ? this.#account
+        : await this.handleObserved(query);
     if (query.threadRootId && value.alerts?.length)
       return { ...value, needsStateCheck: true };
     let atTarget = false;
@@ -139,6 +146,13 @@ export class PlatformObservation {
       }
       value = await this.handleReady(query);
     }
+    if (
+      atTarget &&
+      query.view === "posts" &&
+      (value.needsStateCheck || !value.posts?.length) &&
+      !value.alerts?.length
+    )
+      value = await this.handleReady(query);
     if (!value.page || xURL(value.page).href !== url.href)
       return {
         ...value,
@@ -167,6 +181,7 @@ export class PlatformObservation {
         try {
           await this.#browser.act({
             operation: "waitForPosts",
+            ...(query.targetId ? { targetId: query.targetId } : {}),
             ...(waitingForOffset ? { offset: query.offset } : {}),
           });
         } catch (error: any) {

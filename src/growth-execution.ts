@@ -1,3 +1,4 @@
+import { ActionTrace } from "./action-trace.js";
 import {
   latestNormalInteractionTime,
   normalInteractionIntervalMs,
@@ -91,6 +92,7 @@ export class GrowthExecution {
   private async admitAction(
     snapshot: any,
     action: any,
+    trace: ActionTrace,
   ): Promise<ActionAdmission> {
     const state = snapshot.state;
     const item = state.items.find((i: any) => i.kind === action.kind);
@@ -160,9 +162,11 @@ export class GrowthExecution {
     if (action.kind !== "follow") {
       let baseline: any;
       try {
-        baseline = await this.readSubmissionWithURLContinuation(
-          { ...action, intentAt: this.#stamp() },
-          { phase: "baseline" },
+        baseline = await trace.run("baseline-read", () =>
+          this.readSubmissionWithURLContinuation(
+            { ...action, intentAt: this.#stamp() },
+            { phase: "baseline" },
+          ),
         );
       } catch (error: any) {
         return {
@@ -171,6 +175,7 @@ export class GrowthExecution {
             status: "needsDecision",
             actionId: action.id,
             reason: "publication-baseline-read-failed",
+            evidenceRef: trace.evidenceRefs.at(-1),
             error: error.message.slice(0, 240),
           },
         };
@@ -195,6 +200,12 @@ export class GrowthExecution {
         };
       beforeIds = (baseline.posts ?? []).map((p: any) => p.id).filter(Boolean);
     }
+    const caps = this.#capability(operations[action.kind], action);
+    if (!caps.covered)
+      return {
+        snapshot,
+        need: { status: "needsCapability", actionId: action.id, ...caps },
+      };
     return { beforeIds };
   }
   private async admitFollow(
@@ -295,6 +306,7 @@ export class GrowthExecution {
     snapshot: any,
     action: any,
   ): Promise<ExecutionStep> {
+    const trace = new ActionTrace(this.#store, this.#clock, action);
     const executor = this.#executor;
     const recovering = ["intent", "unknown"].includes(action.status);
     const caps = this.#capability(
@@ -310,7 +322,9 @@ export class GrowthExecution {
     if (recovering) {
       let observation: any;
       try {
-        observation = await this.readSubmissionWithURLContinuation(action);
+        observation = await trace.run("recover-public", () =>
+          this.readSubmissionWithURLContinuation(action),
+        );
       } catch (error: any) {
         observation = {
           verified: false,
@@ -318,6 +332,7 @@ export class GrowthExecution {
           error: error.message.slice(0, 240),
         };
       }
+      observation = trace.annotate(observation);
       snapshot = await this.#settleProof(snapshot, action, observation);
       return {
         snapshot,
@@ -349,7 +364,7 @@ export class GrowthExecution {
       next.status = "RUNNING";
       snapshot = await this.#save(snapshot, next);
     }
-    const admission = await this.admitAction(snapshot, action);
+    const admission = await this.admitAction(snapshot, action, trace);
     if ("snapshot" in admission) return admission;
     const { beforeIds } = admission;
     const state = snapshot.state;
@@ -381,70 +396,75 @@ export class GrowthExecution {
     let observation: any,
       submissionMayHaveStarted = false;
     try {
-      await this.#platform[operations[action.kind]]({
-        ...entry,
-        beforeSubmit: async () => {
-          const latest = await this.#store.load();
-          if (executor) {
-            const current = latest.state.actions.find(
-              (a: any) => a.id === entry.id,
+      await trace.run("submit", () =>
+        this.#platform[operations[action.kind]]({
+          ...entry,
+          traceStage: trace.run.bind(trace),
+          beforeSubmit: async () => {
+            const latest = await this.#store.load();
+            if (executor) {
+              const current = latest.state.actions.find(
+                (a: any) => a.id === entry.id,
+              );
+              if (
+                latest.state.batchId !== snapshot.state.batchId ||
+                current?.claim?.token !== this.#session.claim.token ||
+                JSON.stringify(current) !==
+                  JSON.stringify(
+                    snapshot.state.actions.find((a: any) => a.id === entry.id),
+                  )
+              )
+                throw new Error("提交前本动作或claim变化");
+            } else if (latest.revision !== snapshot.revision)
+              throw new Error("提交前原台账变化，保留intent并重核执行权");
+            const inputError = this.#guardInput(
+              latest.state,
+              latest.state.actions.find((a: any) => a.id === entry.id),
+            );
+            if (inputError) throw new Error(inputError);
+            const hour = Number(
+              new Intl.DateTimeFormat("en-GB", {
+                timeZone: "Asia/Shanghai",
+                hour: "2-digit",
+                hourCycle: "h23",
+              }).format(this.#clock()),
             );
             if (
-              latest.state.batchId !== snapshot.state.batchId ||
-              current?.claim?.token !== this.#session.claim.token ||
-              JSON.stringify(current) !==
-                JSON.stringify(
-                  snapshot.state.actions.find((a: any) => a.id === entry.id),
-                )
+              (hour < 7 || hour >= (action.kind === "reply" ? 24 : 22)) &&
+              !this.#authorizedWindow(latest.state, action.kind)
             )
-              throw new Error("提交前本动作或claim变化");
-          } else if (latest.revision !== snapshot.revision)
-            throw new Error("提交前原台账变化，保留intent并重核执行权");
-          const inputError = this.#guardInput(
-            latest.state,
-            latest.state.actions.find((a: any) => a.id === entry.id),
-          );
-          if (inputError) throw new Error(inputError);
-          const hour = Number(
-            new Intl.DateTimeFormat("en-GB", {
-              timeZone: "Asia/Shanghai",
-              hour: "2-digit",
-              hourCycle: "h23",
-            }).format(this.#clock()),
-          );
-          if (
-            (hour < 7 || hour >= (action.kind === "reply" ? 24 : 22)) &&
-            !this.#authorizedWindow(latest.state, action.kind)
-          )
-            throw new Error("实际提交时已越过运营窗口");
-          if (action.kind === "follow") {
-            const check = structuredClone(latest.state);
-            check.attempts = check.attempts.filter(
-              (a: any) => a.actionId !== entry.id,
-            );
-            if (check.execution.followGroup)
-              check.execution.followGroup.attempts -= 1;
-            if (this.#waitBudget(check))
-              throw new Error("实际提交前关注预算不再可用");
-          }
-          if (
-            action.kind === "original" &&
-            latest.state.execution?.originalCadence
-          ) {
-            const reservation = await this.#cadence.reserve(
-              latest.state.actions.find((a: any) => a.id === entry.id),
-              !executor,
-            );
-            snapshot = reservation.snapshot;
-            if (reservation.need)
-              throw Object.assign(new Error(reservation.need.reason), {
-                cadence: reservation.need,
-              });
-          }
-          submissionMayHaveStarted = true;
-        },
-      });
-      observation = await this.#platform.findSubmission(entry);
+              throw new Error("实际提交时已越过运营窗口");
+            if (action.kind === "follow") {
+              const check = structuredClone(latest.state);
+              check.attempts = check.attempts.filter(
+                (a: any) => a.actionId !== entry.id,
+              );
+              if (check.execution.followGroup)
+                check.execution.followGroup.attempts -= 1;
+              if (this.#waitBudget(check))
+                throw new Error("实际提交前关注预算不再可用");
+            }
+            if (
+              action.kind === "original" &&
+              latest.state.execution?.originalCadence
+            ) {
+              const reservation = await this.#cadence.reserve(
+                latest.state.actions.find((a: any) => a.id === entry.id),
+                !executor,
+              );
+              snapshot = reservation.snapshot;
+              if (reservation.need)
+                throw Object.assign(new Error(reservation.need.reason), {
+                  cadence: reservation.need,
+                });
+            }
+            submissionMayHaveStarted = true;
+          },
+        }),
+      );
+      observation = await trace.run("verify-public", () =>
+        this.#platform.findSubmission(entry),
+      );
     } catch (error: any) {
       if (!submissionMayHaveStarted) {
         const proof = await this.#store.recordProof({
@@ -480,6 +500,7 @@ export class GrowthExecution {
         error: error.message.slice(0, 240),
       };
     }
+    observation = trace.annotate(observation);
     snapshot = await this.#settleProof(snapshot, entry, observation);
     return {
       snapshot,

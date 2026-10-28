@@ -240,6 +240,13 @@ export class GrowthState {
     const state = structuredClone(snapshot.state);
     const entry = state.actions.find((a: any) => a.id === action.id);
     const item = state.items.find((i: any) => i.kind === action.kind);
+    entry.resultEvidenceHistory = [
+      ...new Set([
+        ...(entry.resultEvidenceHistory ?? []),
+        ...(entry.resultEvidence ? [entry.resultEvidence] : []),
+        proof,
+      ]),
+    ];
     if (
       action.kind === "reply" &&
       observation.receiptCandidate?.id &&

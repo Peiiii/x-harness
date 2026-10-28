@@ -34,7 +34,7 @@ test("long post keeps full review but uses a bounded retained-editor anchor befo
     activation: "keyboard",
     beforeSubmit: () => calls.push("intent"),
   });
-  assert.deepEqual(calls, ["intent", "submit", "clear", "idle"]);
+  assert.deepEqual(calls, ["intent", "submit", "clear"]);
 });
 
 test("observed original permalink verifies display ellipsis only when the whole original path remains", async () => {

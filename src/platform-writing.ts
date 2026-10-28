@@ -58,7 +58,11 @@ export class PlatformWriting {
     this.submitReply = this.handleSubmitReply.bind(this);
   }
   private async handleCompose(action: any): Promise<any> {
-    let value = await this.#observed({ view: "composer" });
+    const stage =
+      action.traceStage ?? ((_stage: string, run: () => Promise<any>) => run());
+    let value = await stage("composer-read", () =>
+      this.#observed({ view: "composer" }),
+    );
     if (
       value.needsStateCheck ||
       value.alerts?.length ||
@@ -73,8 +77,12 @@ export class PlatformWriting {
         operation: "attachAssets",
         assets: action.assets,
       });
-    await this.#browser.act({ operation: "fillComposer", text: action.text });
-    value = await this.#observed({ view: "composer" });
+    await stage("composer-fill", () =>
+      this.#browser.act({ operation: "fillComposer", text: action.text }),
+    );
+    value = await stage("composer-validate", () =>
+      this.#observed({ view: "composer" }),
+    );
     const editorMatches =
       value.editorTextRepresentation === "native-ax-lines"
         ? sameText(
@@ -98,6 +106,7 @@ export class PlatformWriting {
     return this.#browser.act({
       operation: action.kind === "reply" ? "submitReply" : "submitPost",
       beforeSubmit: action.beforeSubmit,
+      ...(action.traceStage ? { traceStage: action.traceStage } : {}),
       ...(action.activation ? { activation: action.activation } : {}),
     });
   }
@@ -174,6 +183,8 @@ export class PlatformWriting {
         receiptTarget,
         this.receiptQuery(action, observedReceipt, receiptPath),
       ));
+    if (context.phase !== "baseline")
+      value = await this.readOriginalCandidate(action, value);
     let receiptCandidate = this.replyReceiptCandidate(
       action,
       value,
@@ -206,7 +217,12 @@ export class PlatformWriting {
         url: receiptTarget.url,
         evidenceRef: receiptTarget.evidenceRef,
       });
-      value = await this.#observed({ view: "posts", limit: 5 });
+      value = await this.#open(
+        receiptTarget,
+        this.receiptQuery(action, observedReceipt, receiptPath),
+      );
+      if (action.kind === "original")
+        value = await this.readOriginalCandidate(action, value);
       if (action.kind === "reply")
         value = await this.readReplyCandidate(action, value, matchesContent);
     }
@@ -242,12 +258,53 @@ export class PlatformWriting {
     return {
       view: "posts",
       limit: 5,
+      ...(action.kind === "original" && !observedReceipt
+        ? { identityRoute: true }
+        : {}),
       ...(action.kind === "original" && observedReceipt
         ? { preferObservedLink: true, targetId: receiptPath[3] }
         : action.kind === "reply" && observedReceipt
           ? { preferClientNavigation: true, targetId: receiptPath[3] }
           : {}),
     };
+  }
+  private async readOriginalCandidate(action: any, value: any) {
+    if (
+      action.kind !== "original" ||
+      value.needsStateCheck ||
+      value.alerts?.length
+    )
+      return value;
+    const candidates = (value.posts ?? []).filter(
+      (p: any) =>
+        sameHandle(p.author, action.accountHandle) &&
+        samePublishedText(p.body, action.text) &&
+        /^\d+$/.test(p.id ?? "") &&
+        !(action.beforeIds ?? []).includes(p.id) &&
+        !p.needsExpansion,
+    );
+    if (
+      candidates.length !== 1 ||
+      Number.isFinite(publicationTime(candidates[0]))
+    )
+      return value;
+    const post = candidates[0];
+    if (
+      !post.primary ||
+      xURL(post.primary).pathname.toLowerCase() !==
+        `/${action.accountHandle}/status/${post.id}`.toLowerCase()
+    )
+      return value;
+    // A relative timeline label is insufficient; open only its unique observed permalink.
+    return this.#readPost({
+      postId: post.id,
+      url: post.primary,
+      evidenceRef: {
+        page: value.page,
+        publicId: post.id,
+        observedAt: value.observedAt,
+      },
+    });
   }
   private replyReceiptCandidate(
     action: any,

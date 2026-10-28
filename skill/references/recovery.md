@@ -20,7 +20,7 @@ Failures only: keep operation/status/missing/code/proof/error; no guessed succes
 
 After Retry-After/retryAt, reload only the owned draft-free page once; root inspectAccount must prove fresh, complete, matching identity before original IDs resume. No draft loss or unknown resend. Missing identity/transport/old logs are not new429: inspect current diagnostics, change the failing condition. Only current business429 renews backoff. Success proves recovery, not cause; normal partial windows never trigger reload.
 
-Naming failure does not prove logout. Try one supported alternative: real Chrome → owned tab → root read; preserve editors/policies/network. Success proves reading only. Reuse bindings; after reset rediscover Chrome, not old numeric IDs. Native rejection: fresh URL/window, one supported correction. App fallback retains root calls.
+Naming failure is not logout. Use a real Chrome owned tab and root read; preserve editors, policies and network. After reset rediscover Chrome. Native focus rejection allows one fresh observed correction. Reading success proves only reading; app fallback retains root calls.
 
 `tab-busy`: inspect proof/claim; age/null PID is not termination. Evidenced own-runtime termination permits CAS release only for matching executor/runtime/token. Preserve intent/unknown/others; verify original ID. Never reset a working runtime for another error.
 
@@ -30,3 +30,5 @@ Unresolved defects/gaps: maintainers repair/verify the owner, return to root. Co
 
 
 Passive request evidence: [observation](network-observation.md).
+
+[Stage logs](submission-diagnostics.md).

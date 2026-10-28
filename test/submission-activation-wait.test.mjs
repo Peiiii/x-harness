@@ -210,7 +210,7 @@ test("host-capped submitted text waits resume without a second submit", async (t
   assert.equal(r.reads, 2);
   assert.equal(r.presses, 1);
   assert.equal(r.gates, 1);
-  assert.equal(r.idle, 1);
+  assert.equal(r.idle, 0);
 });
 for (const fault of [
   "exhausted",
@@ -238,7 +238,7 @@ test("a deadline timeout still observes the original cleared editor before recei
   assert.equal(r.reads, 1);
   assert.equal(r.presses, 1);
   assert.equal(r.waits, 1);
-  assert.equal(r.idle, 1);
+  assert.equal(r.idle, 0);
 });
 test("a deadline timeout retains the original platform alert without retrying submit", async (t) => {
   const r = await run(t, { fault: "deadline-alert" });

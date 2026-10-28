@@ -1,10 +1,12 @@
 import { PostMedia } from "./post-media.js";
+import { existsSync } from "node:fs";
 import { XUsageJournal } from "./usage.js";
 import { createBusinessHarness } from "./api.js";
 import { AccountScreenshots } from "./account-screenshots.js";
 import { createFileRoundStore } from "./store.js";
 import { createXPlatform } from "./platform.js";
 import { createDOMXBrowser, createNativeXBrowser } from "./browser.js";
+import { BrowserReadFallback } from "./browser-read-fallback.js";
 import type { HarnessOptions, XGrowthHarness } from "./types.js";
 
 export function bindXGrowthHarness(options: HarnessOptions): XGrowthHarness {
@@ -13,15 +15,43 @@ export function bindXGrowthHarness(options: HarnessOptions): XGrowthHarness {
     throw new Error("需一个已绑定Chrome app或tab，不能两个或零个");
   if (!ledgerPath || !proofDirectory)
     throw new Error("需原台账路径与本地证明目录");
-  if (executor && (!tab || !tab.id))
+  const taskTabId = tab?.id ?? (app && options.nativeTaskTab?.id);
+  if (
+    executor &&
+    (!taskTabId ||
+      (!tab &&
+        (!options.nativeTaskTab?.evidenceRef ||
+          !existsSync(options.nativeTaskTab.evidenceRef))))
+  )
     throw new Error("executor-requires-independent-tab");
   const usage = new XUsageJournal(proofDirectory);
+  const store = createFileRoundStore({ ledgerPath, proofDirectory });
+  const primary = tab ? createDOMXBrowser(tab) : createNativeXBrowser(app);
+  if (
+    options.tabReadRecovery &&
+    (!tab?.id || typeof options.tabReadRecovery.rebind !== "function")
+  )
+    throw Error("tab-read-recovery-requires-owned-tab-and-rebind");
   const browser = usage.wrap(
-    tab ? createDOMXBrowser(tab) : createNativeXBrowser(app),
+    options.tabReadRecovery
+      ? new BrowserReadFallback(
+          primary,
+          {
+            tabId: tab!.id!,
+            readTimeoutMs: options.tabReadRecovery.readTimeoutMs,
+            recover: async (tabId: string) => {
+              const rebound = await options.tabReadRecovery!.rebind(tabId);
+              if (rebound?.id !== tabId)
+                throw Error("tab-read-recovery-target-mismatch");
+              return createDOMXBrowser(rebound);
+            },
+          },
+          store,
+        )
+      : primary,
     "browser",
     ["observe", "act", "collectCreator", "screenshot"],
   );
-  const store = createFileRoundStore({ ledgerPath, proofDirectory });
   const harness = createBusinessHarness({
     platform: createXPlatform(browser, { clock }),
     store,
@@ -30,7 +60,7 @@ export function bindXGrowthHarness(options: HarnessOptions): XGrowthHarness {
       ? new AccountScreenshots({ tab, store, proofDirectory, clock })
       : undefined,
     clock,
-    executor: executor ? { ...executor, tabId: tab!.id } : undefined,
+    executor: executor ? { ...executor, tabId: taskTabId! } : undefined,
   });
   Object.defineProperty(harness, "usageStatus", {
     value: () => usage.status(),
