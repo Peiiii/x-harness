@@ -147,7 +147,7 @@ test("native browser restart and delayed heartbeat remain explicit gaps; deadlin
   );
   s.close();
 });
-test("native24h finite soak has exact counts, deduplicates repeated delivery and preserves old runs", async () => {
+test("soak: native24h finite soak has exact counts, deduplicates repeated delivery and preserves old runs", async () => {
   const f = fixture(),
     s = f.store;
   await s.start("browser");

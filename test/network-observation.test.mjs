@@ -354,7 +354,7 @@ test("finite deadline stops, flushes and releases without browser navigation", a
   await b.acquire();
   await b.release();
 });
-test("accelerated24h exact-count soak with six tabs, day rotation and a visible overflow", async (t) => {
+test("soak: accelerated24h exact-count soak with six tabs, day rotation and a visible overflow", async (t) => {
   const p = await directory(t);
   let now = at;
   const perTab = new Map();

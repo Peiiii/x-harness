@@ -42,7 +42,9 @@
     "bootstrap": "node scripts/bootstrap.mjs",
     "ai:check": "qingtian check --target .",
     "typecheck:cli": "tsc -p release/tsconfig.json --noEmit",
-    "extension:build": "npm run build"
+    "extension:build": "npm run build",
+    "test:fast": "node --test --test-skip-pattern=\"^soak:\" test/*.test.mjs",
+    "check:local": "npm run maintainability && npm run format:check && npm run build && npm run typecheck:cli && npm run typecheck:contracts && npm run test:fast && node scripts/check-skill.mjs && node scripts/generate-observation.mjs --check"
   },
   "devDependencies": {
     "@nextclaw/qingtian": "0.1.3",
