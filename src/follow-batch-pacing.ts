@@ -21,7 +21,12 @@ export class FollowBatchPacing {
     )
       throw new Error("follow-pacing-range-invalid");
   }
-  public async before(batchId: string, handle: string, pacing?: FollowPacing) {
+  public async before(
+    batchId: string,
+    handle: string,
+    pacing?: FollowPacing,
+    deadline = Infinity,
+  ) {
     if (!pacing) return;
     const snapshot = await this.store.transaction(({ state }) => {
       const next = structuredClone(state),
@@ -49,6 +54,7 @@ export class FollowBatchPacing {
     );
     const notBefore = lastAt + batch.gaps[handle.toLowerCase()].gapMs;
     const remaining = notBefore - this.clock();
+    if (remaining > 0 && Date.now() + remaining > deadline) return false;
     if (remaining > 0) await this.wait(remaining);
     // The round owns fresh guards/claims/authorization after this wait, before intent.
   }

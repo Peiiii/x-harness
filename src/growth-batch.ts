@@ -55,12 +55,75 @@ export class FollowBatch {
     this.#parallelRound = parallelRound;
     this.#round = round;
   }
+  private eligibleAt(
+    original: any,
+    preparedCount: number,
+    handles: string[],
+    resumedBatch: boolean,
+  ) {
+    const executor = this.#executor;
+    let eligibleAt = this.#clock();
+    const observationAuthorized = followObservationAuthorized(
+      original.state,
+      executor,
+      this.#clock(),
+      this.#evidenceExists,
+    );
+    const previousGroup = original.state.execution?.followGroup;
+    const lastAttempt = (original.state.attempts ?? [])
+      .filter((a: any) => a.kind === "follow")
+      .sort((a: any, b: any) => Date.parse(a.at) - Date.parse(b.at))
+      .at(-1);
+    const lastAction = original.state.actions.find(
+      (a: any) => a.id === lastAttempt?.actionId,
+    );
+    const sameBatchRecovery =
+      resumedBatch &&
+      lastAction?.status === "verified" &&
+      this.#evidenceExists(lastAction.resultEvidence) &&
+      handles.some((h: any) => same(h, lastAction.handle));
+    if (
+      preparedCount &&
+      previousGroup?.attempts &&
+      !sameBatchRecovery &&
+      !observationAuthorized
+    )
+      eligibleAt = Math.max(
+        eligibleAt,
+        Date.parse(previousGroup.lastAt) + 180000,
+      );
+    for (const [duration, limit] of observationAuthorized
+      ? []
+      : followWindows) {
+      const recent = (original.state.attempts ?? [])
+        .filter(
+          (a: any) =>
+            a.kind === "follow" && Date.parse(a.at) > this.#clock() - duration,
+        )
+        .sort((a: any, b: any) => Date.parse(a.at) - Date.parse(b.at));
+      if (preparedCount > limit - recent.length)
+        eligibleAt = Math.max(
+          eligibleAt,
+          Date.parse(recent[recent.length - limit + preparedCount - 1].at) +
+            duration,
+        );
+    }
+    return eligibleAt;
+  }
   public async followBatch({
     taskId,
     handles,
     preparedActions,
     pacing,
+    timeBudgetMs,
   }: any = {}) {
+    if (
+      timeBudgetMs !== undefined &&
+      (!Number.isFinite(timeBudgetMs) || timeBudgetMs <= 0)
+    )
+      throw Error("follow-call-time-budget-invalid");
+    const deadline =
+      timeBudgetMs === undefined ? Infinity : Date.now() + timeBudgetMs;
     const executor = this.#executor;
     FollowBatchPacing.validate(pacing);
     if (
@@ -132,52 +195,12 @@ export class FollowBatch {
         a.status === "prepared" &&
         handles.some((h: any) => same(h, a.handle)),
     ).length;
-    let eligibleAt = this.#clock();
-    const observationAuthorized = followObservationAuthorized(
-      original.state,
-      executor,
-      this.#clock(),
-      this.#evidenceExists,
+    const eligibleAt = this.eligibleAt(
+      original,
+      preparedCount,
+      handles,
+      resumedBatch,
     );
-    const previousGroup = original.state.execution?.followGroup;
-    const lastAttempt = (original.state.attempts ?? [])
-      .filter((a: any) => a.kind === "follow")
-      .sort((a: any, b: any) => Date.parse(a.at) - Date.parse(b.at))
-      .at(-1);
-    const lastAction = original.state.actions.find(
-      (a: any) => a.id === lastAttempt?.actionId,
-    );
-    const sameBatchRecovery =
-      resumedBatch &&
-      lastAction?.status === "verified" &&
-      this.#evidenceExists(lastAction.resultEvidence) &&
-      handles.some((h: any) => same(h, lastAction.handle));
-    if (
-      preparedCount &&
-      previousGroup?.attempts &&
-      !sameBatchRecovery &&
-      !observationAuthorized
-    )
-      eligibleAt = Math.max(
-        eligibleAt,
-        Date.parse(previousGroup.lastAt) + 180000,
-      );
-    for (const [duration, limit] of observationAuthorized
-      ? []
-      : followWindows) {
-      const recent = (original.state.attempts ?? [])
-        .filter(
-          (a: any) =>
-            a.kind === "follow" && Date.parse(a.at) > this.#clock() - duration,
-        )
-        .sort((a: any, b: any) => Date.parse(a.at) - Date.parse(b.at));
-      if (preparedCount > limit - recent.length)
-        eligibleAt = Math.max(
-          eligibleAt,
-          Date.parse(recent[recent.length - limit + preparedCount - 1].at) +
-            duration,
-        );
-    }
     if (eligibleAt > this.#clock()) {
       const resumeAt = new Date(eligibleAt).toISOString();
       await this.#store.transaction((snapshot: any) => {
@@ -213,9 +236,14 @@ export class FollowBatch {
         evidenceRef: this.#store.path,
       };
     }
-    let result: any;
+    let result: any,
+      exhausted = false;
     const exceptional: any[] = [];
     for (const handle of handles) {
+      if (Date.now() >= deadline) {
+        exhausted = true;
+        break;
+      }
       // A resumed batch submits only its remaining prepared members. Recovery
       // stays in the read-only API; a frozen member must not disturb that path.
       if (
@@ -227,7 +255,16 @@ export class FollowBatch {
         )
       )
         continue;
-      await this.#pacing.before(batchId, handle, pacing);
+      if (
+        (await this.#pacing.before(batchId, handle, pacing, deadline)) === false
+      ) {
+        exhausted = true;
+        break;
+      }
+      if (Date.now() >= deadline) {
+        exhausted = true;
+        break;
+      }
       result = await (executor ? this.#parallelRound : this.#round)({
         taskId,
         requestedKind: "follow",
@@ -259,12 +296,42 @@ export class FollowBatch {
       exceptional,
       this.#store.path,
     );
+    if (exhausted)
+      Object.assign(summary, {
+        status: "checkpoint",
+        yieldReason: "time-budget-exhausted",
+        timeBudgetMs,
+        mayEnd: false,
+      });
     await this.#store.transaction((snapshot: any) => {
       const next = structuredClone(snapshot.state),
         batch = next.followBatches.find((b: any) => b.id === batchId);
       Object.assign(batch, {
-        attempted: (batch.attempted ?? 0) + summary.attempted,
-        verifiedTotal: (batch.verifiedTotal ?? 0) + summary.verifiedThisCall,
+        attempted: Number.isFinite(Date.parse(batch.startedAt))
+          ? new Set(
+              (next.attempts ?? [])
+                .filter(
+                  (attempt: any) =>
+                    attempt.kind === "follow" &&
+                    Date.parse(attempt.at) >= Date.parse(batch.startedAt) &&
+                    next.actions.some(
+                      (action: any) =>
+                        action.id === attempt.actionId &&
+                        action.kind === "follow" &&
+                        handles.some((handle: string) =>
+                          same(handle, action.handle),
+                        ),
+                    ),
+                )
+                .map((attempt: any) => attempt.actionId),
+            ).size
+          : (batch.attempted ?? 0) + summary.attempted,
+        verifiedTotal: next.actions.filter(
+          (action: any) =>
+            action.kind === "follow" &&
+            action.status === "verified" &&
+            handles.some((handle: string) => same(handle, action.handle)),
+        ).length,
         verifiedThisCall: summary.verifiedThisCall,
         unknown: summary.unknownInBatch,
         remaining: summary.remaining,

@@ -38,6 +38,7 @@ export interface BusinessDependencies {
 }
 
 export class BusinessHarness implements XGrowthHarness {
+  readonly followCallBudgetVersion = 1 as const;
   configureOriginalCadence: OriginalPostCadence["configure"];
   captureAccountScreenshot: XGrowthHarness["captureAccountScreenshot"];
   #creatorHistory: CreatorHistory;
@@ -927,6 +928,10 @@ export class BusinessHarness implements XGrowthHarness {
       remaining: raw.remaining ?? args.handles.length,
       mayEnd: raw.mayEnd === true,
     };
+    if (raw.yieldReason === "time-budget-exhausted") {
+      output.yieldReason = raw.yieldReason;
+      output.timeBudgetMs = raw.timeBudgetMs;
+    }
     if (raw.batchId) output.batchId = raw.batchId;
     if (raw.evidenceRef) output.evidenceRef = raw.evidenceRef;
     const d = diagnostic(raw.diagnostic);

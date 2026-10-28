@@ -59,3 +59,18 @@ test("no option preserves current behavior; no fabricated attempts are recorded"
   assert.equal(f.state().attempts.length, 1);
   assert.equal(f.state().followBatches[0].gaps, undefined);
 });
+
+test("a pacing wait that cannot fit yields before waiting and retains its chosen original gap", async () => {
+  const f = setup(),
+    pacing = { minGapMs: 5000, maxGapMs: 5000 };
+  assert.equal(
+    await f.pace.before("batch", "fixture", pacing, Date.now() + 1000),
+    false,
+  );
+  assert.equal(f.waits.length, 0);
+  assert.equal(f.state().attempts.length, 1);
+  const gap = f.state().followBatches[0].gaps.fixture.gapMs;
+  await f.pace.before("batch", "fixture", pacing, Date.now() + 10000);
+  assert.deepEqual(f.waits, [5000]);
+  assert.equal(f.state().followBatches[0].gaps.fixture.gapMs, gap);
+});

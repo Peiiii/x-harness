@@ -1,0 +1,9 @@
+# 关注批次穿透调用预算
+
+flow:bugfix，risk:L3。原外层duty有timeBudgetMs但只在work之间检查，一次followBatch仍可能串行5–10对象，造成工具kernel reset及未结算/残留锁。复用原批次与动作，不改数量目标/策略节奏。
+
+公开FollowOptions新增可选timeBudgetMs，入口校验后在原目标之间检查，预算不足的原节奏等待提前返回；不抢断已提交目标、不重试unknown，不另起短名单。时间耗尽返回checkpoint/yieldReason及原batchId，保存剩余prepared和本次真实结果。API紧凑回执透传预算耗尽字段；followCallBudgetVersion=1防旧绑定静默忽略新字段。消费者原runDuty把实际剩余预算传给原work，following正常/原批恢复/priority及尾组沿同一预算，原未决保留。未配置预算行为保持。
+
+FB1两阶段原5人批在首个核成后耗尽预算，剩4未提交，续同batch总5次激活不重复；FB2无效预算前不写intent/claim/浏览器；FB3节奏等待不能塞进剩余时间时不等待/不重采原随机gap；FB4消费者新/恢复批余量传递及旧绑定拒绝，原duty预算/原帖优先回归。核实单目标已开始后不被硬取消，故外层工具期限仍需覆盖一个完整目标及结算余量；该预算不冒充DOM内部取消或原生降级。
+
+验收：SDK/消费端类型与构建、相关回归和全量check；实际旧锁恢复已另案完成，自然新批次耗时和unknown改善仍待真实采用，不为测试加真实关注。

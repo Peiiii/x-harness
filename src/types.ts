@@ -506,6 +506,8 @@ export interface RoundResult {
   };
 }
 export interface BatchResult {
+  yieldReason?: "time-budget-exhausted";
+  timeBudgetMs?: number;
   diagnostic?: Diagnostic;
   status: string;
   taskId: string;
@@ -583,6 +585,8 @@ export interface FollowPacing {
   maxGapMs: number;
 }
 export interface FollowOptions {
+  /** Yield between original targets; never cancels or retries a submitted target. */
+  timeBudgetMs?: number;
   pacing?: FollowPacing;
   taskId: string;
   handles: string[];
@@ -828,6 +832,7 @@ export interface ReplyBatchResult {
   interactionEvidenceRef?: EvidenceRef;
 }
 export interface XGrowthHarness {
+  readonly followCallBudgetVersion?: 1;
   usageStatus?(): import("./usage.js").XUsageStatus;
   pinPost?(
     args: import("./profile-pin.js").PinOptions,
