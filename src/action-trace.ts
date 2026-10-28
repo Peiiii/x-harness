@@ -48,6 +48,7 @@ export class ActionTrace {
               "missing",
               "alerts",
               "available",
+              "nativeSubmissionCleared",
             ]
               .filter((key) => value[key] !== undefined)
               .map((key) => [key, value[key]]),

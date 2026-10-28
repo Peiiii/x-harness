@@ -600,20 +600,8 @@ export class DOMNavigation {
     )
       throw new Error("持久核验页面不匹配");
     this.#session.current = null;
-    // Let the actual UI request settle before reloading; optimistic Following is not durable proof.
-    let idleTimedOut = false;
-    try {
-      await this.#tab.playwright.waitForLoadState({
-        state: "networkidle",
-        timeoutMs: 8000,
-      });
-    } catch (error: any) {
-      if (!/Timed out waiting for networkidle/i.test(error.message ?? ""))
-        throw error;
-      // Long-lived X requests can prevent idle; the following reload still
-      // must expose the target relationship before any fresh observation.
-      idleTimedOut = true;
-    }
+    // Fresh reload and exact relationship readiness prove persistence. Global
+    // network idle can be held by unrelated long-lived X traffic.
     await this.#tab.reload();
     await this.handleWaitProfileContent(
       this.#tab.playwright.getByRole("button", {
@@ -624,9 +612,6 @@ export class DOMNavigation {
       }),
       command.url,
     );
-    if (idleTimedOut)
-      this.#session.refreshNotice =
-        "networkidle超时，已沿真实reload与目标关系控件恢复核验";
     return;
   }
   private async handleRefreshPosts(command: any) {

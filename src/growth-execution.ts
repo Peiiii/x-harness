@@ -1,3 +1,4 @@
+import { NativePublicationVerification } from "./native-publication-verification.js";
 import { ActionTrace } from "./action-trace.js";
 import {
   latestNormalInteractionTime,
@@ -396,7 +397,7 @@ export class GrowthExecution {
     let observation: any,
       submissionMayHaveStarted = false;
     try {
-      await trace.run("submit", () =>
+      const submitted = await trace.run("submit", () =>
         this.#platform[operations[action.kind]]({
           ...entry,
           traceStage: trace.run.bind(trace),
@@ -462,9 +463,10 @@ export class GrowthExecution {
           },
         }),
       );
-      observation = await trace.run("verify-public", () =>
-        this.#platform.findSubmission(entry),
-      );
+      observation = await new NativePublicationVerification(
+        (action) => this.#platform.findSubmission(action),
+        trace,
+      ).verify(entry, submitted);
     } catch (error: any) {
       if (!submissionMayHaveStarted) {
         const proof = await this.#store.recordProof({

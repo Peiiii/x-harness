@@ -146,7 +146,7 @@ for (const mode of [
         },
       });
     if (["focused", "autocomplete"].includes(mode)) {
-      await run();
+      assert.equal((await run()).nativeSubmissionCleared, true);
       assert.deepEqual(calls.slice(-2), ["guard", "Return"]);
     } else await assert.rejects(run());
     assert.equal(

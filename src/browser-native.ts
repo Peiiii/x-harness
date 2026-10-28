@@ -418,7 +418,7 @@ export class NativeXBrowser {
           editors.length === 1 &&
           valueOf(editors[0].label)?.trim() === ""
         )
-          return raw;
+          return { ...raw, nativeSubmissionCleared: true };
         if (
           editors.length === 1 &&
           valueOf(editors[0].label) !== submitted.text

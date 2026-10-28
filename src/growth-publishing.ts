@@ -1,6 +1,7 @@
 import { ActionTrace } from "./action-trace.js";
 import { OriginalPostCadence } from "./original-post-cadence.js";
 import { DraftSchedule } from "./draft-schedule.js";
+import { NativePublicationVerification } from "./native-publication-verification.js";
 import type { GrowthDependencies } from "./growth-dependencies.js";
 
 import { kinds, same } from "./growth-constants.js";
@@ -204,7 +205,7 @@ export class IndependentPublishing {
       });
       let observation: any;
       try {
-        await trace.run("submit", () =>
+        const submitted = await trace.run("submit", () =>
           this.#platform.submitPost({
             ...action,
             traceStage: trace.run.bind(trace),
@@ -239,9 +240,10 @@ export class IndependentPublishing {
             },
           }),
         );
-        observation = await trace.run("verify-public", () =>
-          this.#platform.findSubmission(action),
-        );
+        observation = await new NativePublicationVerification(
+          (action) => this.#platform.findSubmission(action),
+          trace,
+        ).verify(action, submitted);
       } catch (error: any) {
         if (!submissionStarted) throw error;
         observation = {
