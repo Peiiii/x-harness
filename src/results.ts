@@ -236,6 +236,13 @@ function feedback(value: unknown): FeedbackEvidence {
     ];
   if (raw.replies !== undefined)
     out.replies = list(raw.replies).map((v) => source(v));
+  if (raw.replyCandidates !== undefined)
+    out.replyCandidates = list(raw.replyCandidates).map(
+      (v) =>
+        pick(v, ["id", "author", "url"]) as unknown as NonNullable<
+          FeedbackEvidence["replyCandidates"]
+        >[number],
+    );
   if (raw.unconfirmedReplyIds !== undefined)
     out.unconfirmedReplyIds = strings(raw.unconfirmedReplyIds);
   if (strings(raw.missing).length) out.missing = strings(raw.missing);

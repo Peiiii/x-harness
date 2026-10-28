@@ -31,15 +31,35 @@ export class PlatformTargets {
   private async handleReadFeedback({
     targets,
     replyLimit = 3,
+    processedIds = [],
+    candidateOnly = false,
   }: any = {}): Promise<any> {
     if (!Array.isArray(targets) || targets.length < 1 || targets.length > 5)
       throw new Error("反馈窗口须为1–5个已发布ID");
     if (!Number.isInteger(replyLimit) || replyLimit < 0 || replyLimit > 3)
       throw new Error("回复核验窗口须为0–3");
+    if (typeof candidateOnly !== "boolean")
+      throw new Error("候选模式须为布尔值");
+    if (
+      !Array.isArray(processedIds) ||
+      processedIds.some(
+        (id: any) => typeof id !== "string" || !/^\d+$/.test(id),
+      )
+    )
+      throw new Error("已处理回复ID须为数字字符串数组");
+    const processed = new Set(processedIds);
     const feedback: any[] = [];
     for (const target of targets) {
       const value = await this.handleReadPost(target),
         post = value.posts?.find((p: any) => p.id === target.postId);
+      if (candidateOnly && value.alerts?.length)
+        return {
+          feedback,
+          fresh: true,
+          complete: false,
+          pageComplete: false,
+          alerts: value.alerts,
+        };
       if (value.needsStateCheck || value.alerts?.length || !post) {
         feedback.push({
           id: target.postId,
@@ -48,7 +68,28 @@ export class PlatformTargets {
         continue;
       }
       const thread = await this.#observed({ view: "posts", limit: 5 });
+      if (candidateOnly && thread.alerts?.length)
+        return {
+          feedback,
+          fresh: true,
+          complete: false,
+          pageComplete: false,
+          alerts: thread.alerts,
+        };
+      if (
+        candidateOnly &&
+        (thread.needsStateCheck ||
+          thread.page !== value.page ||
+          !(thread.posts ?? []).some((p: any) => p.id === post.id))
+      ) {
+        feedback.push({
+          id: target.postId,
+          missing: ["reply-candidate-window-unconfirmed"],
+        });
+        continue;
+      }
       const replies: any[] = [],
+        replyCandidates: any[] = [],
         unconfirmedReplyIds: any[] = [];
       const targetIndex = (thread.posts ?? []).findIndex(
         (p: any) => p.id === post.id,
@@ -58,8 +99,25 @@ export class PlatformTargets {
           ? []
           : thread.posts.slice(targetIndex + 1, targetIndex + 1 + replyLimit);
       for (const candidate of candidates) {
-        if (!candidate.primary || !candidate.id) continue;
+        if (!candidate.primary || !candidate.id || processed.has(candidate.id))
+          continue;
         const url = new URL(candidate.primary, thread.page).href;
+        if (candidateOnly) {
+          const parsed = xURL(url);
+          if (
+            parsed.pathname.match(/\/status\/(\d+)$/)?.[1] !== candidate.id ||
+            !handlePattern.test(candidate.author ?? "")
+          ) {
+            unconfirmedReplyIds.push(candidate.id);
+            continue;
+          }
+          replyCandidates.push({
+            id: candidate.id,
+            url,
+            author: candidate.author,
+          });
+          continue;
+        }
         const detail = await this.#open(
           {
             url,
@@ -93,7 +151,11 @@ export class PlatformTargets {
         author: post.author,
         metrics: [...(post.buttons ?? []), ...(post.metrics ?? [])],
         replies,
+        ...(candidateOnly ? { replyCandidates } : {}),
         unconfirmedReplyIds,
+        ...(candidateOnly && unconfirmedReplyIds.length
+          ? { missing: ["reply-candidate-unconfirmed"] }
+          : {}),
         pageComplete: false,
         observedAt: value.observedAt,
       });

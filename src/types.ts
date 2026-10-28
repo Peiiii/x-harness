@@ -97,6 +97,8 @@ export interface FeedbackEvidence {
   id: string;
   metrics?: (string | { label?: string; value?: string | number })[];
   replies?: PostEvidence[];
+  /** Visible candidates only; parent relationship is not yet verified. */
+  replyCandidates?: Array<{ id: string; author: string; url: string }>;
   unconfirmedReplyIds?: string[];
   pageComplete?: boolean;
   missing?: string[];
@@ -386,6 +388,10 @@ export interface CreatorEvidence {
 export interface FeedbackOptions {
   targets: PostTarget[];
   replyLimit?: number;
+  /** Previously resolved reply IDs to omit from detail reads within the same bounded window. */
+  processedIds?: string[];
+  /** Return unconfirmed visible candidates for later exact conversation verification. */
+  candidateOnly?: boolean;
   mode?: ReadMode;
 }
 export interface FollowBlueCheckException {
