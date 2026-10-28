@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 import { DOMEditing } from "../dist/browser-dom-editing.js";
 import { DOMNavigation } from "../dist/browser-dom-navigation.js";
 
-function fixture(primary) {
+function fixture(primary, observedLabel = "Reply", currentLabel = "Reply") {
   const button = {};
   const adapter = new DOMEditing({
     session: {
       current: {
         query: { targetId: "123" },
         result: {
-          posts: [{ primary, buttons: [{ label: "Reply" }] }],
+          posts: [{ primary, buttons: [{ label: observedLabel }] }],
         },
       },
     },
@@ -22,7 +22,12 @@ function fixture(primary) {
         return {
           getByRole: (role, options) => {
             assert.equal(role, "button");
-            assert.deepEqual(options, { name: "Reply", exact: true });
+            assert.equal(options.exact, true);
+            if (options.name instanceof RegExp) {
+              assert.match(currentLabel, options.name);
+              assert.doesNotMatch("159 次转帖。转帖", options.name);
+              assert.doesNotMatch("159 回复。删除", options.name);
+            } else assert.equal(options.name, currentLabel);
             return button;
           },
         };
@@ -33,6 +38,15 @@ function fixture(primary) {
   });
   return { adapter, button };
 }
+
+test("a changing reply count retains the observed control within the exact target article", async () => {
+  const { adapter, button } = fixture(
+    "/peer/status/123",
+    "158 回复。回复",
+    "159 回复。回复",
+  );
+  assert.equal((await adapter.openReply({ postId: "123" })).loc, button);
+});
 
 test("edited and ordinary post links bind the same exact observed article", async () => {
   for (const primary of ["/peer/status/123", "/peer/status/123/history"]) {

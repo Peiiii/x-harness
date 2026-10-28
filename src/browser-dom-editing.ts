@@ -857,9 +857,19 @@ export class DOMEditing {
       has: this.#tab.playwright.locator(`a[href=${JSON.stringify(primary)}]`),
       visible: true,
     });
+    // The reply count can change between observation and activation. Keep the
+    // observed reply-control wording and exact article, but not its counter.
+    const counted = names[0].label.match(
+      /^[\d,.]+(?:[kKmM万亿])?\s+(回复。回复)$/,
+    );
+    const replyName = counted
+      ? new RegExp(
+          `^[\\d,.]+(?:[kKmM万亿])?\\s+${counted[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+        )
+      : names[0].label;
     loc = await this.#unique(
       (await this.#unique(article)).getByRole("button", {
-        name: names[0].label,
+        name: replyName,
         exact: true,
       }),
     );
