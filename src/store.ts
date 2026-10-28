@@ -30,6 +30,20 @@ export interface RoundSnapshot {
   revision: string;
   path: string;
 }
+export interface LockRecoveryContext {
+  owner: Readonly<Record<string, unknown>>;
+  lockFingerprint: string;
+  ledgerRevision: string;
+}
+export interface LockRecoveryOptions {
+  /** Trusted host verification under the recovery guard. Age alone is not evidence. */
+  verifyExclusiveRecovery?: (context: LockRecoveryContext) => Promise<{
+    confirmed: boolean;
+    evidenceRef: string;
+    lockFingerprint: string;
+    ledgerRevision: string;
+  }>;
+}
 export interface RoundStore {
   path: string;
   evidenceExists(path: string): boolean;
@@ -44,7 +58,9 @@ export interface RoundStore {
   load(): Promise<RoundSnapshot>;
   save(snapshot: RoundSnapshot, state: BoundaryRecord): Promise<RoundSnapshot>;
   withLock<T>(fn: () => T | Promise<T>): Promise<T>;
-  recoverAbandonedLock(): Promise<{ recovered: boolean; evidenceRef: string }>;
+  recoverAbandonedLock(
+    options?: LockRecoveryOptions,
+  ): Promise<{ recovered: boolean; evidenceRef: string }>;
   recordProof(proof: unknown): Promise<string>;
 }
 export class FileRoundStore implements RoundStore {
@@ -218,11 +234,24 @@ export class FileRoundStore implements RoundStore {
     } finally {
       this.#held = false;
       this.#lockToken = null;
-      closeSync(fd);
-      if (this.ownsLock(token)) unlinkSync(this.#lockPath);
+      try {
+        closeSync(fd);
+      } finally {
+        if (this.ownsLock(token)) unlinkSync(this.#lockPath);
+      }
     }
   }
-  public async recoverAbandonedLock(): Promise<{
+  private releaseOwnedFile(path: string, token: string) {
+    try {
+      const owner = JSON.parse(readFileSync(path, "utf8"));
+      if (owner.token === token) unlinkSync(path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+  }
+  public async recoverAbandonedLock(
+    options: LockRecoveryOptions = {},
+  ): Promise<{
     recovered: boolean;
     evidenceRef: string;
   }> {
@@ -236,31 +265,91 @@ export class FileRoundStore implements RoundStore {
         throw new HarnessConflict("另一执行器正在核验原锁");
       throw error;
     }
+    const guardToken = randomUUID();
     try {
-      const original = readFileSync(this.#lockPath, "utf8"),
-        owner = JSON.parse(original);
-      if (!Number.isInteger(owner.pid) || owner.pid < 1)
-        throw new HarnessConflict("锁owner缺失，不能自动移除");
-      if (typeof process === "undefined" || typeof process.kill !== "function")
-        throw new HarnessConflict("当前宿主无进程核验能力，禁止恢复原锁");
+      writeFileSync(
+        fd,
+        JSON.stringify({
+          token: guardToken,
+          pid: typeof process !== "undefined" ? process.pid : null,
+          acquiredAt: new Date().toISOString(),
+          ledgerPath: this.#path,
+        }),
+      );
+      const original = readFileSync(this.#lockPath, "utf8");
+      let owner: Record<string, any>;
       try {
-        process.kill(owner.pid, 0);
-        throw new HarnessConflict("原进程仍在：禁止抢占账号锁");
-      } catch (error: unknown) {
-        if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+        const parsed = JSON.parse(original);
+        owner =
+          parsed && typeof parsed === "object" && !Array.isArray(parsed)
+            ? parsed
+            : { unreadable: true };
+      } catch {
+        owner = { unreadable: true };
       }
+      const context = {
+        owner,
+        lockFingerprint: hash(original),
+        ledgerRevision: hash(readFileSync(this.#path)),
+      };
+      let verificationEvidenceRef: string | undefined;
+      if (Number.isInteger(owner.pid) && owner.pid > 0) {
+        if (
+          typeof process === "undefined" ||
+          typeof process.kill !== "function"
+        )
+          throw new HarnessConflict("当前宿主无进程核验能力，禁止恢复原锁");
+        try {
+          process.kill(owner.pid, 0);
+          throw new HarnessConflict("原进程仍在：禁止抢占账号锁");
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+        }
+      } else {
+        if (!options.verifyExclusiveRecovery)
+          throw new HarnessConflict("锁owner缺失，不能自动移除");
+        const verified = await options.verifyExclusiveRecovery(context);
+        if (
+          verified?.confirmed !== true ||
+          verified.lockFingerprint !== context.lockFingerprint ||
+          verified.ledgerRevision !== context.ledgerRevision ||
+          typeof verified.evidenceRef !== "string" ||
+          !this.evidenceExists(verified.evidenceRef)
+        )
+          throw new HarnessConflict(
+            "缺少原上下文终止或全部写入者静止的精确证明",
+          );
+        verificationEvidenceRef = verified.evidenceRef;
+      }
+      const unchanged = () => {
+        if (JSON.parse(readFileSync(recovery, "utf8")).token !== guardToken)
+          throw new HarnessConflict("原恢复锁归属已变化");
+        if (
+          readFileSync(this.#lockPath, "utf8") !== original ||
+          hash(readFileSync(this.#path)) !== context.ledgerRevision
+        )
+          throw new HarnessConflict("原锁或台账已变化，禁止移除");
+      };
+      unchanged();
       const proof = await this.recordProof({
         observedAt: new Date().toISOString(),
-        recovery: "owner-process-confirmed-exited",
+        recovery: verificationEvidenceRef
+          ? "host-verified-exclusive-recovery"
+          : "owner-process-confirmed-exited",
         owner,
+        lockFingerprint: context.lockFingerprint,
+        ledgerRevision: context.ledgerRevision,
+        ...(verificationEvidenceRef ? { verificationEvidenceRef } : {}),
       });
-      if (readFileSync(this.#lockPath, "utf8") !== original)
-        throw new HarnessConflict("原锁已变化，禁止移除");
+      unchanged();
       unlinkSync(this.#lockPath);
       return { recovered: true, evidenceRef: proof };
     } finally {
-      closeSync(fd);
-      unlinkSync(recovery);
+      try {
+        closeSync(fd);
+      } finally {
+        this.releaseOwnedFile(recovery, guardToken);
+      }
     }
   }
   public async recordProof(proof: unknown): Promise<string> {
