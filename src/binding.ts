@@ -60,6 +60,7 @@ export function bindXGrowthHarness(options: HarnessOptions): XGrowthHarness {
       ? new AccountScreenshots({ tab, store, proofDirectory, clock })
       : undefined,
     clock,
+    originalContentGuard: options.originalContentGuard,
     executor: executor ? { ...executor, tabId: taskTabId! } : undefined,
   });
   Object.defineProperty(harness, "usageStatus", {

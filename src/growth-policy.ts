@@ -8,6 +8,7 @@ import { kinds, followWindows, operations, same } from "./growth-constants.js";
 import { followObservationAuthorized } from "./follow-observation-policy.js";
 import { followBlueCheckAllowed } from "./follow-qualification-policy.js";
 export class GrowthPolicy {
+  #originalContentGuard?: import("./types.js").OriginalContentGuard;
   #executor!: GrowthDependencies["executor"];
   #clock!: GrowthDependencies["clock"];
   #evidenceExists!: GrowthDependencies["evidenceExists"];
@@ -23,9 +24,10 @@ export class GrowthPolicy {
     dependencies: Pick<
       GrowthDependencies,
       "executor" | "clock" | "evidenceExists" | "platform" | "store"
-    >,
+    > & { originalContentGuard?: import("./types.js").OriginalContentGuard },
   ) {
     const { executor, clock, evidenceExists, platform, store } = dependencies;
+    this.#originalContentGuard = dependencies.originalContentGuard;
     this.#executor = executor;
     this.#clock = clock;
     this.#evidenceExists = evidenceExists;
@@ -237,6 +239,30 @@ export class GrowthPolicy {
             this.#store.fingerprint(action.draftPath))
       )
         return "draft-changed-since-quality-review";
+      if (action.kind === "original") {
+        if (state.execution?.originalContentHold === true)
+          return "original-content-on-hold";
+        if (
+          state.execution?.originalContentGuardRequired === true &&
+          !this.#originalContentGuard
+        )
+          return "original-content-guard-required";
+        if (this.#originalContentGuard) {
+          try {
+            const reason = this.#originalContentGuard({
+              draftPath: action.draftPath,
+              text: action.text,
+            });
+            if (reason !== null)
+              return typeof reason === "string" &&
+                /^[a-z][a-z0-9.-]{0,95}$/.test(reason)
+                ? reason
+                : "original-content-guard-invalid";
+          } catch {
+            return "original-content-guard-failed";
+          }
+        }
+      }
       if (
         action.quoteTarget &&
         (!/^\d+$/.test(action.quoteTarget.postId ?? "") ||

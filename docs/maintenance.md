@@ -248,3 +248,7 @@ Original native publication marks a submission cleared only after the guarded ed
 Regression replay against the prior runtime reproduces four failures across follow waiting and native publication continuation; new targeted and full validation are recorded in this batch's design. Consumers may adopt the verified local build at their own safe boundary, preserving current calls, original action IDs and unknowns. Public npm packaging remains consolidated; real whole-batch speed and token savings require actual consumer adoption and cannot be inferred from call-count tests.
 
 The same repair's read-only consumer check exposed a null actor reported as a complete account observation. The account receipt now requires a syntactically valid observed handle, records accountHandle as missing and returns needsDecision/complete=false otherwise. This is a truthful readiness correction, not permission to guess an actor or retry submission. Five account regressions and the full1024-test check pass; the original captured null-actor observation remains consumer evidence.
+
+### Pending consolidated release: original content admission
+
+Added generic project-owned synchronous original-content guard and ledger hold/required-guard flags. Ordinary, scoped and independent publication share the final boundary; no account-specific editorial policy is included. Validated with full check (1036 tests), including rejection before intent, change before click, reply isolation and root binding. A verified local build may be used before the next consolidated npm release.

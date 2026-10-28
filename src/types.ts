@@ -700,6 +700,11 @@ export interface CuaApp {
   pressKey?(key: string): Promise<unknown>;
   paste?(value: string): Promise<unknown>;
 }
+/** Synchronous project-owned admission rule, evaluated again immediately before submission. */
+export type OriginalContentGuard = (input: {
+  draftPath: string;
+  text: string;
+}) => string | null;
 export type HarnessOptions = (
   | { tab: CuaTab; app?: never; nativeTaskTab?: never }
   | {
@@ -713,6 +718,7 @@ export type HarnessOptions = (
   proofDirectory: string;
   clock?: () => number;
   executor?: Executor;
+  originalContentGuard?: OriginalContentGuard;
   /** Restore the same owned tab through the host's documented claim/rebind API. */
   tabReadRecovery?: {
     rebind(tabId: string): Promise<CuaTab>;
@@ -721,7 +727,11 @@ export type HarnessOptions = (
 };
 export type HostConnectionOptions = Pick<
   HarnessOptions,
-  "ledgerPath" | "proofDirectory" | "clock" | "executor"
+  | "ledgerPath"
+  | "proofDirectory"
+  | "clock"
+  | "executor"
+  | "originalContentGuard"
 > & {
   tab?: never;
   app?: never;

@@ -82,6 +82,7 @@ export class GrowthHarness {
     store,
     clock = () => Date.now(),
     executor,
+    originalContentGuard,
   }: any = {}) {
     this.#platform = platform;
     this.#store = store;
@@ -113,6 +114,7 @@ export class GrowthHarness {
       waitBudget,
       guardInput,
     } = createGrowthPolicy({
+      originalContentGuard,
       executor: this.#executor,
       clock: this.#clock,
       evidenceExists: this.#evidenceExists,

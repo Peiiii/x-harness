@@ -27,6 +27,7 @@ import type { BoundaryRecord } from "./boundary.js";
 
 /** Internal dependencies; only the normal X factory is exported from the root. */
 export interface BusinessDependencies {
+  originalContentGuard?: import("./types.js").OriginalContentGuard;
   media?: import("./post-media.js").PostMedia;
   screenshots?: import("./account-screenshots.js").AccountScreenshots;
   platform: BoundaryRecord;
