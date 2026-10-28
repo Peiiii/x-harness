@@ -356,6 +356,8 @@ export interface CreatorHistoryOptions {
   resumeEvidenceRef?: EvidenceRef;
 }
 export interface CreatorHistoryResult {
+  failureEvidenceRef?: EvidenceRef;
+  diagnostic?: Diagnostic;
   status: "observed" | "partial" | "needsDecision";
   complete: boolean;
   reason: string;

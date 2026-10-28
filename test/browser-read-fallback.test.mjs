@@ -134,3 +134,76 @@ test("public binding preserves private capability receiver under usage logging",
   assert.equal(result.status, "observed");
   assert.equal(result.accountHandle, "Pei");
 });
+
+test("creator collection reconnects the same tab once after a lost execution context", async () => {
+  let reads = 0,
+    rebinds = 0;
+  const proofs = [];
+  const port = new BrowserReadFallback(
+    {
+      collectCreator: async () => {
+        reads++;
+        throw Error("node_repl exec context not found");
+      },
+    },
+    {
+      tabId: "owned",
+      recover: async (id) => {
+        assert.equal(id, "owned");
+        rebinds++;
+        return {
+          collectCreator: async (args) => ({ posts: [{ id: args.handle }] }),
+        };
+      },
+    },
+    {
+      recordProof: async (p) => {
+        proofs.push(p);
+        return "proof";
+      },
+    },
+  );
+  assert.deepEqual(await port.collectCreator({ handle: "source" }), {
+    posts: [{ id: "source" }],
+  });
+  assert.equal(reads, 1);
+  assert.equal(rebinds, 1);
+  assert.equal(proofs[0].writeRetried, false);
+});
+
+test("creator collection never retries policy refusals or repeatedly lost contexts", async () => {
+  for (const message of [
+    "security policy rejected",
+    "HTTP-429",
+    "node_repl exec context not found",
+  ]) {
+    let rebinds = 0;
+    const port = new BrowserReadFallback(
+      {
+        collectCreator: async () => {
+          throw Error(message);
+        },
+      },
+      {
+        tabId: "owned",
+        recover: async () => {
+          rebinds++;
+          return {
+            collectCreator: async () => {
+              throw Error(message);
+            },
+          };
+        },
+      },
+      { recordProof: async () => "proof" },
+    );
+    await assert.rejects(
+      port.collectCreator({ handle: "source" }),
+      (e) => e.message === message,
+    );
+    assert.equal(
+      rebinds,
+      message === "node_repl exec context not found" ? 1 : 0,
+    );
+  }
+});

@@ -167,3 +167,32 @@ test("public root exposes the bounded capability and validates before browser IO
   assert.equal(r.status, "needsDecision");
   assert.equal(calls, 0);
 });
+
+test("creator history preserves the actionable failure and its proof without treating it as a data window", async (t) => {
+  const f = fixture(t);
+  const failure = await f.store.recordProof({
+    diagnostic: { code: "tab-busy" },
+  });
+  const history = new CreatorHistory(
+    async () => ({
+      status: "needsDecision",
+      fresh: false,
+      complete: false,
+      evidenceRef: failure,
+      diagnostic: {
+        code: "tab-busy",
+        operation: "readCreator",
+        category: "ui-not-confirmed",
+      },
+    }),
+    f.store,
+    () => NOW,
+  );
+  const result = await history.run({ handle: "source", from: at(-5) });
+  assert.equal(result.reason, "tab-busy");
+  assert.equal(result.failureEvidenceRef, failure);
+  assert.equal(result.diagnostic.code, "tab-busy");
+  assert.equal(result.count, 0);
+  assert.deepEqual(result.evidenceRefs, []);
+  assert.equal(result.evidenceRef, undefined);
+});

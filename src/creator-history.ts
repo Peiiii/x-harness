@@ -116,6 +116,13 @@ export class CreatorHistory {
     state.observedAt = new Date(this.clock()).toISOString();
     return scanned.size > before;
   }
+  private failureReason(result: ReadResult) {
+    return (
+      result.diagnostic?.code ||
+      result.reason ||
+      "creator-history-window-unconfirmed"
+    );
+  }
   async run(args: CreatorHistoryOptions): Promise<CreatorHistoryResult> {
     if (this.#running)
       return {
@@ -149,6 +156,8 @@ export class CreatorHistory {
     let evidenceRef = args.resumeEvidenceRef,
       reason = "window-budget",
       windowsRead = 0,
+      failureEvidenceRef: string | undefined,
+      diagnostic: CreatorHistoryResult["diagnostic"],
       status: CreatorHistoryResult["status"] = "partial";
     const evidenceRefs: string[] = [],
       ids = new Set<string>(state.ids),
@@ -170,7 +179,9 @@ export class CreatorHistory {
         });
         windowsRead++;
         if (!result.evidenceRef || result.fresh === false) {
-          reason = result.reason || "creator-history-window-unconfirmed";
+          reason = this.failureReason(result);
+          failureEvidenceRef = result.evidenceRef;
+          diagnostic = result.diagnostic;
           status = "needsDecision";
           break;
         }
@@ -241,6 +252,8 @@ export class CreatorHistory {
         windowsRead,
         evidenceRefs,
         ...(evidenceRef ? { evidenceRef } : {}),
+        ...(failureEvidenceRef ? { failureEvidenceRef } : {}),
+        ...(diagnostic ? { diagnostic } : {}),
         incompleteCount: incomplete.size,
         boundaryReached: state.boundaryReached,
       };

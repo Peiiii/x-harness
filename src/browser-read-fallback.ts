@@ -124,7 +124,14 @@ export class BrowserReadFallback {
         this.#needsFreshDOM = false;
         return value;
       }
-      if (this.#rebound || error.message !== "browser-read-deadline-exceeded")
+      if (
+        this.#rebound ||
+        ![
+          "browser-read-deadline-exceeded",
+          "node_repl exec context not found",
+        ].includes(error.message) ||
+        this.options.legacyRecoveryEnabled === false
+      )
         throw error;
       this.#rebound = true;
       const initialEvidenceRef = await this.store.recordProof({
@@ -237,8 +244,40 @@ export class BrowserReadFallback {
   screenshot() {
     return this.#selected.screenshot();
   }
-  collectCreator(args: any) {
-    return this.#selected.collectCreator(args);
+  async collectCreator(args: any) {
+    try {
+      return await this.#selected.collectCreator(args);
+    } catch (error: any) {
+      const operation = currentXUsageTrace()?.rootOperation;
+      if (
+        this.#rebound ||
+        this.options.legacyRecoveryEnabled === false ||
+        error.message !== "node_repl exec context not found" ||
+        (operation && !/^(?:read|search|inspectAccount$)/.test(operation))
+      )
+        throw error;
+      this.#rebound = true;
+      try {
+        await this.store.recordProof({
+          kind: "browser-read-recovery",
+          status: "rebinding",
+          tabId: this.options.tabId,
+          operation: "collectCreator",
+          reason: "execution-context-lost",
+          writeRetried: false,
+        });
+      } catch {
+        /* Optional recovery telemetry must not prevent the read. */
+      }
+      const replacement = await this.bounded(() =>
+        this.options.recover(this.options.tabId),
+      );
+      if (replacement === this.#selected)
+        throw Error("browser-read-rebind-not-isolated");
+      this.#selected = replacement;
+      // The collection retains its own scan bounds; do not add another short timeout.
+      return await replacement.collectCreator(args);
+    }
   }
   collectBookmarks(args: any) {
     return this.#selected.collectBookmarks(args);

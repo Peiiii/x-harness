@@ -178,11 +178,12 @@ export class GrowthReading {
       }
       return mode === "delta" ? receipt : { ...value, ...receipt };
     } catch (error: any) {
-      const category = /connection|transport|interrupted|extension/i.test(
-        error.message,
-      )
-        ? "browser-connection"
-        : "ui-not-confirmed";
+      const category =
+        /connection|transport|interrupted|extension|node_repl exec context not found/i.test(
+          error.message,
+        )
+          ? "browser-connection"
+          : "ui-not-confirmed";
       const code =
         error.code === "CONFLICT"
           ? "ledger-conflict"
