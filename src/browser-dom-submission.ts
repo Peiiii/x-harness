@@ -1,4 +1,5 @@
 import { readXNetworkDiagnostics } from "./browser-dom-network.js";
+import { SubmissionNetworkCapture } from "./submission-network-capture.js";
 import { xURL, sameHandle, sameText } from "./platform-rules.js";
 
 import { valueOf } from "./browser-common.js";
@@ -75,66 +76,88 @@ export class DOMSubmission {
         throw new Error("原生提交缺同页、全文及唯一按钮证据");
       nativeSubmitIndex = buttons[0].index;
     }
-    if (["submitPost", "submitReply"].includes(command.operation))
-      await command.beforeSubmit?.();
-    this.#session.current = null;
-    const activationStartedAt = Date.now();
-    if (nativeSubmitIndex !== undefined)
-      await stage("activate.native-click", () =>
-        this.#submitAX.act({
-          index: nativeSubmitIndex,
-          operation: "click",
-          read: { mode: "composer" },
-        }),
-      );
-    else if (command.activation === "keyboard")
-      await stage("activate.dom-keyboard", () => loc.press("Enter"));
-    else await stage("activate.dom-click", () => loc.click());
-    if (binding) {
-      this.#session.replyBinding = binding;
-      await this.#tab.playwright
-        .getByRole("textbox", { name: /^(帖子文本|Post text)$/i })
-        .waitFor({ state: "visible", timeoutMs: 5000 });
-      if (xURL(await this.#tab.url()).pathname === "/compose/post")
+    const network = ["submitPost", "submitReply"].includes(command.operation)
+      ? await SubmissionNetworkCapture.start(this.#tab)
+      : undefined;
+    try {
+      if (["submitPost", "submitReply"].includes(command.operation))
+        await command.beforeSubmit?.();
+      this.#session.current = null;
+      const activationStartedAt = Date.now();
+      if (nativeSubmitIndex !== undefined)
+        await stage("activate.native-click", () =>
+          this.#submitAX.act({
+            index: nativeSubmitIndex,
+            operation: "click",
+            read: { mode: "composer" },
+          }),
+        );
+      else if (command.activation === "keyboard")
+        await stage("activate.dom-keyboard", () => loc.press("Enter"));
+      else await stage("activate.dom-click", () => loc.click());
+      if (binding) {
+        this.#session.replyBinding = binding;
         await this.#tab.playwright
-          .getByText(
-            new RegExp(`^回复 @${binding.author}(?:$|[\\s,，、])`, "i"),
-          )
+          .getByRole("textbox", { name: /^(帖子文本|Post text)$/i })
           .waitFor({ state: "visible", timeoutMs: 5000 });
-      const composer = await this.#observe({ view: "composer" });
-      const quote =
-        composer.replyQuotes?.length === 1 ? composer.replyQuotes[0] : null;
-      if (
-        !composer.replyToId &&
-        !composer.needsStateCheck &&
-        !composer.alerts?.length &&
-        composer.editorText?.trim() === "" &&
-        composer.replyContexts?.length === 1 &&
-        composer.replyContexts[0].includes(`回复 @${binding.author}`) &&
-        /显示更多|Show more/.test(composer.replyContexts[0]) &&
-        quote?.length >= 30 &&
-        binding.body?.startsWith(quote)
-      ) {
-        // Expand the observed quote; the unchanged full-context binding gate must still pass.
-        const dialog = await this.#unique(
-          this.#locator("dialog").filter({ visible: true }),
-        );
-        const more = await this.#unique(
-          dialog.getByRole("button", { name: /^(显示更多|Show more)$/i }),
-        );
-        this.#session.current = null;
-        await more.click();
-        await this.#observe({ view: "composer" });
+        if (xURL(await this.#tab.url()).pathname === "/compose/post")
+          await this.#tab.playwright
+            .getByText(
+              new RegExp(`^回复 @${binding.author}(?:$|[\\s,，、])`, "i"),
+            )
+            .waitFor({ state: "visible", timeoutMs: 5000 });
+        const composer = await this.#observe({ view: "composer" });
+        const quote =
+          composer.replyQuotes?.length === 1 ? composer.replyQuotes[0] : null;
+        if (
+          !composer.replyToId &&
+          !composer.needsStateCheck &&
+          !composer.alerts?.length &&
+          composer.editorText?.trim() === "" &&
+          composer.replyContexts?.length === 1 &&
+          composer.replyContexts[0].includes(`回复 @${binding.author}`) &&
+          /显示更多|Show more/.test(composer.replyContexts[0]) &&
+          quote?.length >= 30 &&
+          binding.body?.startsWith(quote)
+        ) {
+          // Expand the observed quote; the unchanged full-context binding gate must still pass.
+          const dialog = await this.#unique(
+            this.#locator("dialog").filter({ visible: true }),
+          );
+          const more = await this.#unique(
+            dialog.getByRole("button", { name: /^(显示更多|Show more)$/i }),
+          );
+          this.#session.current = null;
+          await more.click();
+          await this.#observe({ view: "composer" });
+        }
       }
+      // Inline replies keep the editor mounted. Wait for this submitted text to clear before
+      // receipt navigation/reload can interrupt the actual submission request.
+      if (submittedEditor)
+        await stage("editor-clear", () =>
+          this.waitSubmittedEditor(
+            submittedEditor,
+            result,
+            activationStartedAt,
+          ),
+        );
+      // Editor clearing and the caller's fresh public receipt own completion.
+      // X background traffic is unrelated to acceptance; networkidle adds no proof.
+      const transport = network
+        ? await network.stop()
+        : { status: "unavailable" };
+      return { submissionDiagnostic: { transport } };
+    } catch (error: any) {
+      const transport = network
+        ? await network.stop()
+        : (error.submissionDiagnostic?.transport ?? { status: "unavailable" });
+      error.submissionDiagnostic = {
+        ...(error.submissionDiagnostic ?? {}),
+        transport,
+      };
+      throw error;
     }
-    // Inline replies keep the editor mounted. Wait for this submitted text to clear before
-    // receipt navigation/reload can interrupt the actual submission request.
-    if (submittedEditor)
-      await stage("editor-clear", () =>
-        this.waitSubmittedEditor(submittedEditor, result, activationStartedAt),
-      );
-    // Editor clearing and the caller's fresh public receipt own completion.
-    // X background traffic is unrelated to acceptance; networkidle adds no proof.
   }
   private async waitSubmittedEditor(
     editor: any,

@@ -26,7 +26,15 @@ export function bindXGrowthHarness(options: HarnessOptions): XGrowthHarness {
     throw new Error("executor-requires-independent-tab");
   const usage = new XUsageJournal(proofDirectory);
   const store = createFileRoundStore({ ledgerPath, proofDirectory });
-  const primary = tab ? createDOMXBrowser(tab) : createNativeXBrowser(app);
+  if (
+    options.originalPostActivation &&
+    !["click", "keyboard"].includes(options.originalPostActivation)
+  )
+    throw new Error("invalid-original-post-activation");
+  const domOptions = { defaultPostActivation: options.originalPostActivation };
+  const primary = tab
+    ? createDOMXBrowser(tab, domOptions)
+    : createNativeXBrowser(app);
   if (
     options.tabReadRecovery &&
     (!tab?.id || typeof options.tabReadRecovery.rebind !== "function")
@@ -43,7 +51,7 @@ export function bindXGrowthHarness(options: HarnessOptions): XGrowthHarness {
               const rebound = await options.tabReadRecovery!.rebind(tabId);
               if (rebound?.id !== tabId)
                 throw Error("tab-read-recovery-target-mismatch");
-              return createDOMXBrowser(rebound);
+              return createDOMXBrowser(rebound, domOptions);
             },
           },
           store,

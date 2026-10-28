@@ -21,11 +21,16 @@ export class DOMXBrowser {
   #navigation!: ReturnType<typeof createDOMNavigation>;
   #editing!: ReturnType<typeof createDOMEditing>;
   #finishDOMAction!: ReturnType<typeof createDOMSubmission>;
+  #defaultPostActivation?: "click" | "keyboard";
   capabilities!: (operation: any) => any;
   observe!: (query: any) => Promise<any>;
   constructor(
     tab: any,
-    { readDOM = readXObservation, nativeSubmit = false }: any = {},
+    {
+      readDOM = readXObservation,
+      nativeSubmit = false,
+      defaultPostActivation,
+    }: any = {},
   ) {
     this.act = this.act.bind(this);
     this.screenshot = this.screenshot.bind(this);
@@ -33,6 +38,7 @@ export class DOMXBrowser {
     this.#tab = compatibleTab(tab);
     this.#readDOM = readDOM;
     this.#nativeSubmit = nativeSubmit;
+    this.#defaultPostActivation = defaultPostActivation;
     this.#session = {};
     this.#submitAX = this.#nativeSubmit
       ? createAXHarness({
@@ -172,6 +178,12 @@ export class DOMXBrowser {
     return this.#tab.screenshot();
   }
   public async act(command: any) {
+    if (
+      command.operation === "submitPost" &&
+      command.activation === undefined &&
+      this.#defaultPostActivation
+    )
+      command = { ...command, activation: this.#defaultPostActivation };
     if (Object.hasOwn(this.#navigation, command.operation))
       return (
         this.#navigation as unknown as Record<

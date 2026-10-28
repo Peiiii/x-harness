@@ -719,6 +719,8 @@ export type HarnessOptions = (
   clock?: () => number;
   executor?: Executor;
   originalContentGuard?: OriginalContentGuard;
+  /** Default activation for original posts; an explicit action value takes precedence. */
+  originalPostActivation?: "click" | "keyboard";
   /** Restore the same owned tab through the host's documented claim/rebind API. */
   tabReadRecovery?: {
     rebind(tabId: string): Promise<CuaTab>;
@@ -732,6 +734,7 @@ export type HostConnectionOptions = Pick<
   | "clock"
   | "executor"
   | "originalContentGuard"
+  | "originalPostActivation"
 > & {
   tab?: never;
   app?: never;

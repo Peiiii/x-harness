@@ -27,3 +27,6 @@ export function createXGrowthHarness(
 Object.defineProperty(createXGrowthHarness, "originalContentGuardVersion", {
   value: 1,
 });
+Object.defineProperty(createXGrowthHarness, "originalPostActivationVersion", {
+  value: 1,
+});

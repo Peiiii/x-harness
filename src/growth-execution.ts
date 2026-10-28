@@ -1,4 +1,5 @@
 import { NativePublicationVerification } from "./native-publication-verification.js";
+
 import { ActionTrace } from "./action-trace.js";
 import {
   latestNormalInteractionTime,
@@ -17,6 +18,21 @@ import type { GrowthDependencies } from "./growth-dependencies.js";
 
 import { operations, same } from "./growth-constants.js";
 import { followBlueCheckAllowed } from "./follow-qualification-policy.js";
+async function verifyLog(
+  platform: any,
+  trace: any,
+  entry: any,
+  submitted: any,
+) {
+  const value = await new NativePublicationVerification(
+    (action) => platform.findSubmission(action),
+    trace,
+  ).verify(entry, submitted);
+  return !value.verified && submitted?.submissionDiagnostic
+    ? { ...value, submissionDiagnostic: submitted.submissionDiagnostic }
+    : value;
+}
+
 export class GrowthExecution {
   #cadence!: OriginalPostCadence;
   #capability!: GrowthDependencies["capability"];
@@ -369,7 +385,7 @@ export class GrowthExecution {
     if ("snapshot" in admission) return admission;
     const { beforeIds } = admission;
     const state = snapshot.state;
-    // Persist intent BEFORE any externally visible submission. Even a failed attempt consumes budget.
+    // Persist intent before externally visible submission. A failed attempt still consumes budget.
     const next = structuredClone(state);
     const entry = next.actions.find((a: any) => a.id === action.id);
     entry.status = "intent";
@@ -395,9 +411,10 @@ export class GrowthExecution {
     }
     snapshot = await this.#save(snapshot, next);
     let observation: any,
+      submitted: any,
       submissionMayHaveStarted = false;
     try {
-      const submitted = await trace.run("submit", () =>
+      submitted = await trace.run("submit", () =>
         this.#platform[operations[action.kind]]({
           ...entry,
           traceStage: trace.run.bind(trace),
@@ -463,10 +480,7 @@ export class GrowthExecution {
           },
         }),
       );
-      observation = await new NativePublicationVerification(
-        (action) => this.#platform.findSubmission(action),
-        trace,
-      ).verify(entry, submitted);
+      observation = await verifyLog(this.#platform, trace, entry, submitted);
     } catch (error: any) {
       if (!submissionMayHaveStarted) {
         const proof = await this.#store.recordProof({
@@ -496,8 +510,11 @@ export class GrowthExecution {
       observation = {
         verified: false,
         missing: ["submission-or-verification-failed"],
-        ...(error.submissionDiagnostic
-          ? { submissionDiagnostic: error.submissionDiagnostic }
+        ...((error.submissionDiagnostic ?? submitted?.submissionDiagnostic)
+          ? {
+              submissionDiagnostic:
+                error.submissionDiagnostic ?? submitted.submissionDiagnostic,
+            }
           : {}),
         error: error.message.slice(0, 240),
       };
