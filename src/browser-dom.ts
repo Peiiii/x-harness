@@ -97,12 +97,20 @@ export class DOMXBrowser {
       this.#tab.playwright,
     );
     if (!evaluate) throw new Error("缺playwright.evaluate能力");
+    const hostStartedAtMs = Date.now();
     const result = await evaluate(
       this.#readDOM,
       { ...query, limit: query.limit ?? 1 },
-      // Include host scope setup in the bounded read budget; never retry a write.
+      // The host may do scope setup before its internal timeout starts.
       { timeoutMs: 60_000 },
     );
+    const hostFinishedAtMs = Date.now();
+    if (result.domReadTiming)
+      result.domReadTiming = {
+        ...result.domReadTiming,
+        hostStartedAtMs,
+        hostFinishedAtMs,
+      };
     const raw = result;
     // Exact informational messages are retained; any added refusal text stays
     // an alert. A send toast alone never proves publication.

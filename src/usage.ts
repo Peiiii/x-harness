@@ -46,6 +46,7 @@ interface UsageRecord {
   parentCallId?: string;
   binding?: UsageBindingContext;
   readTransport?: "native-fallback";
+  domReadTiming?: Record<string, number | string>;
   startedAt: string;
   finishedAt?: string;
   durationMs?: number;
@@ -58,6 +59,26 @@ const label = (value: unknown): string | undefined =>
   typeof value === "string" && /^[A-Za-z][A-Za-z0-9:_-]{0,95}$/.test(value)
     ? value
     : undefined;
+
+function readTiming(
+  value: unknown,
+): Record<string, number | string> | undefined {
+  if (!value || typeof value !== "object") return;
+  const raw = value as Record<string, unknown>;
+  const timing: Record<string, number | string> = {};
+  for (const key of [
+    "enteredAtMs",
+    "finishedAtMs",
+    "hostStartedAtMs",
+    "hostFinishedAtMs",
+  ]) {
+    const n = raw[key];
+    if (typeof n === "number" && Number.isFinite(n) && n >= 0) timing[key] = n;
+  }
+  if (raw.visibilityState === "visible" || raw.visibilityState === "hidden")
+    timing.visibilityState = raw.visibilityState;
+  return Object.keys(timing).length ? timing : undefined;
+}
 
 /** Local call-frequency evidence. Never reads a page, starts a timer or stores arguments. */
 export class XUsageJournal {
@@ -174,6 +195,7 @@ export class XUsageJournal {
         reason?: unknown;
         diagnostic?: { code?: unknown };
         readTransport?: unknown;
+        domReadTiming?: unknown;
       } | null;
       const reason = threw
         ? result instanceof Error
@@ -189,6 +211,11 @@ export class XUsageJournal {
         threw,
         ...(raw?.readTransport === "native-fallback"
           ? { readTransport: "native-fallback" as const }
+          : {}),
+        ...(layer === "browser" &&
+        operation === "observe" &&
+        readTiming(raw?.domReadTiming)
+          ? { domReadTiming: readTiming(raw?.domReadTiming) }
           : {}),
         http429:
           typeof reason === "string" &&
