@@ -3,7 +3,7 @@ import { NativeBookmarkCollector } from "./bookmark-native.js";
 import { collectCreatorNative } from "./creator-native.js";
 import { createAXHarness } from "./readers-ax-host.js";
 import { readAX } from "./readers-ax-parser.js";
-import { xURL } from "./platform-rules.js";
+import { samePublishedText, xURL } from "./platform-rules.js";
 import {
   serialized,
   missingMethods,
@@ -230,11 +230,12 @@ export class NativeXBrowser {
         /^按钮 (?:重新加载|刷新)(?:,|$)/.test(e.label),
       );
       this.#current = null;
-      return this.#low.act({
+      const value = await this.#low.act({
         index,
         operation: "click",
         read: { mode: "posts", limit: 5 },
       });
+      return command.expectedText ? this.waitNativePosts(command) : value;
     }
     if (command.operation === "waitForPosts") {
       this.#current = null;
@@ -341,7 +342,12 @@ export class NativeXBrowser {
       });
       if (
         value.alerts?.length ||
-        (!value.needsStateCheck && value.posts?.length) ||
+        (!value.needsStateCheck &&
+          value.posts?.some(
+            (post: any) =>
+              !command.expectedText ||
+              samePublishedText(post.body ?? post.text, command.expectedText),
+          )) ||
         Date.now() >= deadline
       )
         break;

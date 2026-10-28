@@ -17,3 +17,39 @@ test("native loading recovery stays bounded without writes and retains missing e
   assert.equal(result.needsStateCheck, true);
   assert.equal(result.posts.length, 0);
 });
+
+for (const appears of [true, false]) {
+  test(`native receipt refresh waits beyond an early unrelated card: ${appears}`, async () => {
+    let reads = 0;
+    let reloads = 0;
+    const ax = (body) => `0 标准窗口 X, URL: x.com/sample
+  1 按钮 重新加载
+  2 HTML 内容 X, URL: x.com/sample
+    3 container sample @sample
+      4 link 上午8:42 · 2026年10月26日, Value: x.com/sample/status/456
+      5 文本 ${body}
+`;
+    const browser = createNativeXBrowser({
+      getAXState: async () => {
+        reads++;
+        return ax(
+          appears && reads >= 4 ? "reviewed candidate" : "pinned old post",
+        );
+      },
+      click: async (index) => {
+        assert.equal(index, 1);
+        reloads++;
+      },
+    });
+    const result = await browser.act({
+      operation: "refreshPosts",
+      expectedText: "reviewed candidate",
+    });
+    assert.equal(reloads, 1);
+    assert.equal(reads, appears ? 4 : 22);
+    assert.equal(
+      result.posts[0].text,
+      appears ? "reviewed candidate" : "pinned old post",
+    );
+  });
+}
