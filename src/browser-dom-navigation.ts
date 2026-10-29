@@ -152,8 +152,13 @@ export class DOMNavigation {
       timelineNavigation: true,
       limit: 1,
     });
-    if (check.alerts?.length || check.needsStateCheck)
-      throw Error("search-client-session-unconfirmed");
+    if (check.alerts?.length) throw Error("search-client-session-unconfirmed");
+    // A partial old page cannot provide the client input. Use the existing
+    // read-only destination route; the target read still owns completeness.
+    if (check.needsStateCheck) {
+      await this.#tab.goto(destination);
+      return;
+    }
     const input = this.#tab.playwright
       ?.locator?.('input[data-testid="SearchBox_Search_Input"]')
       ?.filter({ visible: true });
