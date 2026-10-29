@@ -23,6 +23,7 @@ export function currentXUsageTrace(): UsageTraceContext | undefined {
   return context ? { ...context } : undefined;
 }
 interface UsageBindingContext {
+  moduleURL?: string;
   transport?: "dom" | "native";
   tabId?: string;
   executorId?: string;
@@ -55,6 +56,12 @@ interface UsageRecord {
   reason?: string;
   threw?: boolean;
   http429?: boolean;
+  evidenceRef?: string;
+  diagnosticCategory?: string;
+  diagnosticCode?: string;
+  needsStateCheck?: boolean;
+  missing?: string[];
+  hasAlerts?: boolean;
 }
 const label = (value: unknown): string | undefined =>
   typeof value === "string" && /^[A-Za-z][A-Za-z0-9:_-]{0,95}$/.test(value)
@@ -92,6 +99,7 @@ export class XUsageJournal {
     this.#directory = join(proofDirectory, "usage", this.#sessionId);
     const identity = binding.runtimeIdentity;
     this.#binding = {
+      moduleURL: import.meta.url,
       ...(["dom", "native"].includes(binding.transport ?? "")
         ? { transport: binding.transport }
         : {}),
@@ -205,7 +213,11 @@ export class XUsageJournal {
       const raw = result as {
         status?: unknown;
         reason?: unknown;
-        diagnostic?: { code?: unknown };
+        diagnostic?: { code?: unknown; category?: unknown };
+        evidenceRef?: unknown;
+        needsStateCheck?: unknown;
+        missing?: unknown;
+        alerts?: unknown;
         readTransport?: unknown;
         domReadTiming?: unknown;
       } | null;
@@ -225,7 +237,31 @@ export class XUsageJournal {
             : /connection|transport|interrupted|extension/i.test(String(reason))
               ? "connection-failed"
               : "error"
-          : label(raw?.diagnostic?.code),
+          : label(reason),
+        ...(typeof raw?.evidenceRef === "string" &&
+        raw.evidenceRef.length < 4096
+          ? { evidenceRef: raw.evidenceRef }
+          : {}),
+        ...(label(raw?.diagnostic?.category)
+          ? { diagnosticCategory: label(raw?.diagnostic?.category) }
+          : {}),
+        ...(label(raw?.diagnostic?.code)
+          ? { diagnosticCode: label(raw?.diagnostic?.code) }
+          : {}),
+        ...(typeof raw?.needsStateCheck === "boolean"
+          ? { needsStateCheck: raw.needsStateCheck }
+          : {}),
+        ...(Array.isArray(raw?.missing)
+          ? {
+              missing: raw.missing
+                .map(label)
+                .filter((x): x is string => Boolean(x))
+                .slice(0, 20),
+            }
+          : {}),
+        ...(Array.isArray(raw?.alerts)
+          ? { hasAlerts: raw.alerts.length > 0 }
+          : {}),
         threw,
         ...(raw?.readTransport === "native-fallback"
           ? { readTransport: "native-fallback" as const }

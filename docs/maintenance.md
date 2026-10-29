@@ -278,3 +278,7 @@ Real-process kill and real CUA kernel-reset probes, multi-process mutations, acc
 ## Partial-page search continuation (2026-10-29)
 
 A missing session observation on the old page used to reject an authorized read-only search before navigating. The navigation owner now uses its existing direct live-search destination when that old page is incomplete. Observed warnings still reject, target collection still establishes its own complete evidence, and no write or identity clearance is fabricated. The old runtime fails the new incomplete-page case; 46 search/navigation continuation tests and the build pass after repair. This fixes one unnecessary pre-navigation stop, not every host DOM/AX timeout. Consumer live adoption and the broader guard/lock audit remain separate evidence; no standalone npm release is needed.
+
+## Incident evidence linkage (2026-10-29)
+
+Root usage records retain safe business reason codes, the original full-proof reference, compact missing-state flags and the loaded module location. Previously a computed business reason was discarded unless it also appeared as a diagnostic code, forcing callers to search unrelated proof files. Full page text, thrown private error text and credentials remain outside the compact usage journal; existing original proofs own those details. Durable call starts still identify interrupted calls, and logging never adds browser requests or retries. Verified local consumer adoption may precede a consolidated npm release.

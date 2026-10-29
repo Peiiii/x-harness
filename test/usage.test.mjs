@@ -177,3 +177,41 @@ test("creator timeout stages record a safe reason without copying error text", a
   assert.deepEqual(report.minutes, {});
   assert.equal(usage.status().calls, 0);
 });
+
+test("failed root receipts retain the safe reason and link full evidence without copying content", async (t) => {
+  const dir = fixture(t),
+    usage = new XUsageJournal(dir);
+  const evidenceRef = join(dir, "failure.json");
+  await usage
+    .wrap(
+      {
+        read: async () => ({
+          status: "needsDecision",
+          reason: "source-page-unconfirmed",
+          evidenceRef,
+          diagnostic: {
+            category: "ui-not-confirmed",
+            code: "observation-unconfirmed",
+            error: "PRIVATE BODY",
+          },
+          missing: ["people-cells-not-found"],
+          needsStateCheck: true,
+        }),
+      },
+      "harness",
+    )
+    .read();
+  const record = JSON.parse(
+    readFileSync(
+      join(usage.status().directory, readdirSync(usage.status().directory)[0]),
+      "utf8",
+    ),
+  );
+  assert.equal(record.reason, "source-page-unconfirmed");
+  assert.equal(record.evidenceRef, evidenceRef);
+  assert.equal(record.diagnosticCategory, "ui-not-confirmed");
+  assert.deepEqual(record.missing, ["people-cells-not-found"]);
+  assert.equal(record.needsStateCheck, true);
+  assert.match(record.binding.moduleURL, /\/usage\.js$/);
+  assert(!JSON.stringify(record).includes("PRIVATE BODY"));
+});
