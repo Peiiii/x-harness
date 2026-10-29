@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { bindXGrowthHarness } from "./binding.js";
 import { createFileRoundStore } from "./store.js";
 import type {
@@ -29,6 +30,7 @@ function classify(message: string): string {
 export class HostConnection {
   readonly #options: HostConnectionOptions;
   readonly #started = Date.now();
+  readonly #connectionId = randomUUID();
   readonly #attempts: Array<Record<string, unknown>> = [];
   #tab?: CuaTab;
   #receipt: HostConnectionReceipt = {
@@ -49,6 +51,9 @@ export class HostConnection {
       this.#options,
     ).recordProof({
       operation: "connect-host",
+      connectionId: this.#connectionId,
+      startedAt: new Date(this.#started).toISOString(),
+      pid: process.pid,
       outcome,
       completion: outcome === "started" ? "not-recorded" : "recorded",
       observedAt: new Date().toISOString(),

@@ -184,6 +184,7 @@ for (const phase of ["check", "open-tab"]) {
     );
     assert.ok(started, "a host reset must leave the entered phase on disk");
     assert.equal(started.completion, "not-recorded");
+    assert.match(started.connectionId, /^[a-f0-9-]{36}$/);
     finish(phase === "open-tab" ? f.tab : undefined);
     const result = await operation;
     assert.equal(result.status, "ready");
@@ -192,6 +193,7 @@ for (const phase of ["check", "open-tab"]) {
     );
     assert.equal(final.outcome, "ready");
     assert.equal(final.completion, "recorded");
+    assert.equal(final.connectionId, started.connectionId);
   });
 }
 
