@@ -59,6 +59,9 @@ function tabFor({ truncated = false, withRequest = true } = {}) {
         }),
       },
     },
+    get reads() {
+      return reads;
+    },
     get enabled() {
       return enabled;
     },
@@ -194,4 +197,15 @@ test("stalled diagnostic drain is bounded and marked incomplete", async () => {
     result = await capture.stop();
   assert.ok(Date.now() - begin < 500);
   assert.equal(result.status, "incomplete");
+});
+
+test("explicit diagnostic capture performs one final snapshot and repeated stop does not poll", async () => {
+  const f = tabFor();
+  const capture = await SubmissionNetworkCapture.start(f.tab);
+  const first = await capture.stop();
+  const second = await capture.stop();
+  assert.equal(first, second);
+  assert.equal(f.reads, 2);
+  assert.equal(f.enabled, 1);
+  assert.equal(first.scope, "submission-endpoint-events-in-capture-window");
 });

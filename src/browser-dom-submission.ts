@@ -1,4 +1,3 @@
-import { readXNetworkDiagnostics } from "./browser-dom-network.js";
 import { SubmissionNetworkCapture } from "./submission-network-capture.js";
 import { xURL, sameHandle, sameText } from "./platform-rules.js";
 
@@ -11,14 +10,22 @@ export class DOMSubmission {
   #observe!: DOMDependencies["observe"];
   #unique!: DOMDependencies["unique"];
   #locator!: DOMDependencies["locator"];
+  #captureNetwork = false;
   constructor(
     dependencies: Pick<
       DOMDependencies,
-      "submitAX" | "session" | "tab" | "observe" | "unique" | "locator"
+      | "submitAX"
+      | "session"
+      | "tab"
+      | "observe"
+      | "unique"
+      | "locator"
+      | "captureSubmissionNetwork"
     >,
   ) {
     this.finishDOMAction = this.finishDOMAction.bind(this);
     const { submitAX, session, tab, observe, unique, locator } = dependencies;
+    this.#captureNetwork = dependencies.captureSubmissionNetwork === true;
     this.#submitAX = submitAX;
     this.#session = session;
     this.#tab = tab;
@@ -76,9 +83,15 @@ export class DOMSubmission {
         throw new Error("原生提交缺同页、全文及唯一按钮证据");
       nativeSubmitIndex = buttons[0].index;
     }
-    const network = ["submitPost", "submitReply"].includes(command.operation)
-      ? await SubmissionNetworkCapture.start(this.#tab)
-      : undefined;
+    const network =
+      this.#captureNetwork &&
+      ["submitPost", "submitReply"].includes(command.operation)
+        ? await SubmissionNetworkCapture.start(this.#tab)
+        : undefined;
+    const notCollected = {
+      status: "not-collected",
+      reason: "default-submit-does-not-query-browser-diagnostics",
+    };
     try {
       if (["submitPost", "submitReply"].includes(command.operation))
         await command.beforeSubmit?.();
@@ -144,14 +157,12 @@ export class DOMSubmission {
         );
       // Editor clearing and the caller's fresh public receipt own completion.
       // X background traffic is unrelated to acceptance; networkidle adds no proof.
-      const transport = network
-        ? await network.stop()
-        : { status: "unavailable" };
+      const transport = network ? await network.stop() : notCollected;
       return { submissionDiagnostic: { transport } };
     } catch (error: any) {
       const transport = network
         ? await network.stop()
-        : (error.submissionDiagnostic?.transport ?? { status: "unavailable" });
+        : (error.submissionDiagnostic?.transport ?? notCollected);
       error.submissionDiagnostic = {
         ...(error.submissionDiagnostic ?? {}),
         transport,
@@ -164,9 +175,6 @@ export class DOMSubmission {
     submitted: any,
     activationStartedAt: number,
   ): Promise<void> {
-    let cursor = 0;
-    const requests = new Set<string>(),
-      transportEvents: any[] = [];
     const deadline = Date.now() + 10000;
     for (let attempt = 0; attempt < 4; attempt++) {
       const remaining = deadline - Date.now();
@@ -214,38 +222,8 @@ export class DOMSubmission {
           current.replyToId === submitted.replyToId
         )
           return;
-        // Optional read-only diagnostics on failure only. No headers/body or new X request.
-        if (typeof this.#tab.capabilities?.get === "function") {
-          try {
-            const trace = await readXNetworkDiagnostics(this.#tab, {
-              afterSequence: cursor,
-            });
-            cursor = trace.cursor;
-            for (const event of trace.events) {
-              if (
-                event.requestMethod === "POST" &&
-                /\/(?:CreateTweet|EditTweet)[A-Za-z0-9_]*$/.test(
-                  event.location ?? "",
-                ) &&
-                typeof event.wallTime === "number" &&
-                event.wallTime * 1000 >= activationStartedAt
-              )
-                requests.add(event.requestId);
-              if (requests.has(event.requestId)) transportEvents.push(event);
-            }
-            if (transportEvents.length)
-              error.submissionDiagnostic.transport = {
-                activationStartedAt: new Date(
-                  activationStartedAt,
-                ).toISOString(),
-                events: transportEvents,
-                scope: "matching-submission-requests-only",
-                truncated: trace.truncated,
-              };
-          } catch {
-            /* Optional capability unavailable; original unknown remains unchanged. */
-          }
-        }
+        // The original editor snapshot is the diagnostic. Never query a second
+        // browser channel here; missing HTTP evidence does not authorize resend.
         if (contextChanged) throw error;
         if (attempt === 3 || Date.now() >= deadline) throw error;
       }

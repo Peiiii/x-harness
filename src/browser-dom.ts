@@ -33,6 +33,7 @@ export class DOMXBrowser {
       defaultPostActivation,
       creatorTrace,
       navigationTrace,
+      captureSubmissionNetwork = false,
     }: any = {},
   ) {
     this.act = this.act.bind(this);
@@ -64,6 +65,7 @@ export class DOMXBrowser {
       observe: this.handleObserve.bind(this),
     });
     this.#finishDOMAction = createDOMSubmission({
+      captureSubmissionNetwork,
       submitAX: this.#submitAX,
       session: this.#session,
       tab: this.#tab,
