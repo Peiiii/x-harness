@@ -8,3 +8,7 @@ Consecutive windows continue the confirmed exact search query without reopening 
 ## Author identity in source cards
 
 Recommendation source cards include optional `authorIdentity` in the same read: exact author handle/name/profileURL and `blue:true` only with the matching visible blue badge. The source proof covers it; no profile navigation is added. Missing/ambiguous/generic badges remain `blue:null` with missing reasons. This does not establish biography, personal identity or inbound relationship; review current post semantics, and only supplement genuinely missing qualification evidence.
+
+## Follow candidates from a people list
+
+Use `x.discoverFollowCandidates({target:{url,evidenceRef},maxWindows:20,terms:["AI","人工智能"],requireBlue:true,excludedHandles})`. One bounded read-only call advances list windows, consumes DOM offsets, deduplicates handles and returns only rows with an observed `not-following` control. It stops on two stalled windows, unconfirmed reads, the window budget or the night boundary. Each candidate retains its original window evidence; `complete:false` means the whole list was not proven. `terms` are optional, case-insensitive OR matches on biography; omitted terms allow other topics. A list row does not prove follower/following counts, recent activity, reciprocity or permission to follow: review those through original business evidence and preserve unresolved original actions. Never treat a match as automatic approval or a missing row as evidence of absence.

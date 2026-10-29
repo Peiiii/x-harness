@@ -22,7 +22,7 @@ var x = createXGrowthHarness({ tab, ledgerPath, proofDirectory });
 
 ## Load by task
 
-Work at scale starts with verified [batch discovery](references/batch-discovery.md); never search person by person. Reuse queues; repair real gaps, verify and resume.
+Work at scale starts with verified [batch discovery](references/batch-discovery.md); follow duties use `discoverFollowCandidates` to scan observed lists and exclude already-followed rows before profile review; never search person by person. Reuse queues; repair real gaps, verify and resume.
 
 | Current need | Read only |
 | --- | --- |

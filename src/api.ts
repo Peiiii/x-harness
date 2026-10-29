@@ -1,3 +1,4 @@
+import { FollowDiscovery } from "./follow-discovery.js";
 import { CreatorHistory } from "./creator-history.js";
 import { ReplyThreadBatch } from "./reply-thread-batch.js";
 import { ReplyReceiptRecovery } from "./reply-receipt-recovery.js";
@@ -847,6 +848,11 @@ export class BusinessHarness implements XGrowthHarness {
     args: import("./types.js").FollowbackAuditOptions,
   ) {
     return this.#followbackAudit.run(args);
+  }
+  public discoverFollowCandidates(
+    args: import("./types.js").FollowDiscoveryOptions,
+  ) {
+    return new FollowDiscovery((input) => this.readPeople(input)).run(args);
   }
   public readPeople(args: import("./types.js").PeopleOptions) {
     return this.read("readPeople", args, args.mode);

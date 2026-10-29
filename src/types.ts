@@ -205,6 +205,24 @@ export interface PeopleOptions {
   advance?: boolean;
   mode?: ReadMode;
 }
+export interface FollowDiscoveryOptions {
+  target: PeopleOptions["target"];
+  maxWindows?: number;
+  terms?: string[];
+  requireBlue?: boolean;
+  excludedHandles?: string[];
+}
+export interface FollowDiscoveryResult {
+  status: "observed" | "needsDecision";
+  diagnostic?: Diagnostic;
+  failureEvidenceRef?: EvidenceRef;
+  complete: false;
+  reason: string;
+  candidates: Array<PersonEvidence & { evidenceRef: string }>;
+  evidenceRefs: string[];
+  observedPeople: number;
+  requiresReview: true;
+}
 export interface WindowOptions {
   /** Skip known authors before expanding source cards. Does not approve other sources. */
   excludedHandles?: string[];
@@ -864,6 +882,9 @@ export interface XGrowthHarness {
   ): Promise<CreatorHistoryResult>;
   readCreator(args: CreatorOptions): Promise<ReadResult>;
   readPeople(args: PeopleOptions): Promise<ReadResult>;
+  discoverFollowCandidates(
+    args: FollowDiscoveryOptions,
+  ): Promise<FollowDiscoveryResult>;
   readFollowbackAudit(
     args: FollowbackAuditOptions,
   ): Promise<FollowbackAuditResult>;
