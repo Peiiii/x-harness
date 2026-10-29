@@ -1,7 +1,9 @@
+import { executionHoldsPage } from "./executor-actionability.js";
 import type { BoundaryRecord } from "./boundary.js";
 import type { GrowthDependencies } from "./growth-dependencies.js";
 
 export class GrowthReading {
+  static #readingTabs = new Set<string>();
   #platform!: GrowthDependencies["platform"];
   #executor!: GrowthDependencies["executor"];
   #store!: GrowthDependencies["store"];
@@ -42,14 +44,32 @@ export class GrowthReading {
     this.#readCache = new Map();
     this.readTask = this.handleReadTask.bind(this);
   }
+  private async assertReadTabAvailable(): Promise<void> {
+    const executor = this.#executor;
+    if (!executor) return;
+    const latest = await this.#store.load();
+    if (
+      Object.values(latest.state.executions ?? {}).some(
+        (e: any) =>
+          e.tabId === executor.tabId &&
+          e.runtimeId !== this.#runtimeId &&
+          executionHoldsPage(e) &&
+          this.#store.ownerAlive(e.pid),
+      )
+    )
+      throw new Error("same-tab-or-executor-claimed");
+  }
   private async handleReadTask(
     operation: any,
     { mode = "receipt", ...input }: any = {},
   ): Promise<any> {
-    const executor = this.#executor;
     if (!["decision", "receipt", "delta"].includes(mode))
       throw new Error("读取模式须为decision/receipt/delta");
-    if (this.#session.running)
+    if (
+      this.#session.running ||
+      (this.#executor?.tabId &&
+        GrowthReading.#readingTabs.has(this.#executor.tabId))
+    )
       return {
         status: "needsDecision",
         complete: false,
@@ -73,33 +93,10 @@ export class GrowthReading {
         ],
       };
     this.#session.running = true;
+    if (this.#executor?.tabId)
+      GrowthReading.#readingTabs.add(this.#executor.tabId);
     try {
-      if (executor)
-        await this.#store.transaction((latest: any) => {
-          const next = structuredClone(latest.state);
-          next.executions ??= {};
-          if (
-            Object.values(next.executions).some(
-              (e: any) =>
-                (e.tabId === executor.tabId || e.id === executor.id) &&
-                e.runtimeId !== this.#runtimeId &&
-                (e.activity || e.actionId) &&
-                this.#store.ownerAlive(e.pid),
-            )
-          )
-            throw new Error("same-tab-or-executor-claimed");
-          next.executions[executor.id] = {
-            ...next.executions[executor.id],
-            ...executor,
-            runtimeId: this.#runtimeId,
-            pid: this.#store.processId,
-            activity: operation,
-            status: next.executions[executor.id]?.status ?? "RUNNING",
-            updatedAt: this.#stamp(),
-          };
-          next.updatedAt = this.#stamp();
-          return next;
-        });
+      await this.assertReadTabAvailable();
       let value = await this.#platform[operation](input);
       if (
         operation === "readAccount" &&
@@ -208,11 +205,9 @@ export class GrowthReading {
             : diagnostic,
       };
     } finally {
-      try {
-        await this.#releaseSession();
-      } finally {
-        this.#session.running = false;
-      }
+      if (this.#executor?.tabId)
+        GrowthReading.#readingTabs.delete(this.#executor.tabId);
+      this.#session.running = false;
     }
   }
 }

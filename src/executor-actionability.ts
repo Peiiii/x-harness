@@ -23,3 +23,12 @@ export function actionableForExecutor(
     ),
   );
 }
+
+/** Read telemetry is not a durable claim on a tab or an executor. */
+export function executionHoldsPage(execution: any): boolean {
+  return Boolean(
+    execution.actionId ||
+    (execution.activity &&
+      !/^(?:read[A-Z]|searchSources$)/.test(execution.activity)),
+  );
+}

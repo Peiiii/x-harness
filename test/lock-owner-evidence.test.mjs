@@ -25,37 +25,28 @@ async function fixture(run) {
     await rm(dir, { recursive: true, force: true });
   }
 }
-test("new locks identify their unique owner and are released normally", () =>
+test("local edit sessions do not create a persistent owner lock", () =>
   fixture(async ({ store, lock }) => {
-    let tokens = [];
-    for (let i = 0; i < 2; i++)
-      await store.withLock(async () => {
-        const x = JSON.parse(await readFile(lock, "utf8"));
-        assert.equal(x.owner.executorId, "actor-1");
-        assert.equal(x.owner.tabId, "tab-1");
-        assert.ok(x.storeId);
-        assert.ok(x.token);
-        tokens.push(x.token);
-      });
-    assert.notEqual(tokens[0], tokens[1]);
-    await assert.rejects(readFile(lock, "utf8"), { code: "ENOENT" });
+    await store.withLock(async () => {
+      await assert.rejects(readFile(lock, "utf8"), { code: "ENOENT" });
+    });
   }));
-test("displaced holder neither saves nor removes a different lock", () =>
+test("a legacy owner fences writes until verified migration without being removed", () =>
   fixture(async ({ store, lock, ledger }) => {
     const original = await readFile(ledger, "utf8");
+    await writeFile(lock, JSON.stringify({ token: "different-owner" }));
     await assert.rejects(
       store.withLock(async () => {
-        let snap = await store.load();
-        await writeFile(lock, JSON.stringify({ token: "different-owner" }));
+        const snap = await store.load();
         await store.save(snap, { ...snap.state, changed: true });
       }),
-      /持有权已变化/,
+      /旧版账号锁/,
     );
+    assert.equal(await readFile(ledger, "utf8"), original);
     assert.equal(
       JSON.parse(await readFile(lock, "utf8")).token,
       "different-owner",
     );
-    assert.equal(await readFile(ledger, "utf8"), original);
   }));
 test("a lock without PID remains blocked rather than guessed dead", () =>
   fixture(async ({ store, lock }) => {
@@ -70,21 +61,13 @@ test("a lock without PID remains blocked rather than guessed dead", () =>
     );
   }));
 
-test("a wrapped root call gives its lock the matching trace identifiers", () =>
+test("an abandoned local edit session does not own a persistent filesystem lock", () =>
   fixture(async ({ store, lock }) => {
-    const { XUsageJournal } = await import("../dist/usage.js");
-    const journal = new XUsageJournal(
-      join(tmpdir(), "lock-owner-trace-" + Date.now()),
+    await assert.rejects(
+      store.withLock(async () => {
+        throw Error("interrupted-local-call");
+      }),
+      /interrupted-local-call/,
     );
-    const api = journal.wrap(
-      {
-        check: () =>
-          store.withLock(async () => JSON.parse(await readFile(lock, "utf8"))),
-      },
-      "harness",
-    );
-    const captured = await api.check();
-    assert.equal(captured.usageTrace.sessionId, journal.status().sessionId);
-    assert.ok(captured.usageTrace.rootCallId);
-    assert.equal(captured.usageTrace.callId, captured.usageTrace.rootCallId);
+    await assert.rejects(readFile(lock, "utf8"), { code: "ENOENT" });
   }));

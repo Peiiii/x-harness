@@ -143,6 +143,7 @@ export class FollowBatch {
     )
       throw new Error("batch-action-target-mismatch");
     await this.#prepareActionsForCall(taskId, preparedActions);
+    const requestedPacing = pacing;
     let batchId: any,
       resumedBatch = false;
     const original = await this.#store.transaction(async (snapshot: any) => {
@@ -166,7 +167,8 @@ export class FollowBatch {
           b.handles.length === handles.length &&
           b.handles.every((h: any, i: any) => same(h, handles[i])),
       );
-      pacing ??=
+      pacing =
+        requestedPacing ??
         previous?.pacing ??
         next.executions?.[executor?.id]?.followCadence?.intentPacing ??
         next.followCadence?.intentPacing;

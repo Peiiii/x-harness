@@ -28,29 +28,17 @@ const receipt = async (f, context) => {
   };
 };
 
-test("owned locks carry nonce and original usage context; errors release only their own lock", async (t) => {
-  const f = fixture(t),
-    usage = new XUsageJournal(f.dir);
-  let owner;
-  const root = usage.wrap(
-    {
-      async run() {
-        return f.store.withLock(() => {
-          owner = JSON.parse(readFileSync(lockPath(f), "utf8"));
-          throw Error("original-failure");
-        });
-      },
-    },
-    "harness",
+test("a local callback failure leaves no persistent owner artifact", async (t) => {
+  const f = fixture(t);
+  await assert.rejects(
+    f.store.withLock(() => {
+      throw Error("original-failure");
+    }),
+    /original-failure/,
   );
-  await assert.rejects(root.run(), /original-failure/);
-  assert.match(owner.token, /^[a-f0-9-]{36}$/);
-  assert.equal(owner.usageTrace.rootCallId, owner.usageTrace.callId);
-  assert.ok(owner.storeId);
   assert.equal(existsSync(lockPath(f)), false);
 });
-
-test("a late writer cannot save or unlink a replacement lock", async (t) => {
+test("unmigrated legacy writers remain fenced without changing their lock or ledger", async (t) => {
   const f = fixture(t),
     before = readFileSync(f.ledger, "utf8");
   await f.store.withLock(async () => {
@@ -60,10 +48,7 @@ test("a late writer cannot save or unlink a replacement lock", async (t) => {
       JSON.stringify({ token: "replacement", pid: process.pid }),
     );
     snapshot.state.updatedAt = "2030-01-01T00:00:00Z";
-    await assert.rejects(
-      f.store.save(snapshot, snapshot.state),
-      /(归属|持有权).*变化/,
-    );
+    await assert.rejects(f.store.save(snapshot, snapshot.state), /旧版账号锁/);
   });
   assert.equal(readFileSync(f.ledger, "utf8"), before);
   assert.equal(
@@ -71,7 +56,6 @@ test("a late writer cannot save or unlink a replacement lock", async (t) => {
     "replacement",
   );
 });
-
 test("old ownerless locks never expire merely by age", async (t) => {
   const f = fixture(t);
   legacy(f);
@@ -92,8 +76,8 @@ test("verified ownerless recovery runs under guard and preserves the entire orig
         fingerprint(readFileSync(lockPath(f))),
       );
       await assert.rejects(
-        f.store.withLock(() => {}),
-        /恢复核验进行中/,
+        f.store.transaction(({ state }) => state),
+        /(恢复核验进行中|旧版账号锁)/,
       );
       return receipt(f, context);
     },

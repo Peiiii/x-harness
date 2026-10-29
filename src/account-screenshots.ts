@@ -1,3 +1,4 @@
+import { executionHoldsPage } from "./executor-actionability.js";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -100,6 +101,7 @@ export class AccountScreenshots {
     try {
       let accountHandle = "";
       await this.#store.transaction(({ state }) => {
+        claimed = false;
         accountHandle = state.accountHandle;
         if (!accountHandle) throw new Error("ledger-account-unconfirmed");
         state.executions ??= {};
@@ -107,7 +109,7 @@ export class AccountScreenshots {
           Object.values(state.executions).some(
             (e: any) =>
               e.tabId === this.#tab.id &&
-              (e.activity || e.actionId) &&
+              executionHoldsPage(e) &&
               this.#store.ownerAlive(e.pid),
           )
         )

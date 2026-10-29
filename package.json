@@ -63,7 +63,7 @@
     "url": "https://github.com/Peiiii/x-harness/issues"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13"
   },
   "bin": {
     "x-harness": "./cli/main.js"

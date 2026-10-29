@@ -31,6 +31,7 @@ export class OriginalPostCadence {
       };
     let matches = false;
     const snapshot = await this.store.transaction((current) => {
+      matches = false;
       if (current.state.batchId !== options.taskId) return;
       matches = true;
       current.state.execution ??= {};
@@ -113,12 +114,9 @@ export class OriginalPostCadence {
       target.activatedAt = new Date(this.clock()).toISOString();
       return current.state;
     };
-    let snapshot: RoundSnapshot;
-    if (heldLock) {
-      snapshot = await this.store.load();
-      const next = apply(snapshot);
-      if (next) snapshot = await this.store.save(snapshot, next);
-    } else snapshot = await this.store.transaction(apply);
+    // The compatibility edit session no longer owns a physical account lock.
+    // Always revalidate this invariant in the short serializable transaction.
+    const snapshot = await this.store.transaction(apply);
     return { snapshot, need };
   }
 }

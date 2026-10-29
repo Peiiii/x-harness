@@ -13,17 +13,16 @@ import {
 import { dirname, resolve, join } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { readRound } from "./round-state.js";
-import { currentXUsageTrace } from "./usage.js";
+import { HarnessConflict } from "./store-conflict.js";
+import {
+  LedgerWriteGate,
+  ATOMIC_LEDGER_PROTOCOL,
+} from "./ledger-write-gate.js";
+import { mergeLedgerValue } from "./ledger-merge.js";
 const hash = (text: string | Uint8Array) =>
   createHash("sha256").update(text).digest("hex");
 const block = /```x-round-state\s*\n([\s\S]*?)\n```/;
-export class HarnessConflict extends Error {
-  code: string;
-  constructor(message: string) {
-    super(message);
-    this.code = "CONFLICT";
-  }
-}
+export { HarnessConflict } from "./store-conflict.js";
 // The only business state is the original ledger. Locks and proofs are not state replicas.
 export interface RoundSnapshot {
   state: BoundaryRecord;
@@ -64,6 +63,7 @@ export interface RoundStore {
   recordProof(proof: unknown): Promise<string>;
 }
 export class FileRoundStore implements RoundStore {
+  readonly writeCoordination = ATOMIC_LEDGER_PROTOCOL;
   readonly #ledgerPath!: {
     ledgerPath: string;
     proofDirectory: string;
@@ -76,8 +76,8 @@ export class FileRoundStore implements RoundStore {
   #lockPath!: ReturnType<typeof join>;
   #proofDir!: ReturnType<typeof resolve>;
   #held!: boolean;
-  #lockToken: string | null = null;
-  #storeId = randomUUID();
+  #originalSnapshots = new WeakMap<RoundSnapshot, string>();
+  #transactionSnapshots = new WeakSet<RoundSnapshot>();
   #owner?: { executorId?: string; runtimeId?: string; tabId?: string };
   path!: any;
   evidenceExists!: any;
@@ -137,17 +137,13 @@ export class FileRoundStore implements RoundStore {
   ): Promise<RoundSnapshot> {
     const start = Date.now();
     while (true) {
-      let entered = false;
       try {
-        return await this.withLock(async () => {
-          entered = true;
-          const snapshot = await this.load();
-          const state = await fn(snapshot);
-          return state ? this.save(snapshot, state) : snapshot;
-        });
+        const snapshot = await this.load();
+        this.#transactionSnapshots.add(snapshot);
+        const state = await fn(snapshot);
+        return state ? await this.save(snapshot, state) : snapshot;
       } catch (error: unknown) {
         if (
-          entered ||
           (error as NodeJS.ErrnoException).code !== "CONFLICT" ||
           Date.now() - start >= 2000
         )
@@ -158,37 +154,54 @@ export class FileRoundStore implements RoundStore {
   }
   public async load(): Promise<RoundSnapshot> {
     const text = readFileSync(this.#path, "utf8");
-    return { state: readRound(text), revision: hash(text), path: this.#path };
+    const snapshot = {
+      state: readRound(text),
+      revision: hash(text),
+      path: this.#path,
+    };
+    this.#originalSnapshots.set(snapshot, text);
+    return snapshot;
   }
   public async save(
     snapshot: RoundSnapshot,
     state: BoundaryRecord,
   ): Promise<RoundSnapshot> {
-    this.assertOwnedLock();
-    const text = readFileSync(this.#path, "utf8");
-    if (snapshot.revision !== hash(text))
-      throw new HarnessConflict("原台账已变化：重新定向读取，禁止覆盖");
-    if (readRound(text).batchId !== state.batchId)
-      throw new HarnessConflict("禁止替换原批次ID");
-    const next = text.replace(
-      block,
-      () => "```x-round-state\n" + JSON.stringify(state, null, 2) + "\n```",
-    );
-    const temp = `${this.#path}.harness-${randomUUID()}.tmp`;
-    try {
-      writeFileSync(temp, next, {
-        flag: "wx",
-        mode: statSync(this.#path).mode & 0o777,
-      });
-      // Other writers must honor the same lock; CAS additionally detects observed external edits.
-      this.assertOwnedLock();
-      if (hash(readFileSync(this.#path, "utf8")) !== snapshot.revision)
-        throw new HarnessConflict("原台账在结算中变化");
-      renameSync(temp, this.#path);
-    } finally {
-      if (existsSync(temp)) unlinkSync(temp);
-    }
-    return { state, revision: hash(next), path: this.#path };
+    if (!this.#held && !this.#transactionSnapshots.has(snapshot))
+      throw new HarnessConflict("保存原台账必须在本地编辑会话或原子事务中");
+    return new LedgerWriteGate(this.#path, this.#owner).run(() => {
+      const text = readFileSync(this.#path, "utf8"),
+        current = readRound(text);
+      if (current.batchId !== state.batchId)
+        throw new HarnessConflict("禁止替换原批次ID");
+      let merged = state;
+      if (snapshot.revision !== hash(text)) {
+        if (this.#transactionSnapshots.has(snapshot))
+          throw new HarnessConflict("原子事务快照已变化：按最新状态重算");
+        const base = this.#originalSnapshots.get(snapshot);
+        if (!base)
+          throw new HarnessConflict("原台账已变化且缺原始快照：重新读取");
+        merged = mergeLedgerValue(readRound(base), current, state);
+      }
+      const next = text.replace(
+        block,
+        () => "```x-round-state\n" + JSON.stringify(merged, null, 2) + "\n```",
+      );
+      const temp = `${this.#path}.harness-${randomUUID()}.tmp`;
+      try {
+        writeFileSync(temp, next, {
+          flag: "wx",
+          mode: statSync(this.#path).mode & 0o777,
+        });
+        if (hash(readFileSync(this.#path, "utf8")) !== hash(text))
+          throw new HarnessConflict("原台账被非原子写入者更改");
+        renameSync(temp, this.#path);
+      } finally {
+        if (existsSync(temp)) unlinkSync(temp);
+      }
+      const saved = { state: merged, revision: hash(next), path: this.#path };
+      this.#originalSnapshots.set(saved, next);
+      return saved;
+    });
   }
   private ownsLock(token: string | null): boolean {
     if (!token) return false;
@@ -198,47 +211,14 @@ export class FileRoundStore implements RoundStore {
       return false;
     }
   }
-  private assertOwnedLock() {
-    if (!this.#held || !this.ownsLock(this.#lockToken))
-      throw new HarnessConflict("账号锁持有权已变化：禁止保存台账");
-  }
+  /** Compatibility edit session. No physical lock is held while fn awaits. */
   public async withLock<T>(fn: () => T | Promise<T>): Promise<T> {
-    if (this.#held) throw new HarnessConflict("账号操作禁止重入");
-    if (existsSync(`${this.#lockPath}.recovery`))
-      throw new HarnessConflict("原锁恢复核验进行中");
-    let fd: number;
+    if (this.#held) throw new HarnessConflict("同一存储实例禁止重入");
+    this.#held = true;
     try {
-      fd = openSync(this.#lockPath, "wx", 0o600);
-    } catch (error: unknown) {
-      if ((error as NodeJS.ErrnoException).code === "EEXIST")
-        throw new HarnessConflict("账号锁占用：不并发写、不自动偷锁");
-      throw error;
-    }
-    const token = randomUUID();
-    try {
-      writeFileSync(
-        fd,
-        JSON.stringify({
-          pid: typeof process !== "undefined" ? process.pid : null,
-          token,
-          storeId: this.#storeId,
-          ...(this.#owner ? { owner: this.#owner } : {}),
-          ...(currentXUsageTrace() ? { usageTrace: currentXUsageTrace() } : {}),
-          acquiredAt: new Date().toISOString(),
-          ledgerPath: this.#path,
-        }),
-      );
-      this.#held = true;
-      this.#lockToken = token;
       return await fn();
     } finally {
       this.#held = false;
-      this.#lockToken = null;
-      try {
-        closeSync(fd);
-      } finally {
-        if (this.ownsLock(token)) unlinkSync(this.#lockPath);
-      }
     }
   }
   private releaseOwnedFile(path: string, token: string) {
@@ -255,6 +235,20 @@ export class FileRoundStore implements RoundStore {
     recovered: boolean;
     evidenceRef: string;
   }> {
+    if (existsSync(this.#lockPath)) {
+      let originalOwner: any;
+      try {
+        originalOwner = JSON.parse(readFileSync(this.#lockPath, "utf8"));
+      } catch {}
+      if (originalOwner?.protocol === ATOMIC_LEDGER_PROTOCOL)
+        return {
+          recovered: false,
+          evidenceRef: await this.recordProof({
+            recovery: "not-required-native-atomic-coordination",
+            legacyWritesBlocked: true,
+          }),
+        };
+    }
     if (this.#held) throw new HarnessConflict("不能恢复当前正在持有的锁");
     const recovery = `${this.#lockPath}.recovery`;
     let fd: number;

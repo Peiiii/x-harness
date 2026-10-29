@@ -171,6 +171,7 @@ export class ProfilePin {
       };
     let claimed = false;
     await this.store.transaction(({ state }) => {
+      claimed = false;
       state.profilePins ??= {};
       if (
         !state.profilePins[options.taskId] ||

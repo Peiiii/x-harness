@@ -131,8 +131,8 @@ test("shared atomic click reservations permit only one simultaneous original", a
   const second = new OriginalPostCadence(other.store, () => NOW);
   const actions = f.read().actions;
   const results = await Promise.all([
-    first.reserve(actions[0]),
-    second.reserve(actions[1]),
+    f.store.withLock(() => first.reserve(actions[0], true)),
+    other.store.withLock(() => second.reserve(actions[1], true)),
   ]);
   assert.equal(results.filter((r) => !r.need).length, 1);
   assert.equal(results.filter((r) => r.need?.status === "waiting").length, 1);

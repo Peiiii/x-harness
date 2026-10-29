@@ -1,3 +1,4 @@
+import { executionHoldsPage } from "./executor-actionability.js";
 import type { GrowthDependencies } from "./growth-dependencies.js";
 import { randomUUID } from "node:crypto";
 
@@ -110,9 +111,9 @@ export class ParallelRound {
         if (
           Object.values(next.executions).some(
             (e: any) =>
-              (e.tabId === executor.tabId || e.id === executor.id) &&
+              e.tabId === executor.tabId &&
               e.runtimeId !== this.#runtimeId &&
-              (e.activity || e.actionId) &&
+              executionHoldsPage(e) &&
               this.#store.ownerAlive(e.pid),
           )
         )
@@ -246,6 +247,7 @@ export class ParallelRound {
             continue;
           try {
             snapshot = await this.#store.transaction((latest: any) => {
+              this.#session.claim = null;
               const next = structuredClone(latest.state),
                 action = next.actions.find((a: any) => a.id === original.id);
               if (next.batchId !== taskId)
