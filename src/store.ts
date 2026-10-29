@@ -135,7 +135,7 @@ export class FileRoundStore implements RoundStore {
       snapshot: RoundSnapshot,
     ) => BoundaryRecord | undefined | Promise<BoundaryRecord | undefined>,
   ): Promise<RoundSnapshot> {
-    const start = Date.now();
+    let conflictStart: number | undefined;
     while (true) {
       try {
         const snapshot = await this.load();
@@ -143,11 +143,9 @@ export class FileRoundStore implements RoundStore {
         const state = await fn(snapshot);
         return state ? await this.save(snapshot, state) : snapshot;
       } catch (error: unknown) {
-        if (
-          (error as NodeJS.ErrnoException).code !== "CONFLICT" ||
-          Date.now() - start >= 2000
-        )
-          throw error;
+        if ((error as NodeJS.ErrnoException).code !== "CONFLICT") throw error;
+        conflictStart ??= Date.now();
+        if (Date.now() - conflictStart >= 2000) throw error;
         await new Promise<void>((resolve) => setTimeout(resolve, 10));
       }
     }

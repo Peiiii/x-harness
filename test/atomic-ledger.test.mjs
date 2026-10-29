@@ -227,3 +227,49 @@ test("a different page can continue an independent target without clearing the o
   );
   assert.equal(f.writes.length, 1);
 });
+
+test("a slow first calculation still recomputes an independently changed snapshot", async (t) => {
+  const f = fixture(t),
+    other = storeFor(f);
+  let started;
+  const ready = new Promise((r) => (started = r));
+  let calls = 0;
+  const pending = f.store.transaction(async ({ state }) => {
+    state.items[0].verified++;
+    if (++calls === 1) {
+      started();
+      await new Promise((r) => setTimeout(r, 2100));
+    }
+    return state;
+  });
+  await ready;
+  await other.transaction(({ state }) => {
+    state.items[0].verified++;
+    return state;
+  });
+  await pending;
+  assert.equal(f.read().items[0].verified, 2);
+  assert.equal(calls, 2);
+});
+
+test("sustained conflicts remain bounded and never persist a discarded mutation", async (t) => {
+  const f = fixture(t),
+    before = readFileSync(f.ledger, "utf8");
+  let attempts = 0;
+  f.store.save = async () => {
+    attempts++;
+    throw Object.assign(new Error("forced conflict"), { code: "CONFLICT" });
+  };
+  const started = Date.now();
+  await assert.rejects(
+    f.store.transaction(({ state }) => {
+      state.items[0].verified++;
+      return state;
+    }),
+    /forced conflict/,
+  );
+  const elapsed = Date.now() - started;
+  assert.ok(attempts > 1);
+  assert.ok(elapsed >= 1900 && elapsed < 5000);
+  assert.equal(readFileSync(f.ledger, "utf8"), before);
+});
