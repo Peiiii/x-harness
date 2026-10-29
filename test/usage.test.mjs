@@ -215,3 +215,97 @@ test("failed root receipts retain the safe reason and link full evidence without
   assert.match(record.binding.moduleURL, /\/usage\.js$/);
   assert(!JSON.stringify(record).includes("PRIVATE BODY"));
 });
+
+test("foreign-realm errors keep their classification and original thrown identity", async (t) => {
+  const { runInNewContext } = await import("node:vm");
+  const dir = fixture(t),
+    usage = new XUsageJournal(dir);
+  const error = runInNewContext('new Error("HTTP-429 PRIVATE")');
+  const api = usage.wrap(
+    {
+      read() {
+        throw error;
+      },
+    },
+    "browser",
+  );
+  assert.throws(
+    () => api.read(),
+    (value) => value === error,
+  );
+  const records = readdirSync(usage.status().directory).map((name) =>
+    JSON.parse(readFileSync(join(usage.status().directory, name), "utf8")),
+  );
+  assert.equal(records[0].http429, true);
+  assert.equal(records[0].threw, true);
+  assert.ok(!JSON.stringify(records).includes("PRIVATE"));
+});
+
+for (const field of ["status", "then"]) {
+  test(`optional telemetry inspection of ${field} never changes a successful return`, (t) => {
+    const dir = fixture(t),
+      usage = new XUsageJournal(dir);
+    let calls = 0;
+    const result = Object.defineProperty({}, field, {
+      get() {
+        throw Error("PRIVATE telemetry getter");
+      },
+    });
+    const api = usage.wrap(
+      {
+        submit() {
+          calls++;
+          return result;
+        },
+      },
+      "harness",
+    );
+    assert.equal(api.submit(), result);
+    assert.equal(calls, 1);
+    const records = readdirSync(usage.status().directory).map((name) =>
+      JSON.parse(readFileSync(join(usage.status().directory, name), "utf8")),
+    );
+    assert.equal(records.length, 1);
+    assert.equal(records[0].threw, false);
+    assert.ok(records[0].finishedAt);
+    assert.equal(
+      records[0].telemetryGap,
+      field === "then"
+        ? "thenable-inspection-unavailable"
+        : "result-fields-unreadable",
+    );
+    assert.ok(!JSON.stringify(records).includes("PRIVATE"));
+    assert.equal(readXUsageReport([dir]).gaps[0].code, records[0].telemetryGap);
+  });
+}
+
+test("an unreadable error message never replaces the original business exception", (t) => {
+  const dir = fixture(t),
+    usage = new XUsageJournal(dir);
+  const original = Object.defineProperty(new Error(), "message", {
+    get() {
+      throw Error("PRIVATE logger exception");
+    },
+  });
+  const api = usage.wrap(
+    {
+      fail() {
+        throw original;
+      },
+    },
+    "harness",
+  );
+  assert.throws(
+    () => api.fail(),
+    (value) => value === original,
+  );
+  const records = readdirSync(usage.status().directory).map((name) =>
+    JSON.parse(readFileSync(join(usage.status().directory, name), "utf8")),
+  );
+  assert.equal(records[0].threw, true);
+  assert.equal(records[0].telemetryGap, "result-fields-unreadable");
+  assert.equal(
+    readXUsageReport([dir]).gaps[0].code,
+    "result-fields-unreadable",
+  );
+});

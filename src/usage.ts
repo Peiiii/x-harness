@@ -62,6 +62,7 @@ interface UsageRecord {
   needsStateCheck?: boolean;
   missing?: string[];
   hasAlerts?: boolean;
+  telemetryGap?: "result-fields-unreadable" | "thenable-inspection-unavailable";
 }
 const label = (value: unknown): string | undefined =>
   typeof value === "string" && /^[A-Za-z][A-Za-z0-9:_-]{0,95}$/.test(value)
@@ -185,33 +186,18 @@ export class XUsageJournal {
       },
     });
   }
-  #call(
-    invoke: () => unknown,
-    layer: UsageRecord["layer"],
-    operation: string,
-    kind?: "step",
+  #finish(
+    record: UsageRecord,
+    started: number,
+    result: unknown,
+    threw = false,
+    telemetryGap?: UsageRecord["telemetryGap"],
   ): unknown {
-    const started = Date.now();
-    const active = usageContext.getStore();
-    const parent = active?.sessionId === this.#sessionId ? active : undefined;
-    const callId = randomUUID();
-    const record: UsageRecord = {
-      schema: 1,
-      id: callId,
-      sessionId: this.#sessionId,
-      rootCallId: parent?.rootCallId ?? callId,
-      ...(parent ? { parentCallId: parent.callId } : {}),
-      binding: this.#binding,
-      layer,
-      operation,
-      ...(kind ? { kind } : {}),
-      startedAt: new Date(started).toISOString(),
-    };
-    if (!kind) this.#calls++;
-    this.#write(record);
-    const finish = (result: unknown, threw = false) => {
+    if (telemetryGap) this.#failedWrites++;
+    try {
       const raw = result as {
         status?: unknown;
+        message?: unknown;
         reason?: unknown;
         diagnostic?: { code?: unknown; category?: unknown };
         evidenceRef?: unknown;
@@ -221,13 +207,16 @@ export class XUsageJournal {
         readTransport?: unknown;
         domReadTiming?: unknown;
       } | null;
+      const thrownMessage =
+        threw && typeof result !== "string" ? raw?.message : result;
       const reason = threw
-        ? result instanceof Error
-          ? result.message
+        ? typeof thrownMessage === "string"
+          ? thrownMessage
           : ""
         : (raw?.reason ?? raw?.diagnostic?.code);
       this.#write({
         ...record,
+        ...(telemetryGap ? { telemetryGap } : {}),
         finishedAt: new Date().toISOString(),
         durationMs: Math.max(0, Date.now() - started),
         status: threw ? "threw" : (label(raw?.status) ?? "returned"),
@@ -266,8 +255,8 @@ export class XUsageJournal {
         ...(raw?.readTransport === "native-fallback"
           ? { readTransport: "native-fallback" as const }
           : {}),
-        ...(layer === "browser" &&
-        operation === "observe" &&
+        ...(record.layer === "browser" &&
+        record.operation === "observe" &&
         readTiming(raw?.domReadTiming)
           ? { domReadTiming: readTiming(raw?.domReadTiming) }
           : {}),
@@ -275,8 +264,48 @@ export class XUsageJournal {
           typeof reason === "string" &&
           /(?:HTTP[- :]*429|\b429\b)/i.test(reason),
       });
-      return result;
+    } catch {
+      this.#failedWrites++;
+      this.#write({
+        ...record,
+        finishedAt: new Date().toISOString(),
+        durationMs: Math.max(0, Date.now() - started),
+        status: threw ? "threw" : "returned",
+        threw,
+        telemetryGap: "result-fields-unreadable",
+      });
+    }
+    return result;
+  }
+  #call(
+    invoke: () => unknown,
+    layer: UsageRecord["layer"],
+    operation: string,
+    kind?: "step",
+  ): unknown {
+    const started = Date.now();
+    const active = usageContext.getStore();
+    const parent = active?.sessionId === this.#sessionId ? active : undefined;
+    const callId = randomUUID();
+    const record: UsageRecord = {
+      schema: 1,
+      id: callId,
+      sessionId: this.#sessionId,
+      rootCallId: parent?.rootCallId ?? callId,
+      ...(parent ? { parentCallId: parent.callId } : {}),
+      binding: this.#binding,
+      layer,
+      operation,
+      ...(kind ? { kind } : {}),
+      startedAt: new Date(started).toISOString(),
     };
+    if (!kind) this.#calls++;
+    this.#write(record);
+    const finish = (
+      value: unknown,
+      threw = false,
+      gap?: UsageRecord["telemetryGap"],
+    ) => this.#finish(record, started, value, threw, gap);
     return usageContext.run(
       {
         sessionId: this.#sessionId,
@@ -287,8 +316,13 @@ export class XUsageJournal {
       () => {
         try {
           const result = invoke();
-          return result &&
-            typeof (result as PromiseLike<unknown>).then === "function"
+          let then: unknown;
+          try {
+            then = result && (result as PromiseLike<unknown>).then;
+          } catch {
+            return finish(result, false, "thenable-inspection-unavailable");
+          }
+          return typeof then === "function"
             ? Promise.resolve(result).then(
                 (value) => finish(value),
                 (error) => {
@@ -346,6 +380,11 @@ export function readXUsageReport(
           continue;
         if (!records.get(value.id)?.finishedAt || value.finishedAt)
           records.set(value.id, value);
+        if (
+          value.telemetryGap === "result-fields-unreadable" ||
+          value.telemetryGap === "thenable-inspection-unavailable"
+        )
+          gaps.push({ directory: path, code: value.telemetryGap });
       } catch {
         gaps.push({ directory: path, code: "malformed-usage-record" });
       }
