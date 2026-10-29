@@ -53,7 +53,10 @@ test("first connection checks once and opens once; factory runs no business and 
   assert.deepEqual(f.calls, ["check", "open"]);
   assert.equal(result.tab, f.tab);
   assert.equal(result.connection.recovered, false);
-  assert.equal(result.connection.evidenceRef, undefined);
+  assert.equal(
+    JSON.parse(readFileSync(result.connection.evidenceRef)).outcome,
+    "ready",
+  );
   await result.harness.inspectAccount();
   await result.harness.inspectAccount();
   assert.deepEqual(f.calls, [
@@ -149,4 +152,55 @@ test("invalid options reject before host I/O", async (t) => {
     /options-invalid/,
   );
   assert.deepEqual(f.calls, []);
+});
+
+for (const phase of ["check", "open-tab"]) {
+  test(`connection persists ${phase} entry before awaiting the host`, async (t) => {
+    const f = setup(t);
+    let finish;
+    let entered;
+    const ready = new Promise((resolve) => {
+      entered = resolve;
+    });
+    const pending = new Promise((resolve) => {
+      finish = resolve;
+    });
+    const wait = async () => {
+      entered();
+      return pending;
+    };
+    if (phase === "check") f.options.connection.check = wait;
+    else f.options.connection.openTab = wait;
+    const operation = createXGrowthHarness(f.options);
+    await ready;
+    const proofs = readdirSync(f.dir)
+      .filter((name) => name.endsWith(".json"))
+      .map((name) => JSON.parse(readFileSync(join(f.dir, name), "utf8")));
+    const started = proofs.find(
+      (p) =>
+        p.operation === "connect-host" &&
+        p.outcome === "started" &&
+        p.connection.phase === phase,
+    );
+    assert.ok(started, "a host reset must leave the entered phase on disk");
+    assert.equal(started.completion, "not-recorded");
+    finish(phase === "open-tab" ? f.tab : undefined);
+    const result = await operation;
+    assert.equal(result.status, "ready");
+    const final = JSON.parse(
+      readFileSync(result.connection.evidenceRef, "utf8"),
+    );
+    assert.equal(final.outcome, "ready");
+    assert.equal(final.completion, "recorded");
+  });
+}
+
+test("optional start telemetry failure does not block a healthy connection", async (t) => {
+  const f = setup(t);
+  const blocked = join(f.dir, "not-directory");
+  writeFileSync(blocked, "fixture");
+  f.options.proofDirectory = blocked;
+  const result = await createXGrowthHarness(f.options);
+  assert.equal(result.status, "ready");
+  assert.deepEqual(f.calls, ["check", "open"]);
 });

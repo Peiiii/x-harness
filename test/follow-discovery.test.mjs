@@ -76,10 +76,13 @@ test("deduplicates list windows, excludes existing follows and carries each orig
       ],
     },
   ];
-  const api = new FollowDiscovery(async (a) => {
-    calls.push(a);
-    return pages.shift();
-  });
+  const api = new FollowDiscovery(
+    async (a) => {
+      calls.push(a);
+      return pages.shift();
+    },
+    { clock: () => Date.parse("2026-10-29T10:00:00+08:00") },
+  );
   const r = await api.run({
     target: { url: "https://x.com/sample/following", evidenceRef: "seed" },
     terms: ["ai"],
@@ -103,10 +106,13 @@ test("deduplicates list windows, excludes existing follows and carries each orig
 
 test("unconfirmed window stops without inferring more candidates", async () => {
   let count = 0;
-  const api = new FollowDiscovery(async () => {
-    count++;
-    return { status: "needsDecision", fresh: false, reason: "unconfirmed" };
-  });
+  const api = new FollowDiscovery(
+    async () => {
+      count++;
+      return { status: "needsDecision", fresh: false, reason: "unconfirmed" };
+    },
+    { clock: () => Date.parse("2026-10-29T10:00:00+08:00") },
+  );
   const r = await api.run({
     target: { url: "https://x.com/sample/following", evidenceRef: "seed" },
   });
@@ -117,24 +123,27 @@ test("unconfirmed window stops without inferring more candidates", async () => {
 });
 
 test("ASCII topic matches whole words rather than substrings", async () => {
-  const api = new FollowDiscovery(async () => ({
-    status: "observed",
-    fresh: true,
-    evidenceRef: "proof",
-    moreInDOM: false,
-    people: [
-      {
-        handle: "wrong",
-        relationship: "not-following",
-        biography: "chain airdrops",
-      },
-      {
-        handle: "right",
-        relationship: "not-following",
-        biography: "分享AI工具",
-      },
-    ],
-  }));
+  const api = new FollowDiscovery(
+    async () => ({
+      status: "observed",
+      fresh: true,
+      evidenceRef: "proof",
+      moreInDOM: false,
+      people: [
+        {
+          handle: "wrong",
+          relationship: "not-following",
+          biography: "chain airdrops",
+        },
+        {
+          handle: "right",
+          relationship: "not-following",
+          biography: "分享AI工具",
+        },
+      ],
+    }),
+    { clock: () => Date.parse("2026-10-29T10:00:00+08:00") },
+  );
   const r = await api.run({
     target: { url: "https://x.com/sample/following", evidenceRef: "seed" },
     terms: ["AI"],

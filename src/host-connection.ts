@@ -50,6 +50,7 @@ export class HostConnection {
     ).recordProof({
       operation: "connect-host",
       outcome,
+      completion: outcome === "started" ? "not-recorded" : "recorded",
       observedAt: new Date().toISOString(),
       connection: this.receipt(),
       attempts: this.#attempts,
@@ -98,6 +99,7 @@ export class HostConnection {
     for (let attempt = 1; attempt <= 2; attempt++) {
       this.#receipt.checkAttempts = attempt;
       const started = Date.now();
+      await this.proof("started").catch(() => {});
       try {
         await options.connection.check();
         this.#attempts.push({
@@ -128,6 +130,7 @@ export class HostConnection {
     this.#receipt.phase = "open-tab";
     this.#receipt.openAttempts = 1;
     const started = Date.now();
+    await this.proof("started").catch(() => {});
     try {
       this.#tab = await options.connection.openTab();
       this.#attempts.push({
@@ -139,7 +142,9 @@ export class HostConnection {
       if (!this.#tab?.id) throw new Error("owned-tab-id-missing");
       const harness = bindXGrowthHarness({ ...options, tab: this.#tab });
       this.#receipt.phase = "ready";
-      if (this.#receipt.recovered) await this.proof("recovered");
+      await this.proof(this.#receipt.recovered ? "recovered" : "ready").catch(
+        () => {},
+      );
       return {
         status: "ready",
         harness,

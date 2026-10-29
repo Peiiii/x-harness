@@ -11,7 +11,13 @@ function matchesTerm(biography: string, term: string) {
 
 /** Bounded, read-only list discovery; returned rows require business review. */
 export class FollowDiscovery {
-  constructor(private read: (args: PeopleOptions) => Promise<ReadResult>) {}
+  constructor(
+    private read: (args: PeopleOptions) => Promise<ReadResult>,
+    private window: {
+      clock: () => number;
+      authorizedEarlyRead?: () => Promise<boolean>;
+    } = { clock: Date.now },
+  ) {}
 
   async run(args: {
     target: PeopleOptions["target"];
@@ -35,7 +41,10 @@ export class FollowDiscovery {
       reason = "window-budget-exhausted";
     let failed: ReadResult | undefined;
     for (let i = 0; i < max; i++) {
-      if (new Date(Date.now() + 8 * 3600000).getUTCHours() < 7) {
+      if (
+        new Date(this.window.clock() + 8 * 3600000).getUTCHours() < 7 &&
+        !(await this.window.authorizedEarlyRead?.())
+      ) {
         reason = "night-read-boundary";
         break;
       }
