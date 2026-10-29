@@ -760,6 +760,8 @@ export type HarnessOptions = (
 ) & {
   ledgerPath: string;
   proofDirectory: string;
+  /** Resolve relative evidence and draft references against the caller's workspace. */
+  referenceRoot?: string;
   clock?: () => number;
   executor?: Executor;
   /** Optional caller-verified artifact identity, recorded locally; never a write permit. */
@@ -783,6 +785,7 @@ export type HostConnectionOptions = Pick<
   HarnessOptions,
   | "ledgerPath"
   | "proofDirectory"
+  | "referenceRoot"
   | "clock"
   | "executor"
   | "originalContentGuard"

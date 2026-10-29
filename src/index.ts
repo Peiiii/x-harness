@@ -30,3 +30,6 @@ Object.defineProperty(createXGrowthHarness, "originalContentGuardVersion", {
 Object.defineProperty(createXGrowthHarness, "originalPostActivationVersion", {
   value: 1,
 });
+Object.defineProperty(createXGrowthHarness, "referenceRootVersion", {
+  value: 1,
+});

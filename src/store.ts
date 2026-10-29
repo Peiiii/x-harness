@@ -76,6 +76,7 @@ export class FileRoundStore implements RoundStore {
   #lockPath!: ReturnType<typeof join>;
   #proofDir!: ReturnType<typeof resolve>;
   #held!: boolean;
+  #referenceRoot?: string;
   #originalSnapshots = new WeakMap<RoundSnapshot, string>();
   #transactionSnapshots = new WeakSet<RoundSnapshot>();
   #owner?: { executorId?: string; runtimeId?: string; tabId?: string };
@@ -86,10 +87,12 @@ export class FileRoundStore implements RoundStore {
     ledgerPath,
     proofDirectory,
     lockOwner,
+    referenceRoot,
   }: {
     ledgerPath: string;
     proofDirectory: string;
     lockOwner?: { executorId?: string; runtimeId?: string; tabId?: string };
+    referenceRoot?: string;
   }) {
     this.recordProof = this.recordProof.bind(this);
     this.recoverAbandonedLock = this.recoverAbandonedLock.bind(this);
@@ -107,11 +110,22 @@ export class FileRoundStore implements RoundStore {
     this.#held = false;
     this.#owner = lockOwner;
     this.path = this.#path;
-    this.evidenceExists = existsSync;
+    this.#referenceRoot = referenceRoot ? resolve(referenceRoot) : undefined;
+    this.evidenceExists = (file: string) =>
+      typeof file === "string" &&
+      existsSync(
+        this.#referenceRoot ? resolve(this.#referenceRoot, file) : file,
+      );
     this.processId = typeof process !== "undefined" ? process.pid : null;
   }
   public fingerprint(file: string) {
-    return hash(readFileSync(resolve(file)));
+    return hash(
+      readFileSync(
+        this.#referenceRoot
+          ? resolve(this.#referenceRoot, file)
+          : resolve(file),
+      ),
+    );
   }
   public ownerAlive(ownerPid: unknown): boolean {
     if (

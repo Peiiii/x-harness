@@ -14,6 +14,21 @@ const storeFor = (f) =>
     ledgerPath: f.ledger,
     proofDirectory: join(f.dir, "proofs"),
   });
+test("workspace root resolves relative drafts and evidence independently of the host working directory", (t) => {
+  const f = fixture(t);
+  const store = createFileRoundStore({
+    ledgerPath: f.ledger,
+    proofDirectory: join(f.dir, "proofs"),
+    referenceRoot: f.dir,
+  });
+  assert.equal(
+    store.fingerprint("draft.post.md"),
+    store.fingerprint(join(f.dir, "draft.post.md")),
+  );
+  assert.equal(store.evidenceExists("review.json"), true);
+  assert.equal(store.evidenceExists("missing.json"), false);
+  assert.equal(store.evidenceExists(undefined), false);
+});
 test("an awaiting local mutation does not block another page, and independent state is merged", async (t) => {
   const f = fixture(t),
     other = storeFor(f);

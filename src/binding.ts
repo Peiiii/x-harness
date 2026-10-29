@@ -33,6 +33,7 @@ export function bindXGrowthHarness(options: HarnessOptions): XGrowthHarness {
   const store = createFileRoundStore({
     ledgerPath,
     proofDirectory,
+    referenceRoot: options.referenceRoot,
     lockOwner: executor
       ? {
           executorId: executor.id,
