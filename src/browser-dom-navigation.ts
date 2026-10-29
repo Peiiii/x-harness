@@ -485,16 +485,32 @@ export class DOMNavigation {
         command.url,
       );
     } else if (command.view === "people") {
-      await this.#tab.playwright
-        .locator('main [data-testid="primaryColumn"] [data-testid="UserCell"]')
-        .first()
-        .waitFor({ state: "visible", timeoutMs: 5000 });
+      await this.waitPeople(command.url);
     } else if (command.view === "composer") {
       await this.waitComposer(command.url);
     } else if (command.view === "posts") {
       await this.waitObservedPost(command.url);
     }
     return;
+  }
+  private async waitPeople(url: string) {
+    const people = this.#tab.playwright
+      .locator('main [data-testid="primaryColumn"] [data-testid="UserCell"]')
+      .first();
+    try {
+      await people.waitFor({ state: "visible", timeoutMs: 5000 });
+    } catch (error: unknown) {
+      // Retry a slow list only on the exact route; do not infer emptiness.
+      if (
+        !/timed out|timeout|deadline exceeded/i.test(
+          error instanceof Error ? error.message : String(error),
+        ) ||
+        typeof this.#tab.url !== "function" ||
+        (await this.#tab.url()) !== xURL(url).href
+      )
+        throw error;
+      await people.waitFor({ state: "visible", timeoutMs: 5000 });
+    }
   }
   private async waitComposer(url: string) {
     const editor = this.#tab.playwright.getByRole("textbox", {
