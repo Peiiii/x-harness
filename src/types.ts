@@ -223,6 +223,23 @@ export interface FollowDiscoveryResult {
   observedPeople: number;
   requiresReview: true;
 }
+export interface FollowProfileBatchOptions {
+  targets: PersonTarget[];
+  excludedHandles?: string[];
+  requireBlue?: boolean;
+  /** Caller-owned ISO deadline; no new reads start at or after it. */
+  stopAt?: string;
+}
+export interface FollowProfileBatchResult {
+  status: "observed" | "needsDecision";
+  candidates: Array<PersonEvidence & { evidenceRef: EvidenceRef }>;
+  skipped: Array<{ handle: string; reason: string; evidenceRef?: EvidenceRef }>;
+  remaining: PersonTarget[];
+  reason?: string;
+  diagnostic?: Diagnostic;
+  failureEvidenceRef?: EvidenceRef;
+  requiresReview: true;
+}
 export interface WindowOptions {
   /** Skip known authors before expanding source cards. Does not approve other sources. */
   excludedHandles?: string[];
@@ -882,6 +899,9 @@ export interface XGrowthHarness {
   ): Promise<CreatorHistoryResult>;
   readCreator(args: CreatorOptions): Promise<ReadResult>;
   readPeople(args: PeopleOptions): Promise<ReadResult>;
+  readFollowCandidateProfiles(
+    args: FollowProfileBatchOptions,
+  ): Promise<FollowProfileBatchResult>;
   discoverFollowCandidates(
     args: FollowDiscoveryOptions,
   ): Promise<FollowDiscoveryResult>;
