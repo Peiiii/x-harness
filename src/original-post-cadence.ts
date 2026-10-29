@@ -34,6 +34,12 @@ export class OriginalPostCadence {
       matches = false;
       if (current.state.batchId !== options.taskId) return;
       matches = true;
+      const configured = current.state.execution?.originalCadence;
+      if (
+        configured?.minGapMs === options.minGapMs &&
+        configured?.evidenceRef === options.evidenceRef
+      )
+        return;
       current.state.execution ??= {};
       current.state.execution.originalCadence = {
         minGapMs: options.minGapMs,

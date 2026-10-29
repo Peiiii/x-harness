@@ -269,3 +269,31 @@ test("original-scoped root retains activation and blocks the next same-account p
     "waiting",
   );
 });
+
+test("unchanged authorized cadence is read without rewriting the shared ledger", async (t) => {
+  const f = prepared(t);
+  await enable(f);
+  const save = f.store.save.bind(f.store);
+  let writes = 0;
+  f.store.save = async (...args) => {
+    writes++;
+    return save(...args);
+  };
+  const same = await f.api.configureOriginalCadence({
+    taskId: "round-1",
+    minGapMs: 120000,
+    userAuthorized: true,
+    evidenceRef: f.proof,
+  });
+  assert.equal(same.status, "configured");
+  assert.equal(writes, 0);
+  const changed = await f.api.configureOriginalCadence({
+    taskId: "round-1",
+    minGapMs: 180000,
+    userAuthorized: true,
+    evidenceRef: f.proof,
+  });
+  assert.equal(changed.status, "configured");
+  assert.equal(writes, 1);
+  assert.equal(f.read().execution.originalCadence.minGapMs, 180000);
+});
