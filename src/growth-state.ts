@@ -289,19 +289,33 @@ export class GrowthState {
   private async handleReleaseSession(taskId: any = undefined): Promise<any> {
     const executor = this.#executor;
     if (!executor) return;
+    const owned = this.#session.claim;
     await this.#store.transaction((latest: any) => {
       const own = latest.state.executions?.[executor.id];
       if (
         (taskId && latest.state.batchId !== taskId) ||
-        own?.runtimeId !== this.#runtimeId ||
-        !own.activity
+        own?.runtimeId !== this.#runtimeId
       )
         return null;
+      const action =
+        owned &&
+        latest.state.actions?.find((a: any) => a.id === owned.actionId);
+      const releaseClaim =
+        owned?.runtimeId === this.#runtimeId &&
+        action?.claim?.token === owned.token;
+      if (!own.activity && !releaseClaim) return null;
       const next = structuredClone(latest.state);
       delete next.executions[executor.id].activity;
+      if (releaseClaim) {
+        delete next.actions.find((a: any) => a.id === owned.actionId).claim;
+        if (next.executions[executor.id].actionId === owned.actionId)
+          delete next.executions[executor.id].actionId;
+      }
       next.updatedAt = this.#stamp();
       return next;
     });
+    if (owned && this.#session.claim?.token === owned.token)
+      this.#session.claim = null;
   }
 }
 export function createGrowthState(

@@ -273,3 +273,64 @@ test("sustained conflicts remain bounded and never persist a discarded mutation"
   assert.ok(elapsed >= 1900 && elapsed < 5000);
   assert.equal(readFileSync(f.ledger, "utf8"), before);
 });
+
+test("claim cleanup conflict after settlement is recovered without repeating the action", async (t) => {
+  const f = fixture(t),
+    actor = f.newExecutor("cleanup-owner", ["follow"]),
+    originalSave = actor.store.save.bind(actor.store);
+  let failed = false;
+  actor.store.save = async (snapshot, state) => {
+    const before = snapshot.state.actions.find((a) => a.id === "follow-0");
+    const after = state.actions.find((a) => a.id === "follow-0");
+    if (
+      !failed &&
+      before?.status === "verified" &&
+      before.claim &&
+      !after?.claim
+    ) {
+      failed = true;
+      throw Error("forced-cleanup-failure");
+    }
+    return originalSave(snapshot, state);
+  };
+  await actor.api.followOne({ taskId: "round-1", handle: "reader" });
+  const state = f.read(),
+    action = state.actions.find((a) => a.id === "follow-0");
+  assert.equal(failed, true);
+  assert.equal(action.status, "verified");
+  assert.equal(action.claim, undefined);
+  assert.equal(state.executions["cleanup-owner"].actionId, undefined);
+  assert.equal(f.writes.length, 1);
+});
+
+test("failed cleanup is retried by its owner before any later action and never repeats a verified write", async (t) => {
+  const f = fixture(t),
+    actor = f.newExecutor("cleanup-owner", ["follow"]),
+    originalSave = actor.store.save.bind(actor.store);
+  let failures = 0;
+  actor.store.save = async (snapshot, state) => {
+    const before = snapshot.state.actions.find((a) => a.id === "follow-0");
+    const after = state.actions.find((a) => a.id === "follow-0");
+    if (
+      failures < 2 &&
+      before?.status === "verified" &&
+      before.claim &&
+      !after?.claim
+    ) {
+      failures++;
+      throw Error("forced-cleanup-failure");
+    }
+    return originalSave(snapshot, state);
+  };
+  await actor.api
+    .followOne({ taskId: "round-1", handle: "reader" })
+    .catch(() => {});
+  assert.equal(failures, 2);
+  assert.ok(f.read().actions.find((a) => a.id === "follow-0").claim);
+  await actor.api.followOne({ taskId: "round-1", handle: "reader" });
+  assert.equal(
+    f.read().actions.find((a) => a.id === "follow-0").claim,
+    undefined,
+  );
+  assert.equal(f.writes.length, 1);
+});
