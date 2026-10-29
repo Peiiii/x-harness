@@ -282,3 +282,10 @@ A missing session observation on the old page used to reject an authorized read-
 ## Incident evidence linkage (2026-10-29)
 
 Root usage records retain safe business reason codes, the original full-proof reference, compact missing-state flags and the loaded module location. Previously a computed business reason was discarded unless it also appeared as a diagnostic code, forcing callers to search unrelated proof files. Full page text, thrown private error text and credentials remain outside the compact usage journal; existing original proofs own those details. Durable call starts still identify interrupted calls, and logging never adds browser requests or retries. Verified local consumer adoption may precede a consolidated npm release.
+
+
+## Read recovery across independent incidents
+
+The owned-tab fallback previously kept its one-rebind flag for the full instance lifetime. After a successful recovery, a later ordinary DOM observation or creator collection with page/account identity and no incomplete/refusal evidence now reopens the budget for a subsequent incident. The recovery read itself does not reopen it; uninterrupted failures, missing identity, partial evidence and alerts still cannot loop. This changes no write retry, native fallback permission, navigation or normal browser call count.
+
+Two independent-incident regressions fail before the change; related tests also retain refusal, incomplete identity, missing data, bounded recovery, native-control isolation and never-repeat-write behavior. A local build can be adopted at an existing safe boundary after the relevant checks; natural repeated-fault behavior remains separate live acceptance. The normal Skill entry was shortened without changing discovery semantics to keep its existing read loading budget after the prior discovery addition.

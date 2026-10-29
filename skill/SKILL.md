@@ -22,7 +22,7 @@ var x = createXGrowthHarness({ tab, ledgerPath, proofDirectory });
 
 ## Load by task
 
-Work at scale starts with verified [batch discovery](references/batch-discovery.md); follow duties use `discoverFollowCandidates` to scan observed lists and exclude already-followed rows before profile review; never search person by person. Reuse queues; repair real gaps, verify and resume.
+At scale use [batch discovery](references/batch-discovery.md). `discoverFollowCandidates` excludes followed rows from observed lists before profile review. Reuse queues; repair, verify, resume. No person-by-person search.
 
 | Current need | Read only |
 | --- | --- |
@@ -33,4 +33,4 @@ Work at scale starts with verified [batch discovery](references/batch-discovery.
 
 Use `receipt` for status, `decision` for first content, `delta` for changes with valid prior context. Keep observations locally; return complete target evidence and warnings. Never truncate target text or dump DOM/AX. No routine inspectAccount/account navigation/reload; diagnose faults only. Root owns intent and verification; never recheck verified writes.
 
-Writes require user authorization, verified identity, reviewed evidence and the original ledger plan; project rules own policy. Unknown: verify the original action before new submission. Follow recovery otherwise; read source only for concrete repairs, verify and resume root calls.
+Writes need authorization, verified identity, review and the original ledger plan; project policy applies. Unknown: verify original action, never resend. Follow recovery; repair concrete defects at the owner, verify and resume root calls.
