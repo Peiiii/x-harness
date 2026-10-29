@@ -302,3 +302,8 @@ Connection evidence also carries one generated connection ID and caller PID acro
 ## Optional usage telemetry isolation (2026-10-29)
 
 Usage completion now preserves the original successful return or thrown value when optional result/error property inspection fails, records a content-free telemetry gap, and classifies cross-realm errors without `instanceof Error`. Replay exposes the gap rather than implying full coverage. Four synthetic regressions failed before the change; 1,153 regression checks, build, contract types and maintainability passed after it. This repairs logging correctness, not profile-readiness timeouts or host responsiveness. Source delivery is separate from consumer adoption; include with the next related diagnostics release, with no standalone npm version bump.
+
+
+## Navigation timing and supplied HTTP failures (2026-10-29)
+
+The original usage journal now records durable inner navigation stages without an additional browser command or account precheck. The original read-failure owner classifies supplied HTTP responses/errors, including cross-realm errors, retains allowlisted endpoint/numeric rate headers in the compact diagnostic, and keeps unattributed HTTP errors separate from proven X API responses. Bare selector counts no longer create429 journal signals. Failed-read status never becomes a global account quota or a resend. No failure-time console/CDP probe, extra observer or extension is added. The current standalone source passed1,171 regressions, types/contracts/build and maintainability; integrated evidence and actual consumer adoption remain separate. Include in the related diagnostics batch; no standalone npm version bump.

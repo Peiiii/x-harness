@@ -1,3 +1,4 @@
+import { observedReadHttp } from "./read-failure-classification.js";
 import type {
   PostEvidence,
   PersonEvidence,
@@ -36,9 +37,11 @@ export const stableReason = (value: unknown): string | undefined =>
 export function diagnostic(value: unknown): Diagnostic | undefined {
   const raw = object(value);
   if (typeof raw.code !== "string") return undefined;
+  const http = observedReadHttp(raw.observedHttp);
   return {
     ...pick(raw, ["operation", "category", "next", "evidenceRef"]),
     code: stableReason(raw.code)!,
+    ...(http ? { observedHttp: http } : {}),
   } as Diagnostic;
 }
 export function source(value: unknown, page?: string): PostEvidence {

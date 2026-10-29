@@ -5,6 +5,7 @@ export class DOMNavigation {
   #session!: DOMDependencies["session"];
   #tab!: DOMDependencies["tab"];
   #observe!: DOMDependencies["observe"];
+  #trace?: DOMDependencies["trace"];
   openQuote!: (command: any) => Promise<any>;
   searchSources!: (command: any) => Promise<void>;
   openExploreRecommendations!: (command: any) => Promise<void>;
@@ -16,9 +17,13 @@ export class DOMNavigation {
   refreshPerson!: (command: any) => Promise<void>;
   refreshPosts!: (command: any) => Promise<void>;
   constructor(
-    dependencies: Pick<DOMDependencies, "session" | "tab" | "observe">,
+    dependencies: Pick<
+      DOMDependencies,
+      "session" | "tab" | "observe" | "trace"
+    >,
   ) {
-    const { session, tab, observe } = dependencies;
+    const { session, tab, observe, trace } = dependencies;
+    this.#trace = trace;
     this.#session = session;
     this.#tab = tab;
     this.#observe = observe;
@@ -38,6 +43,9 @@ export class DOMNavigation {
     this.openObserved = this.handleOpenObserved.bind(this);
     this.refreshPerson = this.handleRefreshPerson.bind(this);
     this.refreshPosts = this.handleRefreshPosts.bind(this);
+  }
+  private stage<T>(name: string, run: () => Promise<T>): Promise<T> {
+    return this.#trace ? this.#trace(`navigation:${name}`, run) : run();
   }
   private async handleOpenQuote(command: any) {
     const current = this.#session.current;
@@ -336,7 +344,9 @@ export class DOMNavigation {
     await this.#tab.back();
     if (typeof this.#tab.getAXState === "function")
       await this.#tab.getAXState({ emit: false });
-    if ((await this.#tab.url()) !== command.url) {
+    if (
+      (await this.stage("committed-url", () => this.#tab.url())) !== command.url
+    ) {
       const link = this.#tab.playwright
         .locator(`a[href=${JSON.stringify(xURL(command.url).pathname)}]`)
         .filter({ visible: true });
@@ -348,32 +358,7 @@ export class DOMNavigation {
     await this.waitObservedPost(command.url);
     return true;
   }
-  private async handleOpenObserved(command: any) {
-    xURL(command.url);
-    if (!command.evidenceRef) throw new Error("导航缺已观察证据");
-    // A direct adapter caller must also preserve a page already at the target.
-    // Explicit recovery uses forceNavigation; durable verification uses refreshPerson.
-    const originalPage =
-      typeof this.#tab.url === "function"
-        ? await this.#tab.url()
-        : this.#session.current?.result?.page;
-    if (
-      !command.forceNavigation &&
-      typeof this.#tab.url === "function" &&
-      originalPage === xURL(command.url).href
-    ) {
-      if (command.view === "person")
-        await this.handleWaitProfileContent(
-          this.#tab.playwright.locator('[data-testid="UserName"]'),
-          command.url,
-        );
-      else if (command.view === "posts")
-        await this.waitObservedPost(command.url);
-      return;
-    }
-    if (await this.handleQuoteClientReturn(command)) return;
-    this.#session.replyBinding = null;
-    this.#session.current = null;
+  private async findObservedLink(command: any) {
     // Keep the loaded X client when the exact observed permalink is already visible.
     // An ambiguous/missing link retains the existing navigation path, never an arbitrary click.
     const path = xURL(command.url).pathname + xURL(command.url).search;
@@ -431,22 +416,59 @@ export class DOMNavigation {
         }
       }
     }
+    return { link, linkCount };
+  }
+  private async handleOpenObserved(command: any) {
+    xURL(command.url);
+    if (!command.evidenceRef) throw new Error("导航缺已观察证据");
+    // A direct adapter caller must also preserve a page already at the target.
+    // Explicit recovery uses forceNavigation; durable verification uses refreshPerson.
+    const originalPage =
+      typeof this.#tab.url === "function"
+        ? await this.stage("current-url", () => this.#tab.url())
+        : this.#session.current?.result?.page;
+    if (
+      !command.forceNavigation &&
+      typeof this.#tab.url === "function" &&
+      originalPage === xURL(command.url).href
+    ) {
+      if (command.view === "person")
+        await this.handleWaitProfileContent(
+          this.#tab.playwright.locator('[data-testid="UserName"]'),
+          command.url,
+        );
+      else if (command.view === "posts")
+        await this.waitObservedPost(command.url);
+      return;
+    }
+    if (await this.handleQuoteClientReturn(command)) return;
+    this.#session.replyBinding = null;
+    this.#session.current = null;
+    const { link, linkCount } = await this.stage(
+      "observed-link-inspection",
+      () => this.findObservedLink(command),
+    );
     const clickedLink = link && linkCount === 1;
     if (command.preferObservedLink && !clickedLink)
       throw Error("original-receipt-link-not-currently-visible");
     try {
-      if (clickedLink) await link.click();
-      else await this.#tab.goto(command.url);
+      if (clickedLink)
+        await this.stage("observed-link-click", () => link.click());
+      else await this.stage("goto", () => this.#tab.goto(command.url));
       // Live URL readiness does not replace content or caller account checks.
       if (
         !["composer", "posts"].includes(command.view) ||
         typeof this.#tab.url !== "function" ||
         (await this.#tab.url()) !== command.url
       )
-        await this.#tab.playwright.waitForURL(command.url, {
-          timeoutMs: command.view === "posts" ? 15000 : 5000,
-          ...(command.view === "posts" ? { waitUntil: "commit" as const } : {}),
-        });
+        await this.stage("route-wait", () =>
+          this.#tab.playwright.waitForURL(command.url, {
+            timeoutMs: command.view === "posts" ? 15000 : 5000,
+            ...(command.view === "posts"
+              ? { waitUntil: "commit" as const }
+              : {}),
+          }),
+        );
     } catch (error: unknown) {
       if (
         !/Timed out waiting for URL/.test(
@@ -565,6 +587,11 @@ export class DOMNavigation {
     }
   }
   private async rejectUnavailableProfile(url: string) {
+    return this.stage("profile-unavailable-inspection", () =>
+      this.inspectUnavailableProfile(url),
+    );
+  }
+  private async inspectUnavailableProfile(url: string) {
     const empty = this.#tab.playwright.locator(
       '[data-testid="primaryColumn"] [data-testid="empty_state_header_text"]',
     );
@@ -592,14 +619,16 @@ export class DOMNavigation {
       if (!/timed out|timeout|deadline exceeded/i.test(error.message))
         throw error;
       await this.rejectUnavailableProfile(url);
-      const check = await this.#observe({ view: "account", limit: 1 });
+      const check = await this.stage("profile-recovery-inspection", () =>
+        this.#observe({ view: "account", limit: 1 }),
+      );
       if (check.page !== url || check.alerts?.length)
         throw Error("target-readiness-route-or-alert", { cause: error });
       // A loaded X error view does not become a profile by waiting longer.
       // Reload the confirmed document once; same-URL navigation may be inert.
       // This is read-only recovery, never another Follow activation.
       this.#session.current = null;
-      await this.#tab.reload();
+      await this.stage("profile-recovery-reload", () => this.#tab.reload());
       await this.handleWaitTargetContent(target, url);
     }
   }
@@ -609,10 +638,12 @@ export class DOMNavigation {
       const remaining = deadline - Date.now();
       if (remaining <= 0) throw Error("target-content-readiness-timeout");
       try {
-        await detail.waitFor({
-          state: "visible",
-          timeoutMs: Math.min(5000, remaining),
-        });
+        await this.stage(`target-content-wait-${attempt + 1}`, () =>
+          detail.waitFor({
+            state: "visible",
+            timeoutMs: Math.min(5000, remaining),
+          }),
+        );
         return;
       } catch (error: any) {
         if (
@@ -621,14 +652,18 @@ export class DOMNavigation {
           Date.now() >= deadline
         )
           throw error;
-        const check = await this.#observe({ view: "account", limit: 1 });
+        const check = await this.stage("content-recovery-inspection", () =>
+          this.#observe({ view: "account", limit: 1 }),
+        );
         if (check.page !== url || check.alerts?.length)
           throw Error("target-readiness-route-or-alert", { cause: error });
       }
     }
   }
   private async handleRefreshPerson(command: any) {
-    const at = xURL(await this.#tab.url());
+    const at = xURL(
+      await this.stage("refresh-current-url", () => this.#tab.url()),
+    );
     this.#session.replyBinding = null;
     if (
       at.href !== xURL(command.url).href ||
@@ -638,7 +673,7 @@ export class DOMNavigation {
     this.#session.current = null;
     // Fresh reload and exact relationship readiness prove persistence. Global
     // network idle can be held by unrelated long-lived X traffic.
-    await this.#tab.reload();
+    await this.stage("profile-refresh-reload", () => this.#tab.reload());
     await this.handleWaitProfileContent(
       this.#tab.playwright.getByRole("button", {
         name: new RegExp(

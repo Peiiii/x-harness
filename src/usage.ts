@@ -8,6 +8,7 @@ import {
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { explicitHttp429 } from "./read-failure-classification.js";
 
 interface UsageTraceContext {
   sessionId: string;
@@ -147,12 +148,11 @@ export class XUsageJournal {
   }
   /** Write a durable start before each creator operation; unfinished events identify interruptions. */
   creatorStage<T>(stage: string, invoke: () => Promise<T>): Promise<T> {
-    return this.#call(
-      invoke,
-      "browser",
-      `creator:${stage}`,
-      "step",
-    ) as Promise<T>;
+    return this.browserStage(`creator:${stage}`, invoke);
+  }
+  /** Internal stages are timing evidence, never additional platform requests. */
+  browserStage<T>(stage: string, invoke: () => Promise<T>): Promise<T> {
+    return this.#call(invoke, "browser", stage, "step") as Promise<T>;
   }
   wrap<T extends object>(
     target: T,
@@ -260,9 +260,7 @@ export class XUsageJournal {
         readTiming(raw?.domReadTiming)
           ? { domReadTiming: readTiming(raw?.domReadTiming) }
           : {}),
-        http429:
-          typeof reason === "string" &&
-          /(?:HTTP[- :]*429|\b429\b)/i.test(reason),
+        http429: explicitHttp429(threw ? result : reason),
       });
     } catch {
       this.#failedWrites++;
@@ -402,14 +400,14 @@ export function readXUsageReport(
       statuses: Record<string, number>;
     }
   > = {};
-  const creatorSteps: typeof operations = {};
+  const browserSteps: typeof operations = {};
   let stepRecords = 0;
   const minutes: Record<string, { harness: number; browser: number }> = {};
   for (const r of records.values()) {
     const step = r.kind === "step";
     if (step) stepRecords++;
     const key = step ? r.operation : `${r.layer}:${r.operation}`;
-    const aggregate = ((step ? creatorSteps : operations)[key] ??= {
+    const aggregate = ((step ? browserSteps : operations)[key] ??= {
       calls: 0,
       unfinished: 0,
       http429: 0,
@@ -434,7 +432,17 @@ export function readXUsageReport(
     metric: "harness-call-frequency",
     records: records.size - stepRecords,
     stepRecords,
-    creatorSteps,
+    browserSteps,
+    creatorSteps: Object.fromEntries(
+      Object.entries(browserSteps).filter(([key]) =>
+        key.startsWith("creator:"),
+      ),
+    ),
+    navigationSteps: Object.fromEntries(
+      Object.entries(browserSteps).filter(([key]) =>
+        key.startsWith("navigation:"),
+      ),
+    ),
     operations,
     minutes,
     gaps,

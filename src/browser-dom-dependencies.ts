@@ -7,6 +7,7 @@ export interface DOMSession {
   editBinding?: any;
 }
 export interface DOMDependencies {
+  trace?: <T>(stage: string, run: () => Promise<T>) => Promise<T>;
   tab: any;
   nativeSubmit: boolean;
   readDOM: any;

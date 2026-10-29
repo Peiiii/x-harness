@@ -1,3 +1,5 @@
+import type { ObservedReadHttp } from "./read-failure-types.js";
+export type { ObservedReadHttp } from "./read-failure-types.js";
 /** Public business contract. Raw browser observations never cross this interface. */
 export type OperationKind = "follow" | "original" | "reply";
 export type ReadMode = "receipt" | "decision" | "delta";
@@ -109,6 +111,7 @@ export interface Diagnostic {
   code: string;
   next?: "inspect-local-proof" | "restore-proof-store";
   evidenceRef?: EvidenceRef;
+  observedHttp?: ObservedReadHttp;
 }
 export interface SourceOriginEvidence {
   kind: "explore-recommendations" | "home-recommendations";

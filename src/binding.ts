@@ -48,6 +48,7 @@ export function bindXGrowthHarness(options: HarnessOptions): XGrowthHarness {
   const domOptions = {
     defaultPostActivation: options.originalPostActivation,
     creatorTrace: usage.creatorStage.bind(usage),
+    navigationTrace: usage.browserStage.bind(usage),
   };
   const primary = tab
     ? createDOMXBrowser(tab, domOptions)

@@ -1,4 +1,5 @@
 import { executionHoldsPage } from "./executor-actionability.js";
+import { classifyReadFailure } from "./read-failure-classification.js";
 import type { BoundaryRecord } from "./boundary.js";
 import type { GrowthDependencies } from "./growth-dependencies.js";
 
@@ -175,24 +176,14 @@ export class GrowthReading {
       }
       return mode === "delta" ? receipt : { ...value, ...receipt };
     } catch (error: any) {
-      const category =
-        /connection|transport|interrupted|extension|node_repl exec context not found/i.test(
-          error.message,
-        )
-          ? "browser-connection"
-          : "ui-not-confirmed";
-      const code =
-        error.code === "CONFLICT"
-          ? "ledger-conflict"
-          : /same-tab-or-executor-claimed/.test(error.message)
-            ? "tab-busy"
-            : category === "browser-connection"
-              ? "connection-failed"
-              : "observation-unconfirmed";
-      const diagnostic: BoundaryRecord = { operation, category, code };
+      const { message, ...classification } = classifyReadFailure(
+        error,
+        this.#stamp(),
+      );
+      const diagnostic: BoundaryRecord = { operation, ...classification };
       const evidenceRef = await this.#store.recordProof({
         capturedAt: this.#stamp(),
-        diagnostic: { ...diagnostic, error: error.message },
+        diagnostic: { ...diagnostic, error: message },
       });
       return {
         status: "needsDecision",
@@ -201,7 +192,7 @@ export class GrowthReading {
         evidenceRef,
         diagnostic:
           mode === "decision"
-            ? { ...diagnostic, error: error.message.slice(0, 240) }
+            ? { ...diagnostic, error: message.slice(0, 240) }
             : diagnostic,
       };
     } finally {

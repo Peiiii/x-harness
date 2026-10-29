@@ -32,6 +32,7 @@ export class DOMXBrowser {
       nativeSubmit = false,
       defaultPostActivation,
       creatorTrace,
+      navigationTrace,
     }: any = {},
   ) {
     this.act = this.act.bind(this);
@@ -50,6 +51,7 @@ export class DOMXBrowser {
         })
       : null;
     this.#navigation = createDOMNavigation({
+      trace: navigationTrace,
       session: this.#session,
       tab: this.#tab,
       observe: this.handleObserve.bind(this),
