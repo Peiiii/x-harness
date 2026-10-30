@@ -1,3 +1,4 @@
+import { OriginalSearchVerification } from "./original-search-verification.js";
 import { PlatformThreadLikes } from "./platform-thread-likes.js";
 import { createPlatformObservation } from "./platform-observation.js";
 import { createPlatformTargets } from "./platform-targets.js";
@@ -325,7 +326,12 @@ export class XPlatform {
     const { compose, findSubmission, submitFollow, submitPost, submitReply } =
       this.#createPlatformWritingResult;
     this.#compose = compose;
-    this.#findSubmission = findSubmission;
+    const receiptRecovery = new OriginalSearchVerification(
+      findSubmission,
+      this.#searchSources,
+      this.#clock,
+    );
+    this.#findSubmission = receiptRecovery.verify.bind(receiptRecovery);
     this.#submitFollow = submitFollow;
     this.#submitPost = submitPost;
     this.#submitReply = submitReply;

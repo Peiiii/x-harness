@@ -453,10 +453,12 @@ export class DOMNavigation {
     const clickedLink = link && linkCount === 1;
     if (command.preferObservedLink && !clickedLink)
       throw Error("original-receipt-link-not-currently-visible");
+    let linkActivated = false;
     try {
-      if (clickedLink)
+      if (clickedLink) {
         await this.stage("observed-link-click", () => link.click());
-      else await this.stage("goto", () => this.#tab.goto(command.url));
+        linkActivated = true;
+      } else await this.stage("goto", () => this.#tab.goto(command.url));
       // Live URL readiness does not replace content or caller account checks.
       if (
         !["composer", "posts"].includes(command.view) ||
@@ -472,13 +474,17 @@ export class DOMNavigation {
           }),
         );
     } catch (error: unknown) {
-      if (
-        !/Timed out waiting for URL/.test(
-          error instanceof Error ? error.message : String(error),
-        )
-      )
+      const message = error instanceof Error ? error.message : String(error);
+      const linkTimeout =
+        clickedLink &&
+        !linkActivated &&
+        command.view === "posts" &&
+        !command.preferObservedLink &&
+        /timed out|timeout|deadline exceeded/i.test(message);
+      if (!linkTimeout && !/Timed out waiting for URL/.test(message))
         throw error;
       const check = await this.#observe({ view: "account", limit: 1 });
+      if (linkTimeout && !check.accountHandle) throw error;
       // Some hosts time out a URL wait even after the exact route committed.
       // Fresh route evidence may continue to content readiness, never acceptance.
       if (
