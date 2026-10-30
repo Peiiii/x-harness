@@ -8,6 +8,7 @@ export interface DOMSession {
   editBinding?: any;
 }
 export interface DOMDependencies {
+  readDeadline?: import("./browser-read-deadline.js").BrowserReadDeadline;
   captureSubmissionNetwork?: boolean;
   trace?: <T>(stage: string, run: () => Promise<T>) => Promise<T>;
   tab: any;

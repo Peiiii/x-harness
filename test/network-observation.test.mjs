@@ -499,7 +499,8 @@ test(
       [
         "--input-type=module",
         "-e",
-        `import {XNetworkJournal} from ${JSON.stringify(moduleURL)};const journal=new XNetworkJournal(${JSON.stringify(p)},'darwin-advisory');await journal.acquire();console.log('ready');setInterval(()=>{},1000);`,
+        // Keep the live writer reachable: FileHandle GC must not simulate death.
+        `import {XNetworkJournal} from ${JSON.stringify(moduleURL)};const journal=new XNetworkJournal(${JSON.stringify(p)},'darwin-advisory');await journal.acquire();console.log('ready');setInterval(()=>{void journal.token;},1000);`,
       ],
       { stdio: ["ignore", "pipe", "pipe"] },
     );

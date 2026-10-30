@@ -1,3 +1,4 @@
+import { BrowserReadDeadline } from "./browser-read-deadline.js";
 import { matchesComposerQuote } from "./platform-quote.js";
 import { createAXHarness } from "./readers-ax-host.js";
 
@@ -13,6 +14,7 @@ import { compatibleTab } from "./browser-tab-compat.js";
 import type { DOMSession } from "./browser-dom-dependencies.js";
 export { readXNetworkDiagnostics } from "./browser-dom-network.js";
 export class DOMXBrowser {
+  #readDeadline: BrowserReadDeadline;
   readonly #tab!: any;
   readonly #readDOM!: any;
   readonly #nativeSubmit!: any;
@@ -29,6 +31,7 @@ export class DOMXBrowser {
     tab: any,
     {
       readDOM = readXObservation,
+      readTimeoutMs = 5000,
       nativeSubmit = false,
       defaultPostActivation,
       creatorTrace,
@@ -36,6 +39,7 @@ export class DOMXBrowser {
       captureSubmissionNetwork = false,
     }: any = {},
   ) {
+    this.#readDeadline = new BrowserReadDeadline(readTimeoutMs);
     this.act = this.act.bind(this);
     this.screenshot = this.screenshot.bind(this);
     this.collectCreator = this.collectCreator.bind(this);
@@ -53,6 +57,7 @@ export class DOMXBrowser {
       : null;
     this.#navigation = createDOMNavigation({
       trace: navigationTrace,
+      readDeadline: this.#readDeadline,
       session: this.#session,
       tab: this.#tab,
       observe: this.handleObserve.bind(this),
@@ -92,7 +97,9 @@ export class DOMXBrowser {
         collectCreator: this.collectCreator,
         screenshot: () => {
           this.#session.current = null;
-          return this.#tab.screenshot();
+          return this.#readDeadline.run("screenshot", () =>
+            this.#tab.screenshot(),
+          );
         },
         act: this.act,
       }),
@@ -105,11 +112,15 @@ export class DOMXBrowser {
     );
     if (!evaluate) throw new Error("缺playwright.evaluate能力");
     const hostStartedAtMs = Date.now();
-    const result = await evaluate(
-      this.#readDOM,
-      { ...query, limit: query.limit ?? 1 },
-      // The host may do scope setup before its internal timeout starts.
-      { timeoutMs: 60_000 },
+    const result = await this.#readDeadline.run<any>(
+      "observe:" + query.view,
+      () =>
+        evaluate(
+          this.#readDOM,
+          { ...query, limit: query.limit ?? 1 },
+          // The local read deadline also bounds host-side scope setup.
+          { timeoutMs: this.#readDeadline.timeoutMs },
+        ),
     );
     const hostFinishedAtMs = Date.now();
     if (result.domReadTiming)
@@ -190,7 +201,7 @@ export class DOMXBrowser {
   }
   public screenshot() {
     this.#session.current = null;
-    return this.#tab.screenshot();
+    return this.#readDeadline.run("screenshot", () => this.#tab.screenshot());
   }
   public async act(command: any) {
     if (

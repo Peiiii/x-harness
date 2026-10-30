@@ -34,3 +34,5 @@ Passive request evidence: [observation](network-observation.md).
 [Stage logs](submission-diagnostics.md).
 
 Target-local claim: [continue independent batch members](claim-continuation.md); do not release old claims.
+
+Host read timeout: [bounded reads](read-deadline.md).

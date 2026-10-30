@@ -1,7 +1,9 @@
+import { BrowserReadDeadline } from "./browser-read-deadline.js";
 import { xURL, handlePattern } from "./platform-rules.js";
 
 import type { DOMDependencies } from "./browser-dom-dependencies.js";
 export class DOMNavigation {
+  #readDeadline: BrowserReadDeadline;
   #session!: DOMDependencies["session"];
   #tab!: DOMDependencies["tab"];
   #observe!: DOMDependencies["observe"];
@@ -20,10 +22,11 @@ export class DOMNavigation {
   constructor(
     dependencies: Pick<
       DOMDependencies,
-      "session" | "tab" | "observe" | "trace"
+      "session" | "tab" | "observe" | "trace" | "readDeadline"
     >,
   ) {
     const { session, tab, observe, trace } = dependencies;
+    this.#readDeadline = dependencies.readDeadline ?? new BrowserReadDeadline();
     this.#trace = trace;
     this.#session = session;
     this.#tab = tab;
@@ -384,7 +387,9 @@ export class DOMNavigation {
       link = this.#tab.playwright
         .locator(`a[href=${JSON.stringify(path)}]`)
         .filter({ visible: true });
-      linkCount = await link.count();
+      linkCount = await this.#readDeadline.run("observed-link-count", () =>
+        link.count(),
+      );
       if (
         command.view === "posts" &&
         /^\/[A-Za-z0-9_]{1,15}\/?$/.test(xURL(command.url).pathname) &&
@@ -397,7 +402,11 @@ export class DOMNavigation {
             `[data-testid="AppTabBar_Profile_Link"][href=${JSON.stringify(path)}]`,
           )
           .filter({ visible: true });
-        if ((await navigation.count()) === 1) {
+        if (
+          (await this.#readDeadline.run("own-profile-link-count", () =>
+            navigation.count(),
+          )) === 1
+        ) {
           link = navigation;
           linkCount = 1;
         }
@@ -412,7 +421,11 @@ export class DOMNavigation {
         const named = link.filter({
           hasText: new RegExp(`@${command.handle}(?![A-Za-z0-9_])`, "i"),
         });
-        if ((await named.count()) === 1) {
+        if (
+          (await this.#readDeadline.run("named-profile-link-count", () =>
+            named.count(),
+          )) === 1
+        ) {
           link = named;
           linkCount = 1;
         }
@@ -466,12 +479,14 @@ export class DOMNavigation {
         (await this.#tab.url()) !== command.url
       )
         await this.stage("route-wait", () =>
-          this.#tab.playwright.waitForURL(command.url, {
-            timeoutMs: command.view === "posts" ? 15000 : 5000,
-            ...(command.view === "posts"
-              ? { waitUntil: "commit" as const }
-              : {}),
-          }),
+          this.#readDeadline.run("route-wait", () =>
+            this.#tab.playwright.waitForURL(command.url, {
+              timeoutMs: command.view === "posts" ? 15000 : 5000,
+              ...(command.view === "posts"
+                ? { waitUntil: "commit" as const }
+                : {}),
+            }),
+          ),
         );
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
@@ -609,8 +624,12 @@ export class DOMNavigation {
     if (
       typeof empty.isVisible !== "function" ||
       typeof name.isVisible !== "function" ||
-      !(await empty.isVisible()) ||
-      (await name.isVisible())
+      !(await this.#readDeadline.run("empty-profile-visible", () =>
+        empty.isVisible(),
+      )) ||
+      (await this.#readDeadline.run("profile-name-visible", () =>
+        name.isVisible(),
+      ))
     )
       return;
     const check = await this.#observe({ view: "account", limit: 1 });
@@ -647,10 +666,12 @@ export class DOMNavigation {
       if (remaining <= 0) throw Error("target-content-readiness-timeout");
       try {
         await this.stage(`target-content-wait-${attempt + 1}`, () =>
-          detail.waitFor({
-            state: "visible",
-            timeoutMs: Math.min(5000, remaining),
-          }),
+          this.#readDeadline.run("target-content-wait", () =>
+            detail.waitFor({
+              state: "visible",
+              timeoutMs: Math.min(5000, remaining),
+            }),
+          ),
         );
         return;
       } catch (error: any) {
