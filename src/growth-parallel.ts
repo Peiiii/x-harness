@@ -325,7 +325,14 @@ export class ParallelRound {
                   : "harness-boundary-error",
               error: error.message.slice(0, 240),
             });
-            break;
+            // A target-local collision does not own this independent page.
+            // Keep its original claim and diagnostic; try a different target.
+            if (
+              !/^(same-action-claimed|same-target-already-claimed-or-submitted)$/.test(
+                error.message,
+              )
+            )
+              break;
           } finally {
             if (this.#session.claim) {
               const owned = this.#session.claim;

@@ -285,7 +285,16 @@ export class FollowBatch {
       exceptional.push(...relevant);
       // A new unconfirmed submission is a diagnostic boundary, not permission
       // to consume the rest of the batch on the same failing write path.
-      if (relevant.length) break;
+      if (
+        relevant.some(
+          (d: any) =>
+            d.reason !== "action-or-tab-claimed" ||
+            !/^(same-action-claimed|same-target-already-claimed-or-submitted)$/.test(
+              d.error ?? "",
+            ),
+        )
+      )
+        break;
     }
     const after = await this.#store.load();
     const summary: BoundaryRecord = summarizeFollowBatch(
