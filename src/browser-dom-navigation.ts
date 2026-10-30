@@ -16,6 +16,7 @@ export class DOMNavigation {
   openObserved!: (command: any) => Promise<void>;
   refreshPerson!: (command: any) => Promise<void>;
   refreshPosts!: (command: any) => Promise<void>;
+  retryPosts!: (command: any) => Promise<void>;
   constructor(
     dependencies: Pick<
       DOMDependencies,
@@ -43,6 +44,7 @@ export class DOMNavigation {
     this.openObserved = this.handleOpenObserved.bind(this);
     this.refreshPerson = this.handleRefreshPerson.bind(this);
     this.refreshPosts = this.handleRefreshPosts.bind(this);
+    this.retryPosts = this.handleRetryPosts.bind(this);
   }
   private stage<T>(name: string, run: () => Promise<T>): Promise<T> {
     return this.#trace ? this.#trace(`navigation:${name}`, run) : run();
@@ -684,6 +686,29 @@ export class DOMNavigation {
       command.url,
     );
     return;
+  }
+  private async handleRetryPosts(command: any) {
+    const current = this.#session.current;
+    const result = current?.result;
+    if (
+      current?.query?.view !== "posts" ||
+      result?.loadError?.code !== "timeline-load-error" ||
+      result.alerts?.length ||
+      !result.accountHandle ||
+      result.page !== command.page ||
+      (await this.#tab.url()) !== command.page
+    )
+      throw Error("timeline-retry-observation-mismatch");
+    const primary = this.#tab.playwright.locator(
+      'main [data-testid="primaryColumn"]',
+    );
+    const retry = primary
+      .getByRole("button", { name: result.loadError.retryLabel, exact: true })
+      .filter({ visible: true });
+    if ((await primary.count()) !== 1 || (await retry.count()) !== 1)
+      throw Error("timeline-retry-control-ambiguous");
+    this.#session.current = null;
+    await this.stage("retry-timeline-load", () => retry.click());
   }
   private async handleRefreshPosts(command: any) {
     this.#session.replyBinding = null;

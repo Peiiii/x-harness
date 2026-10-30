@@ -1,6 +1,10 @@
 import type { PlatformDependencies } from "./platform-dependencies.js";
 import { xURL, source, sameHandle } from "./platform-rules.js";
 
+const sourcePageMissing = (value: any) => [
+  value.loadError ? "source-load-error" : "source-page-unconfirmed",
+];
+
 const recommendationNavigationEvidence = (nav: any) => ({
   page: nav.page,
   headings: (nav.headings ?? []).slice(0, 5),
@@ -88,7 +92,7 @@ export class PlatformCollections {
           ...last,
           sources,
           complete: false,
-          missing: ["source-page-unconfirmed"],
+          missing: sourcePageMissing(last),
         };
       if (
         offset &&
@@ -104,7 +108,7 @@ export class PlatformCollections {
             ...last,
             sources,
             complete: false,
-            missing: ["source-page-unconfirmed"],
+            missing: sourcePageMissing(last),
           };
       }
       if (offset && !last.posts?.length) {
@@ -166,7 +170,7 @@ export class PlatformCollections {
               ...advanced,
               sources,
               complete: false,
-              missing: ["source-page-unconfirmed"],
+              missing: sourcePageMissing(advanced),
             };
           if (advanced.missing?.includes("bounded-scroll-window-exhausted")) {
             last = advanced;

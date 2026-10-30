@@ -311,3 +311,9 @@ The original usage journal now records durable inner navigation stages without a
 ## Remove automatic diagnostic polling from submissions (2026-10-30)
 
 Normal root submission no longer starts protocol capture or performs a failure-time protocol query. The explicit lower-level developer utility uses a baseline and one bounded final snapshot, with no polling timer and idempotent stop. Original activation/editor/context/alert/public verification behavior remains. Separately, unchanged source lists reuse their original observation; expansion still restores the list. Source and consumer evidence must distinguish saved browser control calls from unmeasured X HTTP traffic. See docs/design/submission-diagnostic-isolation.md; no standalone npm bump.
+
+## Recover an empty timeline's explicit load error (2026-10-30)
+
+The existing posts observation now recognizes the primary timeline's exact load-error/retry container when no articles are rendered. Healthy card reads do not scan retry controls. Readiness tries that same visible control once instead of spending four selector waits against a failed page; a persistent error remains explicit as source-load-error. A new error observed during a wait stops further selector waits. Sidebar failures, platform alerts, changed routes/accounts and ambiguous controls do not authorize another click. This is read-only UI recovery and never repeats a submission.
+
+Regression evidence distinguishes healthy/loading/persistent-error outcomes and control ownership. The real diagnostic page was cleaned up after an interrupted turn, so its missing-tab receipt is not a recovery success; a fresh real root home read completed in2.355 seconds and returned a complete source. Natural recovery of the exact failed page remains unverified. Consumer adoption follows the original verified local-build resolver at a safe binding; no standalone npm release or added daemon.
