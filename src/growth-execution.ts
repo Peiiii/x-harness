@@ -1,4 +1,7 @@
-import { NativePublicationVerification } from "./native-publication-verification.js";
+import {
+  NativePublicationVerification,
+  verifyMissingSubmittedEditor,
+} from "./native-publication-verification.js";
 
 import { ActionTrace } from "./action-trace.js";
 import {
@@ -18,6 +21,20 @@ import type { GrowthDependencies } from "./growth-dependencies.js";
 
 import { operations, same } from "./growth-constants.js";
 import { followBlueCheckAllowed } from "./follow-qualification-policy.js";
+
+function failedSubmissionObservation(error: any, submitted: any) {
+  return {
+    verified: false,
+    missing: ["submission-or-verification-failed"],
+    ...((error.submissionDiagnostic ?? submitted?.submissionDiagnostic)
+      ? {
+          submissionDiagnostic:
+            error.submissionDiagnostic ?? submitted.submissionDiagnostic,
+        }
+      : {}),
+    error: error.message.slice(0, 240),
+  };
+}
 async function verifyLog(
   platform: any,
   trace: any,
@@ -506,18 +523,15 @@ export class GrowthExecution {
           },
         };
       }
+      // Submission already began. A vanished editor may have completed successfully.
+      const recovered = await verifyMissingSubmittedEditor(
+        (action) => this.#platform.findSubmission(action),
+        trace,
+        entry,
+        error,
+      );
       // A transport error does not distinguish a rejected write from a successful write.
-      observation = {
-        verified: false,
-        missing: ["submission-or-verification-failed"],
-        ...((error.submissionDiagnostic ?? submitted?.submissionDiagnostic)
-          ? {
-              submissionDiagnostic:
-                error.submissionDiagnostic ?? submitted.submissionDiagnostic,
-            }
-          : {}),
-        error: error.message.slice(0, 240),
-      };
+      observation = recovered ?? failedSubmissionObservation(error, submitted);
     }
     observation = trace.annotate(observation);
     snapshot = await this.#settleProof(snapshot, entry, observation);

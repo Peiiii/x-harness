@@ -40,3 +40,30 @@ export class NativePublicationVerification {
     }
   }
 }
+
+/** Missing submitted editor permits one read-only receipt lookup, never acceptance or resend. */
+export async function verifyMissingSubmittedEditor(
+  findSubmission: (action: any) => Promise<any>,
+  trace: ActionTrace,
+  action: any,
+  error: any,
+): Promise<any | null> {
+  const d = error?.submissionDiagnostic;
+  if (
+    action.kind !== "original" ||
+    d?.code !== "submitted-editor-clear-unconfirmed" ||
+    d.editorState !== "missing" ||
+    d.alerts?.length ||
+    !sameHandle(d.accountHandle, action.accountHandle)
+  )
+    return null;
+  try {
+    if (xURL(d.page).href !== xURL(action.composeURL).href) return null;
+    const result = await trace.run("verify-public-after-editor-missing", () =>
+      findSubmission(action),
+    );
+    return { ...result, submissionDiagnostic: d };
+  } catch {
+    return null;
+  }
+}

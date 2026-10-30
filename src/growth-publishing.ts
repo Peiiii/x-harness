@@ -1,7 +1,10 @@
 import { ActionTrace } from "./action-trace.js";
 import { OriginalPostCadence } from "./original-post-cadence.js";
 import { DraftSchedule } from "./draft-schedule.js";
-import { NativePublicationVerification } from "./native-publication-verification.js";
+import {
+  NativePublicationVerification,
+  verifyMissingSubmittedEditor,
+} from "./native-publication-verification.js";
 import type { GrowthDependencies } from "./growth-dependencies.js";
 
 import { kinds, same } from "./growth-constants.js";
@@ -237,7 +240,12 @@ export class IndependentPublishing {
         ).verify(action, submitted);
       } catch (error: any) {
         if (!submissionStarted) throw error;
-        observation = {
+        observation = (await verifyMissingSubmittedEditor(
+          (action) => this.#platform.findSubmission(action),
+          trace,
+          action,
+          error,
+        )) ?? {
           verified: false,
           missing: ["submission-or-verification-failed"],
           ...(error.submissionDiagnostic
