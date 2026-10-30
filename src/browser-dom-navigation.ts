@@ -737,6 +737,7 @@ export class DOMNavigation {
             )
             .filter({ visible: true })
         : undefined;
+    let switchedTimeline = false;
     if (
       profileTab &&
       alternateTab &&
@@ -744,6 +745,7 @@ export class DOMNavigation {
       (await alternateTab.count()) === 1 &&
       (await profileTab.getAttribute("aria-selected")) === "true"
     ) {
+      switchedTimeline = true;
       // The selected Posts tab opens a menu in current X. Switch to the exact
       // observed adjacent timeline and back instead of clicking that menu or
       // bootstrapping Viewer through a full document reload.
@@ -759,15 +761,44 @@ export class DOMNavigation {
       if (typeof this.#tab.getAXState === "function")
         await this.#tab.getAXState({ emit: false });
     }
+    const ticket = this.#session.originalReceiptReload;
+    this.#session.originalReceiptReload = undefined;
     const articles = this.#tab.playwright.getByRole("article");
     // A pinned card can render before the timeline. Wait for the reviewed
     // candidate when supplied; only the later full observation can verify it.
-    await this.handleWaitTargetContent(
-      command.expectedText
-        ? articles.filter({ hasText: command.expectedText }).first()
-        : articles.first(),
-      command.url,
-    );
+    const candidate = command.expectedText
+      ? articles.filter({ hasText: command.expectedText }).first()
+      : articles.first();
+    try {
+      if (ticket && ticket.text === command.expectedText)
+        await this.stage("receipt-cache-wait", () =>
+          candidate.waitFor({ state: "visible", timeoutMs: 5000 }),
+        );
+      else await this.handleWaitTargetContent(candidate, command.url);
+    } catch (error: any) {
+      // A successful activation cleared this exact editor in this instance. A
+      // cached profile can survive tab switching; reload once, never resubmit.
+      if (
+        !ticket ||
+        ticket.text !== command.expectedText ||
+        !/timed out|timeout|deadline exceeded/i.test(error?.message ?? "") ||
+        !switchedTimeline
+      )
+        throw error;
+      const current = await this.#observe({ view: "posts", limit: 1 });
+      if (
+        current.page !== command.url ||
+        current.alerts?.length ||
+        current.needsStateCheck ||
+        current.accountHandle?.toLowerCase() !==
+          ticket.accountHandle.toLowerCase() ||
+        target.pathname.toLowerCase() !==
+          "/" + ticket.accountHandle.toLowerCase()
+      )
+        throw error;
+      await this.stage("receipt-cache-reload", () => this.#tab.reload());
+      await this.handleWaitTargetContent(candidate, command.url);
+    }
     return;
   }
 }

@@ -40,6 +40,8 @@ export class DOMSubmission {
     result: any,
   ) {
     const { loc, submittedEditor } = prepared;
+    if (command.operation === "submitPost")
+      this.#session.originalReceiptReload = undefined;
     const stage =
       command.traceStage ??
       ((_stage: string, run: () => Promise<any>) => run());
@@ -155,6 +157,16 @@ export class DOMSubmission {
             activationStartedAt,
           ),
         );
+      if (
+        command.operation === "submitPost" &&
+        submittedEditor &&
+        result.editorText &&
+        result.accountHandle
+      )
+        this.#session.originalReceiptReload = {
+          text: result.editorText,
+          accountHandle: result.accountHandle,
+        };
       // Editor clearing and the caller's fresh public receipt own completion.
       // X background traffic is unrelated to acceptance; networkidle adds no proof.
       const transport = network ? await network.stop() : notCollected;

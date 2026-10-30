@@ -1,5 +1,6 @@
 export interface DOMSession {
   current?: any;
+  originalReceiptReload?: { text: string; accountHandle: string };
   replyBinding?: any;
   quoteBinding?: any;
   quoteClientReturn?: { parent: string; source: string };
