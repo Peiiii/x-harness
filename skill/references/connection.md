@@ -1,6 +1,6 @@
 # Automatic first connection
 
-Only load when no valid binding exists. Select the user's real Chrome using current CUA docs; name its session first when required. Supply `connection.check` as read-only `cua.listTabs({browser:selectedBrowserId,emit:false})`, and `connection.openTab` as `cua.createBrowserTab(selectedBrowserId,'https://x.com',{sessionName:'🔎 X'})`. Never put tab creation, navigation or submission in `check`.
+Only load when no valid binding exists. Select the user's real Chrome using current CUA docs; name its session first when required. With the selected browser's documented Browser API, supply `connection.check` as read-only `browser.tabs.list()`, and `connection.openTab` as an async callback that calls `browser.tabs.new()`, navigates that tab to X, then returns the raw tab. This avoids wrapper APIs' automatic AX/snapshot read during connection. If the host only supports CUA wrappers, use their documented entry and retain its exact initialization failure. Never put tab creation, navigation or submission in `check`.
 
 Call `await createXGrowthHarness({connection,ledgerPath,proofDirectory,executor?})` once. `ready` returns `harness`, `tab` and compact `connection`; retain them and run the needed root read in the same script. No model decision belongs between initialization and that read. Reuse valid bindings; no connection check per operation.
 
