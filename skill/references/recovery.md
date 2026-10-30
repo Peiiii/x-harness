@@ -5,7 +5,7 @@ Failures only: keep operation/status/missing/code/proof/error; no guessed succes
 | Signal | Next action and exit condition |
 | --- | --- |
 | unknown submission | `await x.verifySubmission({taskId,actionId})`, same IDs; no resend. [Observed link](receipt-recovery.md). |
-| Existing public post needs recovery | `await x.verifyPublishedPost({taskId,draftPath,publicURL,evidenceRef})`; observed URL/proof. sourceLink/sourceLinks: [link proof](source-link-recovery.md). |
+| Existing public post needs recovery | `await x.verifyPublishedPost({taskId,draftPath,publicURL,evidenceRef})`; [timeouts](public-recovery-search.md); [link proof](source-link-recovery.md). |
 | Follow needs independent recovery | `await x.verifyFollow({handle,url,evidenceRef,mode:'decision'})`; Honor verified. followBatch already verifies. |
 | needsDecision | Current AI resolves review/proof under project contract; resume original ID. |
 | waiting | Honor resumeAt/reason, continue independent permitted work; never bypass time/identity/claim gates. |
