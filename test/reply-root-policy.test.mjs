@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { replyRootAgeReason } from "../dist/reply-root-policy.js";
 import { createBusinessHarness } from "../dist/diagnostics.js";
 import { fixture, NOW } from "./fixtures.mjs";
@@ -57,6 +58,36 @@ test("root age uses original root time, rejects missing/conflicting identity, an
     replyRootAgeReason({ ...action, conversation: { rootId: "777" } }, 12, NOW),
     "reply-root-publication-proof-required",
   );
+});
+test("root age uses the fresh root proof when source evidence is a discovery result", (t) => {
+  const f = fixture(t, { actionKinds: ["reply"] });
+  const action = proof(f, 1000);
+  writeFileSync(
+    f.proof,
+    JSON.stringify({ operation: "searchSources", result: { posts: [] } }),
+  );
+  const freshRootProof = join(dirname(f.proof), "fresh-root-proof.json");
+  writeFileSync(
+    freshRootProof,
+    JSON.stringify({
+      observation: {
+        posts: [
+          {
+            id: action.postId,
+            datetime: new Date(NOW).toISOString(),
+            replyToId: "999",
+          },
+          {
+            id: "999",
+            datetime: new Date(NOW - 1000).toISOString(),
+            replyToId: null,
+          },
+        ],
+      },
+    }),
+  );
+  action.freshMetricsEvidenceRef = freshRootProof;
+  assert.equal(replyRootAgeReason(action, 12, NOW), null);
 });
 test("business reply refuses an expired root before navigation, intent, or click", async (t) => {
   const f = fixture(t, { actionKinds: ["reply"] });
