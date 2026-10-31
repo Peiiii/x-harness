@@ -65,6 +65,24 @@ export const source = (post: any, page: any) => ({
   ],
 });
 
+export function emptySearch(value: any): boolean {
+  if (
+    !value.accountHandle ||
+    value.needsStateCheck ||
+    value.loading ||
+    value.loadError ||
+    value.alerts?.length ||
+    value.posts?.length ||
+    !value.emptyEvidence?.length
+  )
+    return false;
+  try {
+    return xURL(value.page).pathname === "/search";
+  } catch {
+    return false;
+  }
+}
+
 export function matchesReviewedAssets(post: any, assets: any[] = []): boolean {
   return assets.every((asset: any) =>
     /\.mp4$/i.test(asset.path ?? "")

@@ -1,5 +1,5 @@
 import type { PlatformDependencies } from "./platform-dependencies.js";
-import { xURL } from "./platform-rules.js";
+import { xURL, emptySearch } from "./platform-rules.js";
 export class PlatformObservation {
   #browser!: PlatformDependencies["browser"];
   #clock!: PlatformDependencies["clock"];
@@ -168,6 +168,14 @@ export class PlatformObservation {
   }
   private async handleReady(query: any): Promise<any> {
     let value = await this.handleObserved(query);
+    if (
+      query.view === "posts" &&
+      !query.targetId &&
+      !query.threadRootId &&
+      !query.offset &&
+      emptySearch(value)
+    )
+      return value;
     // A visible load failure is not a slow render. Retry its own control once;
     // never wait four selector budgets against the same failed timeline.
     if (query.view === "posts" && value.loadError && !value.posts?.length) {

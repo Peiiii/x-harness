@@ -165,6 +165,7 @@ export class ReplyDiscovery {
         read.missing?.some((m) =>
           [
             "stable-rendered-tail",
+            "source-results-empty",
             "pagination-did-not-advance",
             "source-page-unconfirmed",
             "search-resume-query-unconfirmed",

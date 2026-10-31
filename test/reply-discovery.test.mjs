@@ -498,3 +498,26 @@ test("invalid likes thresholds are rejected before searching", async (t) => {
     assert.equal(result.reason, "discovery-options-invalid");
   }
 });
+
+test("confirmed empty query advances to another source without retry", async (t) => {
+  const f = fixture(t),
+    queries = [];
+  const d = new ReplyDiscovery(
+    async (q) => {
+      queries.push(q.query);
+      return q.query === "empty"
+        ? {
+            status: "observed",
+            sources: [],
+            missing: ["source-results-empty"],
+            evidenceRef: f.proof,
+          }
+        : { status: "observed", sources: [post(1)], evidenceRef: f.proof };
+    },
+    f.store,
+    () => NOW,
+  );
+  const r = await d.run({ queries: ["empty", "fresh"], target: 1 });
+  assert.deepEqual(queries, ["empty", "fresh"]);
+  assert.equal(r.targetReached, true);
+});

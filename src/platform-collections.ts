@@ -1,5 +1,5 @@
 import type { PlatformDependencies } from "./platform-dependencies.js";
-import { xURL, source, sameHandle } from "./platform-rules.js";
+import { xURL, source, sameHandle, emptySearch } from "./platform-rules.js";
 
 const sourcePageMissing = (value: any) => [
   value.loadError ? "source-load-error" : "source-page-unconfirmed",
@@ -87,12 +87,13 @@ export class PlatformCollections {
         last = await this.#ready({ view: "posts", offset, limit: 5 });
       }
       firstDOMId ??= last.firstRenderedId ?? last.posts?.[0]?.id;
-      if (last.needsStateCheck || last.alerts?.length)
+      const empty = !offset && emptySearch(last);
+      if (last.needsStateCheck || last.alerts?.length || empty)
         return {
           ...last,
           sources,
-          complete: false,
-          missing: sourcePageMissing(last),
+          complete: empty,
+          missing: empty ? ["source-results-empty"] : sourcePageMissing(last),
         };
       if (
         offset &&
