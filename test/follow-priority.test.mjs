@@ -449,3 +449,66 @@ test("early reply permit cannot hide missing original follow authority", async (
     true,
   );
 });
+
+test("expired checkpoint does not preempt replies while first follow recovery remains unresolved", async (t) => {
+  const q = await setup(t);
+  q.setClock(q.due + 1000);
+  await q.f.store.transaction(({ state }) => {
+    state.actions.push({
+      id: "pending-follow",
+      kind: "follow",
+      status: "unknown",
+      handle: "fixture_user",
+    });
+    const e = state.executions.follow;
+    e.currentRecovery = {
+      firstRecoveryFailed: true,
+      writeResumeRequiresNewActualEvidence: true,
+      originalUnknownActionId: "pending-follow",
+      evidenceRef: q.f.proof,
+    };
+    e.followBackoff.actionId = "pending-follow";
+    e.followBackoff.originalRefusalEvidenceRef = q.f.proof;
+    state.items[0].actionable = true;
+    return state;
+  });
+  const before = (await q.f.store.load()).state;
+  const decision = await q.priority.resume("round-1", "follow");
+  assert.equal(decision.ready, false);
+  assert.equal(decision.blocked, undefined);
+  assert.equal(decision.reason, "follow-recovery-unconfirmed");
+  let followCalls = 0,
+    replyCalls = 0;
+  const out = await q.priority.run(
+    {
+      taskId: "round-1",
+      follow: {
+        executor: {
+          id: "follow",
+          scopeKinds: ["follow"],
+          evidenceRef: q.f.proof,
+        },
+      },
+      reply: {},
+    },
+    {
+      reply: async () => {
+        replyCalls++;
+        return { results: [{ status: "verified" }] };
+      },
+      follow: async () => {
+        followCalls++;
+        throw Error("must not follow");
+      },
+    },
+  );
+  assert.equal(out.selected, "reply");
+  assert.equal(replyCalls, 1);
+  assert.equal(followCalls, 0);
+  assert.deepEqual((await q.f.store.load()).state.actions, before.actions);
+  await q.f.store.transaction(({ state }) => {
+    state.actions.find((a) => a.id === "pending-follow").status = "verified";
+    return state;
+  });
+  assert.equal((await q.priority.inspect("round-1", "follow")).ready, true);
+});

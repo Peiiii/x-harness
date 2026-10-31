@@ -48,6 +48,23 @@ export class FollowPriority {
     const item = state.items.find((i: BoundaryRecord) => i.kind === "follow");
     if (!item || item.verified >= item.planned)
       return { ready: false, reason: "follow-target-reached" };
+    const recovery = executor.currentRecovery;
+    const unresolved = state.actions.find(
+      (a: BoundaryRecord) =>
+        a.kind === "follow" &&
+        a.id === recovery?.originalUnknownActionId &&
+        ["intent", "submitted", "unknown"].includes(a.status),
+    );
+    if (
+      recovery?.firstRecoveryFailed === true &&
+      recovery.writeResumeRequiresNewActualEvidence === true &&
+      unresolved &&
+      executor.followBackoff?.actionId === unresolved.id &&
+      executor.followBackoff?.originalRefusalEvidenceRef ===
+        recovery.evidenceRef &&
+      this.store.evidenceExists(recovery.evidenceRef)
+    )
+      return { ready: false, reason: "follow-recovery-unconfirmed" };
     const backoffs = Object.values(state.executions ?? {})
       .map((e: any) => e.followBackoff)
       .filter(
