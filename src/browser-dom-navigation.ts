@@ -479,14 +479,12 @@ export class DOMNavigation {
         (await this.#tab.url()) !== command.url
       )
         await this.stage("route-wait", () =>
-          this.#readDeadline.run("route-wait", () =>
-            this.#tab.playwright.waitForURL(command.url, {
-              timeoutMs: command.view === "posts" ? 15000 : 5000,
-              ...(command.view === "posts"
-                ? { waitUntil: "commit" as const }
-                : {}),
-            }),
-          ),
+          this.#tab.playwright.waitForURL(command.url, {
+            timeoutMs: command.view === "posts" ? 15000 : 5000,
+            ...(command.view === "posts"
+              ? { waitUntil: "commit" as const }
+              : {}),
+          }),
         );
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
