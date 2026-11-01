@@ -9,6 +9,7 @@ import {
   normalInteractionIntervalMs,
 } from "./growth-policy.js";
 import { OriginalPostCadence } from "./original-post-cadence.js";
+import { DraftSchedule } from "./draft-schedule.js";
 import { actionableForExecutor } from "./executor-actionability.js";
 import type { BoundaryRecord } from "./boundary.js";
 import type { RoundSnapshot } from "./store.js";
@@ -171,6 +172,17 @@ export class GrowthExecution {
     }
     if (action.kind === "follow") {
       return this.admitFollow(snapshot, action);
+    } else if (action.kind === "original") {
+      const scheduleBlocker = new DraftSchedule().reason(action, this.#clock());
+      if (scheduleBlocker)
+        return {
+          snapshot,
+          need: {
+            status: "needsDecision",
+            actionId: action.id,
+            reason: scheduleBlocker,
+          },
+        };
     } else {
       const hour = Number(
         new Intl.DateTimeFormat("en-GB", {
@@ -180,7 +192,7 @@ export class GrowthExecution {
         }).format(this.#clock()),
       );
       if (
-        (hour < 7 || hour >= (action.kind === "reply" ? 24 : 22)) &&
+        (hour < 7 || hour >= 24) &&
         !this.#authorizedWindow(state, action.kind)
       )
         return {
