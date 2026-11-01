@@ -394,7 +394,7 @@ export function projectAXComposer(tree: AXTree, context: AXProjection) {
     );
     const items = web < 0 ? [] : evidence(descendants(web));
     const own = items.filter((n: any) =>
-      /^link 个人资料, Value: x\.com\/\w+$/.test(n.label),
+      /^link (?:Description: )?个人资料, Value: x\.com\/\w+$/.test(n.label),
     );
     const editors = items.filter((n: any) =>
       /^(?:文本输入区(?:域)?|文本区域) .*帖子文本/.test(n.label),
