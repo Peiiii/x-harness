@@ -476,7 +476,23 @@ export class GrowthExecution {
                 hourCycle: "h23",
               }).format(this.#clock()),
             );
+            const currentAction = latest.state.actions.find(
+              (a: any) => a.id === entry.id,
+            );
+            const draftSchedule =
+              action.kind === "original"
+                ? new DraftSchedule().resolve(currentAction)
+                : {};
+            const hasExplicitDraftWindow =
+              draftSchedule.at !== undefined ||
+              draftSchedule.until !== undefined;
+            const currentDraftBlocker = hasExplicitDraftWindow
+              ? new DraftSchedule().reason(currentAction, this.#clock())
+              : null;
+            if (currentDraftBlocker)
+              throw new Error(currentDraftBlocker);
             if (
+              !hasExplicitDraftWindow &&
               (hour < 7 || hour >= (action.kind === "reply" ? 24 : 22)) &&
               !this.#authorizedWindow(latest.state, action.kind)
             )
