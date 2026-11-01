@@ -10,7 +10,6 @@ import type { GrowthDependencies } from "./growth-dependencies.js";
 import { kinds, same } from "./growth-constants.js";
 export class IndependentPublishing {
   #clock!: GrowthDependencies["clock"];
-  #evidenceExists!: GrowthDependencies["evidenceExists"];
   #capability!: GrowthDependencies["capability"];
   #store!: GrowthDependencies["store"];
   #load!: GrowthDependencies["load"];
@@ -43,7 +42,6 @@ export class IndependentPublishing {
   ) {
     const {
       clock,
-      evidenceExists,
       capability,
       store,
       load,
@@ -54,7 +52,6 @@ export class IndependentPublishing {
       settleProof,
     } = dependencies;
     this.#clock = clock;
-    this.#evidenceExists = evidenceExists;
     this.#capability = capability;
     this.#store = store;
     this.#load = load;
@@ -75,29 +72,17 @@ export class IndependentPublishing {
     let action: any,
       token: any,
       submissionStarted = false;
-    const inWindow = () => {
-      const hour = Number(
-        new Intl.DateTimeFormat("en-GB", {
-          timeZone: "Asia/Shanghai",
-          hour: "2-digit",
-          hourCycle: "h23",
-        }).format(this.#clock()),
-      );
-      const permit = independentExecution?.windowAuthorization;
-      return (
-        (hour >= 7 && hour < 22) ||
-        Boolean(
-          permit?.userAuthorized === true &&
-          permit.actionId === (action?.id ?? preparedAction?.id) &&
-          this.#evidenceExists(permit.evidenceRef) &&
-          this.#clock() < Date.parse(permit.expiresAt),
-        )
-      );
+    const scheduleReason = () => {
+      const scheduled = action ?? preparedAction;
+      return scheduled
+        ? new DraftSchedule().reason(scheduled, this.#clock())
+        : null;
     };
     try {
       const caps = this.#capability("submitPost", preparedAction ?? {});
       if (!caps.covered) return { status: "needsCapability", ...caps };
-      if (!inWindow()) throw new Error("outside-contract-write-window");
+      const initialScheduleBlocker = scheduleReason();
+      if (initialScheduleBlocker) throw new Error(initialScheduleBlocker);
       await this.#store.withLock(async () => {
         const snapshot = await this.#load(taskId),
           state = structuredClone(snapshot.state);
@@ -169,7 +154,9 @@ export class IndependentPublishing {
           throw new Error("action-already-claimed-do-not-resubmit");
         const error = this.#guardInput(state, target, independentExecution);
         if (error) throw new Error(error);
-        if (!inWindow() || item.verified + item.unknown >= item.planned)
+        const scheduleBlocker = scheduleReason();
+        if (scheduleBlocker) throw new Error(scheduleBlocker);
+        if (item.verified + item.unknown >= item.planned)
           throw new Error("window-or-original-capacity-unavailable");
         Object.assign(target, {
           status: "intent",
@@ -208,12 +195,13 @@ export class IndependentPublishing {
                 target = latest.state.actions.find(
                   (a: any) => a.id === action.id,
                 );
-              if (
-                target?.status !== "intent" ||
-                target.claimToken !== token ||
-                !inWindow()
-              )
+              if (target?.status !== "intent" || target.claimToken !== token)
                 throw new Error("action-claim-or-window-changed");
+              const deadlineReason = new DraftSchedule().reason(
+                target,
+                this.#clock(),
+              );
+              if (deadlineReason) throw new Error(deadlineReason);
               const error = this.#guardInput(
                 latest.state,
                 target,
