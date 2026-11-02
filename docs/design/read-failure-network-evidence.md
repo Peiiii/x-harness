@@ -1,0 +1,15 @@
+# Read failure evidence and local diagnostics
+
+Flow: bugfix, risk L3, implementation in progress; parent stability objective remains open.
+
+Problem: navigation hides the inner awaited stage; GrowthReading classifies an explicit HTTP429 response/error as generic UI-not-confirmed. Separately, a documented passive browser-console read reset the real host after20 seconds. That remote retrieval is not a local log-file read.
+
+User correction: log inspection must read already durable local evidence and must not depend on a browser RPC. The proposed failure-time console/CDP probing path was rejected before integration; its source was removed. No1-second timeout wrapper is shipped as a substitute for that correction. Preserve the2026-10-21 prohibition on extra network monitors/extensions.
+
+Current batch: reuse the original usage step journal for durable starts and completion of navigation URL/click/goto/route wait/profile readiness/recovery stages. It makes no extra browser request or account precheck. Step records remain separate from public root counts and HTTP traffic. Pure error classification at the original GrowthReading catch recognizes explicit HTTP error text or numeric response status (including429/503), including foreign-realm errors; allowlist any supplied endpoint and numeric quota headers, strip URL queries and preserve unknown headers as absent. Only a supplied X API endpoint establishes platform attribution; an unqualified/other-originHTTP error remains un-attributed. The root compact diagnostic and original proof retain observedHttp with scope failed-read-operation. No blanket account quota, new retry, refresh or unknown submission occurs. Existing local incident tooling correlates usage, original public host records and pressure-only system samples without contacting the browser.
+
+Acceptance for this batch: red regressions for the hidden inner stage and HTTP429 misclassification; public-root stage ancestry; no added browser/diagnostic calls; original profile readiness/recovery behavior preserved; explicit headers retained without invention; response secrets excluded; malformed/unlabelled429 numbers do not become HTTP refusals; exact type/build/maintainability, directed and low-concurrency full regressions; original resolver/manifest adoption and real existing-host local replay.
+
+Required parent work remains open: arrange reliable production of actual browser/network failure evidence at its original source so selector timeouts with a hidden429 become attributable without a failure-time RPC. A local classifier cannot manufacture an HTTP status absent from the original evidence. The stalled console interface still needs its host/resource boundary investigated; resource correlation is not causal proof. Natural multi-role business durability and host cancellation are not claimed repaired by this batch.
+
+Design review: passed by current executor. This batch repairs the proven internal classification/timing gaps and the local diagnostic operation label; it preserves the wider stability acceptance rather than replacing it with passing narrow tests.

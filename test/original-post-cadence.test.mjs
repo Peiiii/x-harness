@@ -131,8 +131,8 @@ test("shared atomic click reservations permit only one simultaneous original", a
   const second = new OriginalPostCadence(other.store, () => NOW);
   const actions = f.read().actions;
   const results = await Promise.all([
-    first.reserve(actions[0]),
-    second.reserve(actions[1]),
+    f.store.withLock(() => first.reserve(actions[0], true)),
+    other.store.withLock(() => second.reserve(actions[1], true)),
   ]);
   assert.equal(results.filter((r) => !r.need).length, 1);
   assert.equal(results.filter((r) => r.need?.status === "waiting").length, 1);
@@ -268,4 +268,32 @@ test("original-scoped root retains activation and blocks the next same-account p
     ).status,
     "waiting",
   );
+});
+
+test("unchanged authorized cadence is read without rewriting the shared ledger", async (t) => {
+  const f = prepared(t);
+  await enable(f);
+  const save = f.store.save.bind(f.store);
+  let writes = 0;
+  f.store.save = async (...args) => {
+    writes++;
+    return save(...args);
+  };
+  const same = await f.api.configureOriginalCadence({
+    taskId: "round-1",
+    minGapMs: 120000,
+    userAuthorized: true,
+    evidenceRef: f.proof,
+  });
+  assert.equal(same.status, "configured");
+  assert.equal(writes, 0);
+  const changed = await f.api.configureOriginalCadence({
+    taskId: "round-1",
+    minGapMs: 180000,
+    userAuthorized: true,
+    evidenceRef: f.proof,
+  });
+  assert.equal(changed.status, "configured");
+  assert.equal(writes, 1);
+  assert.equal(f.read().execution.originalCadence.minGapMs, 180000);
 });

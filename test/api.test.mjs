@@ -589,7 +589,7 @@ test("a local proof failure after persisted intent remains publicly unknown and 
   assert.equal(f.writes.length, 1);
 });
 
-test("failed executor release does not leave the local operation interlock stuck across recovery", async (t) => {
+test("read-only executor calls never enter the account mutation or release path", async (t) => {
   const f = fixture(t),
     transaction = f.store.transaction;
   let transactions = 0;
@@ -619,11 +619,12 @@ test("failed executor release does not leave the local operation interlock stuck
     },
   });
   const first = await api.inspectAccount();
-  assert.equal(first.status, "needsDecision");
+  assert.equal(first.status, "observed");
   const second = await api.inspectAccount();
   assert.equal(second.status, "observed");
   assert.equal(second.reason, undefined);
-  assert.equal(f.read().executions.reader.activity, undefined);
+  assert.equal(transactions, 0);
+  assert.equal(f.read().executions?.reader, undefined);
 });
 
 test("feedback combines role-button counts with link-based views in one target collection and removes duplicates", async (t) => {

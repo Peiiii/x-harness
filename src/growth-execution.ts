@@ -1,4 +1,7 @@
-import { NativePublicationVerification } from "./native-publication-verification.js";
+import {
+  NativePublicationVerification,
+  verifyMissingSubmittedEditor,
+} from "./native-publication-verification.js";
 
 import { ActionTrace } from "./action-trace.js";
 import {
@@ -6,6 +9,7 @@ import {
   normalInteractionIntervalMs,
 } from "./growth-policy.js";
 import { OriginalPostCadence } from "./original-post-cadence.js";
+import { DraftSchedule } from "./draft-schedule.js";
 import { actionableForExecutor } from "./executor-actionability.js";
 import type { BoundaryRecord } from "./boundary.js";
 import type { RoundSnapshot } from "./store.js";
@@ -18,6 +22,20 @@ import type { GrowthDependencies } from "./growth-dependencies.js";
 
 import { operations, same } from "./growth-constants.js";
 import { followBlueCheckAllowed } from "./follow-qualification-policy.js";
+
+function failedSubmissionObservation(error: any, submitted: any) {
+  return {
+    verified: false,
+    missing: ["submission-or-verification-failed"],
+    ...((error.submissionDiagnostic ?? submitted?.submissionDiagnostic)
+      ? {
+          submissionDiagnostic:
+            error.submissionDiagnostic ?? submitted.submissionDiagnostic,
+        }
+      : {}),
+    error: error.message.slice(0, 240),
+  };
+}
 async function verifyLog(
   platform: any,
   trace: any,
@@ -154,6 +172,17 @@ export class GrowthExecution {
     }
     if (action.kind === "follow") {
       return this.admitFollow(snapshot, action);
+    } else if (action.kind === "original") {
+      const scheduleBlocker = new DraftSchedule().reason(action, this.#clock());
+      if (scheduleBlocker)
+        return {
+          snapshot,
+          need: {
+            status: "needsDecision",
+            actionId: action.id,
+            reason: scheduleBlocker,
+          },
+        };
     } else {
       const hour = Number(
         new Intl.DateTimeFormat("en-GB", {
@@ -163,7 +192,7 @@ export class GrowthExecution {
         }).format(this.#clock()),
       );
       if (
-        (hour < 7 || hour >= (action.kind === "reply" ? 24 : 22)) &&
+        (hour < 7 || hour >= 24) &&
         !this.#authorizedWindow(state, action.kind)
       )
         return {
@@ -447,7 +476,23 @@ export class GrowthExecution {
                 hourCycle: "h23",
               }).format(this.#clock()),
             );
+            const currentAction = latest.state.actions.find(
+              (a: any) => a.id === entry.id,
+            );
+            const draftSchedule =
+              action.kind === "original"
+                ? new DraftSchedule().resolve(currentAction)
+                : {};
+            const hasExplicitDraftWindow =
+              draftSchedule.at !== undefined ||
+              draftSchedule.until !== undefined;
+            const currentDraftBlocker = hasExplicitDraftWindow
+              ? new DraftSchedule().reason(currentAction, this.#clock())
+              : null;
+            if (currentDraftBlocker)
+              throw new Error(currentDraftBlocker);
             if (
+              !hasExplicitDraftWindow &&
               (hour < 7 || hour >= (action.kind === "reply" ? 24 : 22)) &&
               !this.#authorizedWindow(latest.state, action.kind)
             )
@@ -506,18 +551,15 @@ export class GrowthExecution {
           },
         };
       }
+      // Submission already began. A vanished editor may have completed successfully.
+      const recovered = await verifyMissingSubmittedEditor(
+        (action) => this.#platform.findSubmission(action),
+        trace,
+        entry,
+        error,
+      );
       // A transport error does not distinguish a rejected write from a successful write.
-      observation = {
-        verified: false,
-        missing: ["submission-or-verification-failed"],
-        ...((error.submissionDiagnostic ?? submitted?.submissionDiagnostic)
-          ? {
-              submissionDiagnostic:
-                error.submissionDiagnostic ?? submitted.submissionDiagnostic,
-            }
-          : {}),
-        error: error.message.slice(0, 240),
-      };
+      observation = recovered ?? failedSubmissionObservation(error, submitted);
     }
     observation = trace.annotate(observation);
     snapshot = await this.#settleProof(snapshot, entry, observation);

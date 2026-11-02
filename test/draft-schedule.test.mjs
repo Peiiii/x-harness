@@ -38,6 +38,53 @@ test("original notBefore metadata blocks before intent and permits exactly at bo
   assert.equal(f.writes.length, 1);
 });
 
+test("calendar-supplied action window permits 06:00 publication", async (t) => {
+  const f = fixture(t, { planned: [0, 1, 0], actionKinds: ["original"] });
+  const startsAt = "2026-11-02T06:00:00+08:00";
+  f.edit((s) => {
+    s.actions[0].notBefore = startsAt;
+    s.actions[0].notAfter = "2026-11-02T22:00:00+08:00";
+  });
+  f.setNow(Date.parse("2026-11-01T22:01:00Z"));
+  const result = await f.harness.publishPost({
+    taskId: "round-1",
+    draftPath: f.draft,
+    independentExecution: {
+      tabId: "calendar-06-window",
+      evidenceRef: f.proof,
+      scopeEvidenceRef: f.proof,
+    },
+  });
+  assert.equal(result.status, "verified", JSON.stringify(result));
+  assert.equal(f.writes.length, 1);
+});
+
+test("calendar-supplied 22:00 deadline remains exclusive", async (t) => {
+  const f = fixture(t, { planned: [0, 1, 0], actionKinds: ["original"] });
+  f.edit((s) => {
+    s.actions[0].notBefore = "2026-11-02T06:00:00+08:00";
+    s.actions[0].notAfter = "2026-11-02T22:00:00+08:00";
+  });
+  f.setNow(Date.parse("2026-11-02T14:00:00Z"));
+  const result = await f.harness.publishPost({
+    taskId: "round-1",
+    draftPath: f.draft,
+    independentExecution: {
+      tabId: "calendar-22-deadline",
+      evidenceRef: f.proof,
+      scopeEvidenceRef: f.proof,
+    },
+  });
+  assert.equal(
+    result.reason ?? result.decision?.[0]?.reason,
+    "draft-window-expired",
+    JSON.stringify(result),
+  );
+  assert.equal(f.writes.length, 0);
+  assert.equal(f.read().actions[0].status, "prepared");
+  assert.equal(f.read().items[1].unknown, 0);
+});
+
 test("draft and action dates use the later constraint; invalid or zoneless dates reject", (t) => {
   const f = fixture(t, { actionKinds: ["original"] });
   const gate = new DraftSchedule();

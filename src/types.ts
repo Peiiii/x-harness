@@ -1,3 +1,5 @@
+import type { ObservedReadHttp } from "./read-failure-types.js";
+export type { ObservedReadHttp } from "./read-failure-types.js";
 /** Public business contract. Raw browser observations never cross this interface. */
 export type OperationKind = "follow" | "original" | "reply";
 export type ReadMode = "receipt" | "decision" | "delta";
@@ -109,6 +111,7 @@ export interface Diagnostic {
   code: string;
   next?: "inspect-local-proof" | "restore-proof-store";
   evidenceRef?: EvidenceRef;
+  observedHttp?: ObservedReadHttp;
 }
 export interface SourceOriginEvidence {
   kind: "explore-recommendations" | "home-recommendations";
@@ -204,6 +207,41 @@ export interface PeopleOptions {
   reset?: boolean;
   advance?: boolean;
   mode?: ReadMode;
+}
+export interface FollowDiscoveryOptions {
+  target: PeopleOptions["target"];
+  maxWindows?: number;
+  terms?: string[];
+  requireBlue?: boolean;
+  excludedHandles?: string[];
+}
+export interface FollowDiscoveryResult {
+  status: "observed" | "needsDecision";
+  diagnostic?: Diagnostic;
+  failureEvidenceRef?: EvidenceRef;
+  complete: false;
+  reason: string;
+  candidates: Array<PersonEvidence & { evidenceRef: string }>;
+  evidenceRefs: string[];
+  observedPeople: number;
+  requiresReview: true;
+}
+export interface FollowProfileBatchOptions {
+  targets: PersonTarget[];
+  excludedHandles?: string[];
+  requireBlue?: boolean;
+  /** Caller-owned ISO deadline; no new reads start at or after it. */
+  stopAt?: string;
+}
+export interface FollowProfileBatchResult {
+  status: "observed" | "needsDecision";
+  candidates: Array<PersonEvidence & { evidenceRef: EvidenceRef }>;
+  skipped: Array<{ handle: string; reason: string; evidenceRef?: EvidenceRef }>;
+  remaining: PersonTarget[];
+  reason?: string;
+  diagnostic?: Diagnostic;
+  failureEvidenceRef?: EvidenceRef;
+  requiresReview: true;
 }
 export interface WindowOptions {
   /** Skip known authors before expanding source cards. Does not approve other sources. */
@@ -722,6 +760,8 @@ export type HarnessOptions = (
 ) & {
   ledgerPath: string;
   proofDirectory: string;
+  /** Resolve relative evidence and draft references against the caller's workspace. */
+  referenceRoot?: string;
   clock?: () => number;
   executor?: Executor;
   /** Optional caller-verified artifact identity, recorded locally; never a write permit. */
@@ -745,6 +785,7 @@ export type HostConnectionOptions = Pick<
   HarnessOptions,
   | "ledgerPath"
   | "proofDirectory"
+  | "referenceRoot"
   | "clock"
   | "executor"
   | "originalContentGuard"
@@ -864,6 +905,12 @@ export interface XGrowthHarness {
   ): Promise<CreatorHistoryResult>;
   readCreator(args: CreatorOptions): Promise<ReadResult>;
   readPeople(args: PeopleOptions): Promise<ReadResult>;
+  readFollowCandidateProfiles(
+    args: FollowProfileBatchOptions,
+  ): Promise<FollowProfileBatchResult>;
+  discoverFollowCandidates(
+    args: FollowDiscoveryOptions,
+  ): Promise<FollowDiscoveryResult>;
   readFollowbackAudit(
     args: FollowbackAuditOptions,
   ): Promise<FollowbackAuditResult>;

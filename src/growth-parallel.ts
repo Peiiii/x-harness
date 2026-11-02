@@ -1,3 +1,4 @@
+import { executionHoldsPage } from "./executor-actionability.js";
 import type { GrowthDependencies } from "./growth-dependencies.js";
 import { randomUUID } from "node:crypto";
 
@@ -87,6 +88,9 @@ export class ParallelRound {
     let completed = 0;
     const needs: any[] = [];
     try {
+      // An earlier cleanup may have failed after its action settled. Only the
+      // original token may be released, before this session claims another.
+      if (this.#session.claim) await this.#releaseSession(taskId);
       if (
         !Number.isInteger(maxActions) ||
         maxActions < 0 ||
@@ -110,9 +114,9 @@ export class ParallelRound {
         if (
           Object.values(next.executions).some(
             (e: any) =>
-              (e.tabId === executor.tabId || e.id === executor.id) &&
+              e.tabId === executor.tabId &&
               e.runtimeId !== this.#runtimeId &&
-              (e.activity || e.actionId) &&
+              executionHoldsPage(e) &&
               this.#store.ownerAlive(e.pid),
           )
         )
@@ -246,6 +250,7 @@ export class ParallelRound {
             continue;
           try {
             snapshot = await this.#store.transaction((latest: any) => {
+              this.#session.claim = null;
               const next = structuredClone(latest.state),
                 action = next.actions.find((a: any) => a.id === original.id);
               if (next.batchId !== taskId)
@@ -320,11 +325,17 @@ export class ParallelRound {
                   : "harness-boundary-error",
               error: error.message.slice(0, 240),
             });
-            break;
+            // A target-local collision does not own this independent page.
+            // Keep its original claim and diagnostic; try a different target.
+            if (
+              !/^(same-action-claimed|same-target-already-claimed-or-submitted)$/.test(
+                error.message,
+              )
+            )
+              break;
           } finally {
             if (this.#session.claim) {
               const owned = this.#session.claim;
-              this.#session.claim = null;
               snapshot = await this.#store.transaction((latest: any) => {
                 const next = structuredClone(latest.state),
                   action = next.actions?.find(
@@ -337,6 +348,7 @@ export class ParallelRound {
                 next.updatedAt = this.#stamp();
                 return next;
               });
+              this.#session.claim = null;
             }
           }
         }

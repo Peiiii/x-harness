@@ -217,7 +217,24 @@ export const readXObservation = (query) => {
                 /^(?:没有.*结果|未找到.*结果|No results for)/i.test(text))),
         ].slice(0, 2)
         : [];
+    const columns = all.length
+        ? []
+        : Array.from(document.querySelectorAll('main [data-testid="primaryColumn"]')).filter(visible);
+    const primary = columns.length === 1 ? columns[0] : null;
+    const retry = primary
+        ? Array.from(primary.querySelectorAll("button")).filter((button) => visible(button) &&
+            /^(?:重试|Retry|Try again)$/i.test(button.innerText.trim()) &&
+            /^(?:出错了。请尝试重新加载。|Something went wrong\. Try reloading\.)\s*(?:重试|Retry|Try again)$/i.test(button.parentElement?.innerText.trim() ?? ""))
+        : [];
     return {
+        ...(retry.length === 1
+            ? {
+                loadError: {
+                    code: "timeline-load-error",
+                    retryLabel: retry[0].innerText.trim(),
+                },
+            }
+            : {}),
         firstRenderedId: firstTime
             ?.closest("a")
             ?.getAttribute("href")

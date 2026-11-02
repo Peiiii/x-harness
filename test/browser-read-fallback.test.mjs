@@ -4,6 +4,91 @@ import { BrowserReadFallback } from "../dist/browser-read-fallback.js";
 import { createXGrowthHarness } from "../dist/index.js";
 import { fixture } from "./fixtures.mjs";
 import { join, dirname } from "node:path";
+
+for (const method of ["observe", "collectCreator"]) {
+  test(`${method} permits a new incident only after a subsequent healthy read`, async () => {
+    let rebinds = 0,
+      fail = false;
+    const healthy = {
+      page: "https://x.com/sample",
+      accountHandle: "sample",
+      needsStateCheck: false,
+      alerts: [],
+    };
+    const replacement = {
+      [method]: async () => {
+        if (fail) throw Error("node_repl exec context not found");
+        return healthy;
+      },
+    };
+    const port = new BrowserReadFallback(
+      {
+        [method]: async () => {
+          throw Error("node_repl exec context not found");
+        },
+      },
+      {
+        tabId: "same-owned-tab",
+        recover: async () => {
+          rebinds++;
+          fail = false;
+          return { ...replacement };
+        },
+      },
+      { recordProof: async () => "proof" },
+    );
+    await port[method]({ view: "posts", handle: "sample" });
+    await port[method]({ view: "posts", handle: "sample" });
+    fail = true;
+    await port[method]({ view: "posts", handle: "sample" });
+    assert.equal(rebinds, 2);
+  });
+}
+
+for (const patch of [
+  { needsStateCheck: true },
+  { alerts: ["HTTP-429"] },
+  { accountHandle: null },
+  { page: null },
+  { complete: false },
+  { missing: ["person-unconfirmed"] },
+]) {
+  test(`unconfirmed intervening read does not reset recovery: ${JSON.stringify(patch)}`, async () => {
+    let rebinds = 0,
+      stage = 0;
+    const replacement = {
+      observe: async () => {
+        if (stage === 2) throw Error("node_repl exec context not found");
+        return {
+          page: "https://x.com/sample",
+          accountHandle: "sample",
+          ...(stage === 1 ? patch : {}),
+        };
+      },
+    };
+    const port = new BrowserReadFallback(
+      {
+        observe: async () => {
+          throw Error("node_repl exec context not found");
+        },
+      },
+      {
+        tabId: "same-owned-tab",
+        recover: async () => {
+          rebinds++;
+          return replacement;
+        },
+      },
+      { recordProof: async () => "proof" },
+    );
+    await port.observe({ view: "posts" });
+    stage = 1;
+    await port.observe({ view: "posts" });
+    stage = 2;
+    await assert.rejects(port.observe({ view: "posts" }), /context not found/);
+    assert.equal(rebinds, 1);
+  });
+}
 function setup(read) {
   const calls = [],
     proofs = [];

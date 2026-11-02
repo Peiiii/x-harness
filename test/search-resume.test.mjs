@@ -52,3 +52,57 @@ test("wrong-query resume fails closed without navigation or collection", async (
   assert.deepEqual(r.missing, ["search-resume-query-unconfirmed"]);
   assert.equal(f.writes.length, 0);
 });
+
+test("explicit empty search returns once without waits or pagination", async () => {
+  const { PlatformObservation } =
+    await import("../dist/platform-observation.js");
+  const actions = [];
+  const browser = {
+    observe: async () => ({
+      page: "https://x.com/search?q=friendship",
+      accountHandle: "example_owner",
+      posts: [],
+      emptyEvidence: ["No results for friendship"],
+      loading: false,
+      needsStateCheck: false,
+      alerts: [],
+    }),
+    act: async (c) => actions.push(c.operation),
+  };
+  const observation = new PlatformObservation({ browser, clock: () => 0 });
+  const reader = new PlatformCollections({
+    browser,
+    ready: observation.ready,
+    observed: observation.observed,
+    choose: async () => {},
+  });
+  const r = await reader.searchSources({ query: "friendship", maxPages: 10 });
+  assert.deepEqual(r.missing, ["source-results-empty"]);
+  assert.equal(r.complete, true);
+  assert.deepEqual(actions, ["searchSources"]);
+});
+
+test("empty text cannot confirm another route or an unsafe observation", async () => {
+  const { emptySearch } = await import("../dist/platform-rules.js");
+  const base = {
+    page: "https://x.com/search?q=friendship",
+    accountHandle: "example_owner",
+    posts: [],
+    emptyEvidence: ["No results for friendship"],
+    loading: false,
+    needsStateCheck: false,
+    alerts: [],
+  };
+  assert.equal(emptySearch(base), true);
+  for (const patch of [
+    { page: "https://x.com/home" },
+    { loading: true },
+    { loadError: true },
+    { needsStateCheck: true },
+    { alerts: ["limit"] },
+    { accountHandle: null },
+    { emptyEvidence: [] },
+    { posts: [{ id: "1" }] },
+  ])
+    assert.equal(emptySearch({ ...base, ...patch }), false);
+});

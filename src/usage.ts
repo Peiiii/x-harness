@@ -8,6 +8,7 @@ import {
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { explicitHttp429 } from "./read-failure-classification.js";
 
 interface UsageTraceContext {
   sessionId: string;
@@ -23,6 +24,7 @@ export function currentXUsageTrace(): UsageTraceContext | undefined {
   return context ? { ...context } : undefined;
 }
 interface UsageBindingContext {
+  moduleURL?: string;
   transport?: "dom" | "native";
   tabId?: string;
   executorId?: string;
@@ -55,6 +57,13 @@ interface UsageRecord {
   reason?: string;
   threw?: boolean;
   http429?: boolean;
+  evidenceRef?: string;
+  diagnosticCategory?: string;
+  diagnosticCode?: string;
+  needsStateCheck?: boolean;
+  missing?: string[];
+  hasAlerts?: boolean;
+  telemetryGap?: "result-fields-unreadable" | "thenable-inspection-unavailable";
 }
 const label = (value: unknown): string | undefined =>
   typeof value === "string" && /^[A-Za-z][A-Za-z0-9:_-]{0,95}$/.test(value)
@@ -92,6 +101,7 @@ export class XUsageJournal {
     this.#directory = join(proofDirectory, "usage", this.#sessionId);
     const identity = binding.runtimeIdentity;
     this.#binding = {
+      moduleURL: import.meta.url,
       ...(["dom", "native"].includes(binding.transport ?? "")
         ? { transport: binding.transport }
         : {}),
@@ -138,12 +148,11 @@ export class XUsageJournal {
   }
   /** Write a durable start before each creator operation; unfinished events identify interruptions. */
   creatorStage<T>(stage: string, invoke: () => Promise<T>): Promise<T> {
-    return this.#call(
-      invoke,
-      "browser",
-      `creator:${stage}`,
-      "step",
-    ) as Promise<T>;
+    return this.browserStage(`creator:${stage}`, invoke);
+  }
+  /** Internal stages are timing evidence, never additional platform requests. */
+  browserStage<T>(stage: string, invoke: () => Promise<T>): Promise<T> {
+    return this.#call(invoke, "browser", stage, "step") as Promise<T>;
   }
   wrap<T extends object>(
     target: T,
@@ -177,6 +186,95 @@ export class XUsageJournal {
       },
     });
   }
+  #finish(
+    record: UsageRecord,
+    started: number,
+    result: unknown,
+    threw = false,
+    telemetryGap?: UsageRecord["telemetryGap"],
+  ): unknown {
+    if (telemetryGap) this.#failedWrites++;
+    try {
+      const raw = result as {
+        status?: unknown;
+        message?: unknown;
+        reason?: unknown;
+        diagnostic?: { code?: unknown; category?: unknown };
+        evidenceRef?: unknown;
+        needsStateCheck?: unknown;
+        missing?: unknown;
+        alerts?: unknown;
+        readTransport?: unknown;
+        domReadTiming?: unknown;
+      } | null;
+      const thrownMessage =
+        threw && typeof result !== "string" ? raw?.message : result;
+      const reason = threw
+        ? typeof thrownMessage === "string"
+          ? thrownMessage
+          : ""
+        : (raw?.reason ?? raw?.diagnostic?.code);
+      this.#write({
+        ...record,
+        ...(telemetryGap ? { telemetryGap } : {}),
+        finishedAt: new Date().toISOString(),
+        durationMs: Math.max(0, Date.now() - started),
+        status: threw ? "threw" : (label(raw?.status) ?? "returned"),
+        reason: threw
+          ? /timed out|timeout|deadline exceeded/i.test(String(reason))
+            ? "timeout"
+            : /connection|transport|interrupted|extension/i.test(String(reason))
+              ? "connection-failed"
+              : "error"
+          : label(reason),
+        ...(typeof raw?.evidenceRef === "string" &&
+        raw.evidenceRef.length < 4096
+          ? { evidenceRef: raw.evidenceRef }
+          : {}),
+        ...(label(raw?.diagnostic?.category)
+          ? { diagnosticCategory: label(raw?.diagnostic?.category) }
+          : {}),
+        ...(label(raw?.diagnostic?.code)
+          ? { diagnosticCode: label(raw?.diagnostic?.code) }
+          : {}),
+        ...(typeof raw?.needsStateCheck === "boolean"
+          ? { needsStateCheck: raw.needsStateCheck }
+          : {}),
+        ...(Array.isArray(raw?.missing)
+          ? {
+              missing: raw.missing
+                .map(label)
+                .filter((x): x is string => Boolean(x))
+                .slice(0, 20),
+            }
+          : {}),
+        ...(Array.isArray(raw?.alerts)
+          ? { hasAlerts: raw.alerts.length > 0 }
+          : {}),
+        threw,
+        ...(raw?.readTransport === "native-fallback"
+          ? { readTransport: "native-fallback" as const }
+          : {}),
+        ...(record.layer === "browser" &&
+        record.operation === "observe" &&
+        readTiming(raw?.domReadTiming)
+          ? { domReadTiming: readTiming(raw?.domReadTiming) }
+          : {}),
+        http429: explicitHttp429(threw ? result : reason),
+      });
+    } catch {
+      this.#failedWrites++;
+      this.#write({
+        ...record,
+        finishedAt: new Date().toISOString(),
+        durationMs: Math.max(0, Date.now() - started),
+        status: threw ? "threw" : "returned",
+        threw,
+        telemetryGap: "result-fields-unreadable",
+      });
+    }
+    return result;
+  }
   #call(
     invoke: () => unknown,
     layer: UsageRecord["layer"],
@@ -201,46 +299,11 @@ export class XUsageJournal {
     };
     if (!kind) this.#calls++;
     this.#write(record);
-    const finish = (result: unknown, threw = false) => {
-      const raw = result as {
-        status?: unknown;
-        reason?: unknown;
-        diagnostic?: { code?: unknown };
-        readTransport?: unknown;
-        domReadTiming?: unknown;
-      } | null;
-      const reason = threw
-        ? result instanceof Error
-          ? result.message
-          : ""
-        : (raw?.reason ?? raw?.diagnostic?.code);
-      this.#write({
-        ...record,
-        finishedAt: new Date().toISOString(),
-        durationMs: Math.max(0, Date.now() - started),
-        status: threw ? "threw" : (label(raw?.status) ?? "returned"),
-        reason: threw
-          ? /timed out|timeout|deadline exceeded/i.test(String(reason))
-            ? "timeout"
-            : /connection|transport|interrupted|extension/i.test(String(reason))
-              ? "connection-failed"
-              : "error"
-          : label(raw?.diagnostic?.code),
-        threw,
-        ...(raw?.readTransport === "native-fallback"
-          ? { readTransport: "native-fallback" as const }
-          : {}),
-        ...(layer === "browser" &&
-        operation === "observe" &&
-        readTiming(raw?.domReadTiming)
-          ? { domReadTiming: readTiming(raw?.domReadTiming) }
-          : {}),
-        http429:
-          typeof reason === "string" &&
-          /(?:HTTP[- :]*429|\b429\b)/i.test(reason),
-      });
-      return result;
-    };
+    const finish = (
+      value: unknown,
+      threw = false,
+      gap?: UsageRecord["telemetryGap"],
+    ) => this.#finish(record, started, value, threw, gap);
     return usageContext.run(
       {
         sessionId: this.#sessionId,
@@ -251,8 +314,13 @@ export class XUsageJournal {
       () => {
         try {
           const result = invoke();
-          return result &&
-            typeof (result as PromiseLike<unknown>).then === "function"
+          let then: unknown;
+          try {
+            then = result && (result as PromiseLike<unknown>).then;
+          } catch {
+            return finish(result, false, "thenable-inspection-unavailable");
+          }
+          return typeof then === "function"
             ? Promise.resolve(result).then(
                 (value) => finish(value),
                 (error) => {
@@ -310,6 +378,11 @@ export function readXUsageReport(
           continue;
         if (!records.get(value.id)?.finishedAt || value.finishedAt)
           records.set(value.id, value);
+        if (
+          value.telemetryGap === "result-fields-unreadable" ||
+          value.telemetryGap === "thenable-inspection-unavailable"
+        )
+          gaps.push({ directory: path, code: value.telemetryGap });
       } catch {
         gaps.push({ directory: path, code: "malformed-usage-record" });
       }
@@ -327,14 +400,14 @@ export function readXUsageReport(
       statuses: Record<string, number>;
     }
   > = {};
-  const creatorSteps: typeof operations = {};
+  const browserSteps: typeof operations = {};
   let stepRecords = 0;
   const minutes: Record<string, { harness: number; browser: number }> = {};
   for (const r of records.values()) {
     const step = r.kind === "step";
     if (step) stepRecords++;
     const key = step ? r.operation : `${r.layer}:${r.operation}`;
-    const aggregate = ((step ? creatorSteps : operations)[key] ??= {
+    const aggregate = ((step ? browserSteps : operations)[key] ??= {
       calls: 0,
       unfinished: 0,
       http429: 0,
@@ -359,7 +432,17 @@ export function readXUsageReport(
     metric: "harness-call-frequency",
     records: records.size - stepRecords,
     stepRecords,
-    creatorSteps,
+    browserSteps,
+    creatorSteps: Object.fromEntries(
+      Object.entries(browserSteps).filter(([key]) =>
+        key.startsWith("creator:"),
+      ),
+    ),
+    navigationSteps: Object.fromEntries(
+      Object.entries(browserSteps).filter(([key]) =>
+        key.startsWith("navigation:"),
+      ),
+    ),
     operations,
     minutes,
     gaps,

@@ -115,7 +115,7 @@ export class NativeXBrowser {
     const ownLinks = readAX(this.#latestAX, {
       mode: "navigation",
     }).evidence.filter((e: any) =>
-      /^link 个人资料, Value: x\.com\/\w+$/.test(e.label),
+      /^link (?:Description: )?个人资料, Value: x\.com\/\w+$/.test(e.label),
     );
     const base: BoundaryRecord = {
       page: raw.page,
@@ -129,7 +129,7 @@ export class NativeXBrowser {
     };
     if (query.view === "account") {
       const own = entries.filter((e: any) =>
-        /^link 个人资料, Value: x\.com\/\w+$/.test(e.label),
+        /^link (?:Description: )?个人资料, Value: x\.com\/\w+$/.test(e.label),
       );
       return {
         ...base,

@@ -1,6 +1,6 @@
 # Writes and rounds
 
-Load common review and only the matching operation heading. The project owns authorization, identity, budgets, policy and the original ledger plan. Independent initialization plans zero writes; record authorized counts before execution. Default Asia/Shanghai windows: replies 07–24, other writes 07–22. Follow needs reviewed Chinese blue-check candidates. Never expand scope. Examples require real observations/proof and grant no authorization.
+Load common review and only the matching operation heading. Project owns authorization, identity, budgets, policy and ledger. New executor: [setup](setup.md#new-daily-executor), planning zero writes; record authorized counts before execution. Default Asia/Shanghai windows: replies 07–24, other writes 07–22. Follow needs reviewed Chinese blue-check candidates. Never expand scope. Examples require real observations/proof and grant no authorization.
 
 ## Common review
 

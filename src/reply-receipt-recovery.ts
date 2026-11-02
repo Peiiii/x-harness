@@ -116,6 +116,7 @@ export class ReplyReceiptRecovery {
       if (matches.length !== 1) continue;
       let bound = false;
       await this.#store.transaction(({ state }) => {
+        bound = false;
         const current = state.actions.find(
           (a: BoundaryRecord) => a.id === action.id,
         );

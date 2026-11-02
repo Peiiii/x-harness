@@ -134,6 +134,67 @@ export class GrowthRecovery {
       sourceCardProfileRead: profile,
     };
   }
+  private async readPublicRecovery(target: any, action: any) {
+    try {
+      return await this.#platform.readPost(target);
+    } catch (error: any) {
+      if (
+        !/timed out|timeout|deadline exceeded/i.test(error.message) ||
+        typeof this.#platform.searchSources !== "function" ||
+        !Array.isArray(action.beforeIds) ||
+        !Number.isFinite(Date.parse(action.intentAt)) ||
+        action.quoteTarget ||
+        action.assets?.length
+      )
+        throw error;
+      const phrase = action.text
+        .split(/\n+/)
+        .sort((a: string, b: string) => b.length - a.length)[0]
+        .replace(/"/g, "")
+        .trim()
+        .slice(0, 100);
+      if (!phrase) throw error;
+      const query = `from:${action.accountHandle} "${phrase}" since:${action.intentAt.slice(0, 10)}`;
+      const value = await this.#platform.searchSources({
+        query,
+        limit: 5,
+        maxPages: 1,
+      });
+      let route = false;
+      try {
+        const url = xURL(value.page);
+        route =
+          url.pathname === "/search" && url.searchParams.get("q") === query;
+      } catch {
+        /* Missing search route cannot recover a detail timeout. */
+      }
+      const valid =
+        route &&
+        value.query === query &&
+        value.fresh === true &&
+        same(value.accountHandle, action.accountHandle) &&
+        !value.needsStateCheck &&
+        !value.alerts?.length;
+      return {
+        ...value,
+        needsStateCheck: !valid,
+        posts: valid
+          ? (value.sources ?? []).filter(
+              (p: any) =>
+                p.id === target.postId &&
+                p.url === target.url &&
+                p.replyToId == null &&
+                !p.needsExpansion &&
+                !p.missing?.length,
+            )
+          : [],
+        publicRecovery: {
+          method: "exact-search-after-detail-timeout",
+          detailError: error.message,
+        },
+      };
+    }
+  }
   public async verifyPublishedPost({
     taskId,
     draftPath,
@@ -173,12 +234,15 @@ export class GrowthRecovery {
     const quoteCaps = this.#capability("read", { resolveQuote });
     if (!quoteCaps.covered)
       return { status: "needsCapability", missing: quoteCaps.missing };
-    let observation = await this.#platform.readPost({
-      postId,
-      url: publicURL,
-      evidenceRef,
-      resolveQuote,
-    });
+    let observation = await this.readPublicRecovery(
+      {
+        postId,
+        url: publicURL,
+        evidenceRef,
+        resolveQuote,
+      },
+      action,
+    );
     const trailing = action.text.match(
       /(?:\n+)?((?:https:\/\/|(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\/)\S+)$/,
     );

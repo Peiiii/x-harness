@@ -1,10 +1,13 @@
+import { BrowserReadDeadline } from "./browser-read-deadline.js";
 import { xURL, handlePattern } from "./platform-rules.js";
 
 import type { DOMDependencies } from "./browser-dom-dependencies.js";
 export class DOMNavigation {
+  #readDeadline: BrowserReadDeadline;
   #session!: DOMDependencies["session"];
   #tab!: DOMDependencies["tab"];
   #observe!: DOMDependencies["observe"];
+  #trace?: DOMDependencies["trace"];
   openQuote!: (command: any) => Promise<any>;
   searchSources!: (command: any) => Promise<void>;
   openExploreRecommendations!: (command: any) => Promise<void>;
@@ -15,10 +18,16 @@ export class DOMNavigation {
   openObserved!: (command: any) => Promise<void>;
   refreshPerson!: (command: any) => Promise<void>;
   refreshPosts!: (command: any) => Promise<void>;
+  retryPosts!: (command: any) => Promise<void>;
   constructor(
-    dependencies: Pick<DOMDependencies, "session" | "tab" | "observe">,
+    dependencies: Pick<
+      DOMDependencies,
+      "session" | "tab" | "observe" | "trace" | "readDeadline"
+    >,
   ) {
-    const { session, tab, observe } = dependencies;
+    const { session, tab, observe, trace } = dependencies;
+    this.#readDeadline = dependencies.readDeadline ?? new BrowserReadDeadline();
+    this.#trace = trace;
     this.#session = session;
     this.#tab = tab;
     this.#observe = observe;
@@ -38,6 +47,10 @@ export class DOMNavigation {
     this.openObserved = this.handleOpenObserved.bind(this);
     this.refreshPerson = this.handleRefreshPerson.bind(this);
     this.refreshPosts = this.handleRefreshPosts.bind(this);
+    this.retryPosts = this.handleRetryPosts.bind(this);
+  }
+  private stage<T>(name: string, run: () => Promise<T>): Promise<T> {
+    return this.#trace ? this.#trace(`navigation:${name}`, run) : run();
   }
   private async handleOpenQuote(command: any) {
     const current = this.#session.current;
@@ -152,8 +165,13 @@ export class DOMNavigation {
       timelineNavigation: true,
       limit: 1,
     });
-    if (check.alerts?.length || check.needsStateCheck)
-      throw Error("search-client-session-unconfirmed");
+    if (check.alerts?.length) throw Error("search-client-session-unconfirmed");
+    // A partial old page cannot provide the client input. Use the existing
+    // read-only destination route; the target read still owns completeness.
+    if (check.needsStateCheck) {
+      await this.#tab.goto(destination);
+      return;
+    }
     const input = this.#tab.playwright
       ?.locator?.('input[data-testid="SearchBox_Search_Input"]')
       ?.filter({ visible: true });
@@ -331,7 +349,9 @@ export class DOMNavigation {
     await this.#tab.back();
     if (typeof this.#tab.getAXState === "function")
       await this.#tab.getAXState({ emit: false });
-    if ((await this.#tab.url()) !== command.url) {
+    if (
+      (await this.stage("committed-url", () => this.#tab.url())) !== command.url
+    ) {
       const link = this.#tab.playwright
         .locator(`a[href=${JSON.stringify(xURL(command.url).pathname)}]`)
         .filter({ visible: true });
@@ -343,32 +363,7 @@ export class DOMNavigation {
     await this.waitObservedPost(command.url);
     return true;
   }
-  private async handleOpenObserved(command: any) {
-    xURL(command.url);
-    if (!command.evidenceRef) throw new Error("导航缺已观察证据");
-    // A direct adapter caller must also preserve a page already at the target.
-    // Explicit recovery uses forceNavigation; durable verification uses refreshPerson.
-    const originalPage =
-      typeof this.#tab.url === "function"
-        ? await this.#tab.url()
-        : this.#session.current?.result?.page;
-    if (
-      !command.forceNavigation &&
-      typeof this.#tab.url === "function" &&
-      originalPage === xURL(command.url).href
-    ) {
-      if (command.view === "person")
-        await this.handleWaitProfileContent(
-          this.#tab.playwright.locator('[data-testid="UserName"]'),
-          command.url,
-        );
-      else if (command.view === "posts")
-        await this.waitObservedPost(command.url);
-      return;
-    }
-    if (await this.handleQuoteClientReturn(command)) return;
-    this.#session.replyBinding = null;
-    this.#session.current = null;
+  private async findObservedLink(command: any) {
     // Keep the loaded X client when the exact observed permalink is already visible.
     // An ambiguous/missing link retains the existing navigation path, never an arbitrary click.
     const path = xURL(command.url).pathname + xURL(command.url).search;
@@ -392,7 +387,9 @@ export class DOMNavigation {
       link = this.#tab.playwright
         .locator(`a[href=${JSON.stringify(path)}]`)
         .filter({ visible: true });
-      linkCount = await link.count();
+      linkCount = await this.#readDeadline.run("observed-link-count", () =>
+        link.count(),
+      );
       if (
         command.view === "posts" &&
         /^\/[A-Za-z0-9_]{1,15}\/?$/.test(xURL(command.url).pathname) &&
@@ -405,7 +402,11 @@ export class DOMNavigation {
             `[data-testid="AppTabBar_Profile_Link"][href=${JSON.stringify(path)}]`,
           )
           .filter({ visible: true });
-        if ((await navigation.count()) === 1) {
+        if (
+          (await this.#readDeadline.run("own-profile-link-count", () =>
+            navigation.count(),
+          )) === 1
+        ) {
           link = navigation;
           linkCount = 1;
         }
@@ -420,36 +421,83 @@ export class DOMNavigation {
         const named = link.filter({
           hasText: new RegExp(`@${command.handle}(?![A-Za-z0-9_])`, "i"),
         });
-        if ((await named.count()) === 1) {
+        if (
+          (await this.#readDeadline.run("named-profile-link-count", () =>
+            named.count(),
+          )) === 1
+        ) {
           link = named;
           linkCount = 1;
         }
       }
     }
+    return { link, linkCount };
+  }
+  private async handleOpenObserved(command: any) {
+    xURL(command.url);
+    if (!command.evidenceRef) throw new Error("导航缺已观察证据");
+    // A direct adapter caller must also preserve a page already at the target.
+    // Explicit recovery uses forceNavigation; durable verification uses refreshPerson.
+    const originalPage =
+      typeof this.#tab.url === "function"
+        ? await this.stage("current-url", () => this.#tab.url())
+        : this.#session.current?.result?.page;
+    if (
+      !command.forceNavigation &&
+      typeof this.#tab.url === "function" &&
+      originalPage === xURL(command.url).href
+    ) {
+      if (command.view === "person")
+        await this.handleWaitProfileContent(
+          this.#tab.playwright.locator('[data-testid="UserName"]'),
+          command.url,
+        );
+      else if (command.view === "posts")
+        await this.waitObservedPost(command.url);
+      return;
+    }
+    if (await this.handleQuoteClientReturn(command)) return;
+    this.#session.replyBinding = null;
+    this.#session.current = null;
+    const { link, linkCount } = await this.stage(
+      "observed-link-inspection",
+      () => this.findObservedLink(command),
+    );
     const clickedLink = link && linkCount === 1;
     if (command.preferObservedLink && !clickedLink)
       throw Error("original-receipt-link-not-currently-visible");
+    let linkActivated = false;
     try {
-      if (clickedLink) await link.click();
-      else await this.#tab.goto(command.url);
+      if (clickedLink) {
+        await this.stage("observed-link-click", () => link.click());
+        linkActivated = true;
+      } else await this.stage("goto", () => this.#tab.goto(command.url));
       // Live URL readiness does not replace content or caller account checks.
       if (
         !["composer", "posts"].includes(command.view) ||
         typeof this.#tab.url !== "function" ||
         (await this.#tab.url()) !== command.url
       )
-        await this.#tab.playwright.waitForURL(command.url, {
-          timeoutMs: command.view === "posts" ? 15000 : 5000,
-          ...(command.view === "posts" ? { waitUntil: "commit" as const } : {}),
-        });
+        await this.stage("route-wait", () =>
+          this.#tab.playwright.waitForURL(command.url, {
+            timeoutMs: command.view === "posts" ? 15000 : 5000,
+            ...(command.view === "posts"
+              ? { waitUntil: "commit" as const }
+              : {}),
+          }),
+        );
     } catch (error: unknown) {
-      if (
-        !/Timed out waiting for URL/.test(
-          error instanceof Error ? error.message : String(error),
-        )
-      )
+      const message = error instanceof Error ? error.message : String(error);
+      const linkTimeout =
+        clickedLink &&
+        !linkActivated &&
+        command.view === "posts" &&
+        !command.preferObservedLink &&
+        /timed out|timeout|deadline exceeded/i.test(message);
+      if (!linkTimeout && !/Timed out waiting for URL/.test(message))
         throw error;
       const check = await this.#observe({ view: "account", limit: 1 });
+      if (linkTimeout && !check.accountHandle) throw error;
       // Some hosts time out a URL wait even after the exact route committed.
       // Fresh route evidence may continue to content readiness, never acceptance.
       if (
@@ -480,16 +528,32 @@ export class DOMNavigation {
         command.url,
       );
     } else if (command.view === "people") {
-      await this.#tab.playwright
-        .locator('main [data-testid="primaryColumn"] [data-testid="UserCell"]')
-        .first()
-        .waitFor({ state: "visible", timeoutMs: 5000 });
+      await this.waitPeople(command.url);
     } else if (command.view === "composer") {
       await this.waitComposer(command.url);
     } else if (command.view === "posts") {
       await this.waitObservedPost(command.url);
     }
     return;
+  }
+  private async waitPeople(url: string) {
+    const people = this.#tab.playwright
+      .locator('main [data-testid="primaryColumn"] [data-testid="UserCell"]')
+      .first();
+    try {
+      await people.waitFor({ state: "visible", timeoutMs: 5000 });
+    } catch (error: unknown) {
+      // Retry a slow list only on the exact route; do not infer emptiness.
+      if (
+        !/timed out|timeout|deadline exceeded/i.test(
+          error instanceof Error ? error.message : String(error),
+        ) ||
+        typeof this.#tab.url !== "function" ||
+        (await this.#tab.url()) !== xURL(url).href
+      )
+        throw error;
+      await people.waitFor({ state: "visible", timeoutMs: 5000 });
+    }
   }
   private async waitComposer(url: string) {
     const editor = this.#tab.playwright.getByRole("textbox", {
@@ -544,6 +608,11 @@ export class DOMNavigation {
     }
   }
   private async rejectUnavailableProfile(url: string) {
+    return this.stage("profile-unavailable-inspection", () =>
+      this.inspectUnavailableProfile(url),
+    );
+  }
+  private async inspectUnavailableProfile(url: string) {
     const empty = this.#tab.playwright.locator(
       '[data-testid="primaryColumn"] [data-testid="empty_state_header_text"]',
     );
@@ -553,8 +622,12 @@ export class DOMNavigation {
     if (
       typeof empty.isVisible !== "function" ||
       typeof name.isVisible !== "function" ||
-      !(await empty.isVisible()) ||
-      (await name.isVisible())
+      !(await this.#readDeadline.run("empty-profile-visible", () =>
+        empty.isVisible(),
+      )) ||
+      (await this.#readDeadline.run("profile-name-visible", () =>
+        name.isVisible(),
+      ))
     )
       return;
     const check = await this.#observe({ view: "account", limit: 1 });
@@ -571,14 +644,16 @@ export class DOMNavigation {
       if (!/timed out|timeout|deadline exceeded/i.test(error.message))
         throw error;
       await this.rejectUnavailableProfile(url);
-      const check = await this.#observe({ view: "account", limit: 1 });
+      const check = await this.stage("profile-recovery-inspection", () =>
+        this.#observe({ view: "account", limit: 1 }),
+      );
       if (check.page !== url || check.alerts?.length)
         throw Error("target-readiness-route-or-alert", { cause: error });
       // A loaded X error view does not become a profile by waiting longer.
       // Reload the confirmed document once; same-URL navigation may be inert.
       // This is read-only recovery, never another Follow activation.
       this.#session.current = null;
-      await this.#tab.reload();
+      await this.stage("profile-recovery-reload", () => this.#tab.reload());
       await this.handleWaitTargetContent(target, url);
     }
   }
@@ -588,10 +663,14 @@ export class DOMNavigation {
       const remaining = deadline - Date.now();
       if (remaining <= 0) throw Error("target-content-readiness-timeout");
       try {
-        await detail.waitFor({
-          state: "visible",
-          timeoutMs: Math.min(5000, remaining),
-        });
+        await this.stage(`target-content-wait-${attempt + 1}`, () =>
+          this.#readDeadline.run("target-content-wait", () =>
+            detail.waitFor({
+              state: "visible",
+              timeoutMs: Math.min(5000, remaining),
+            }),
+          ),
+        );
         return;
       } catch (error: any) {
         if (
@@ -600,14 +679,18 @@ export class DOMNavigation {
           Date.now() >= deadline
         )
           throw error;
-        const check = await this.#observe({ view: "account", limit: 1 });
+        const check = await this.stage("content-recovery-inspection", () =>
+          this.#observe({ view: "account", limit: 1 }),
+        );
         if (check.page !== url || check.alerts?.length)
           throw Error("target-readiness-route-or-alert", { cause: error });
       }
     }
   }
   private async handleRefreshPerson(command: any) {
-    const at = xURL(await this.#tab.url());
+    const at = xURL(
+      await this.stage("refresh-current-url", () => this.#tab.url()),
+    );
     this.#session.replyBinding = null;
     if (
       at.href !== xURL(command.url).href ||
@@ -617,7 +700,7 @@ export class DOMNavigation {
     this.#session.current = null;
     // Fresh reload and exact relationship readiness prove persistence. Global
     // network idle can be held by unrelated long-lived X traffic.
-    await this.#tab.reload();
+    await this.stage("profile-refresh-reload", () => this.#tab.reload());
     await this.handleWaitProfileContent(
       this.#tab.playwright.getByRole("button", {
         name: new RegExp(
@@ -628,6 +711,29 @@ export class DOMNavigation {
       command.url,
     );
     return;
+  }
+  private async handleRetryPosts(command: any) {
+    const current = this.#session.current;
+    const result = current?.result;
+    if (
+      current?.query?.view !== "posts" ||
+      result?.loadError?.code !== "timeline-load-error" ||
+      result.alerts?.length ||
+      !result.accountHandle ||
+      result.page !== command.page ||
+      (await this.#tab.url()) !== command.page
+    )
+      throw Error("timeline-retry-observation-mismatch");
+    const primary = this.#tab.playwright.locator(
+      'main [data-testid="primaryColumn"]',
+    );
+    const retry = primary
+      .getByRole("button", { name: result.loadError.retryLabel, exact: true })
+      .filter({ visible: true });
+    if ((await primary.count()) !== 1 || (await retry.count()) !== 1)
+      throw Error("timeline-retry-control-ambiguous");
+    this.#session.current = null;
+    await this.stage("retry-timeline-load", () => retry.click());
   }
   private async handleRefreshPosts(command: any) {
     this.#session.replyBinding = null;
@@ -656,6 +762,7 @@ export class DOMNavigation {
             )
             .filter({ visible: true })
         : undefined;
+    let switchedTimeline = false;
     if (
       profileTab &&
       alternateTab &&
@@ -663,6 +770,7 @@ export class DOMNavigation {
       (await alternateTab.count()) === 1 &&
       (await profileTab.getAttribute("aria-selected")) === "true"
     ) {
+      switchedTimeline = true;
       // The selected Posts tab opens a menu in current X. Switch to the exact
       // observed adjacent timeline and back instead of clicking that menu or
       // bootstrapping Viewer through a full document reload.
@@ -678,15 +786,44 @@ export class DOMNavigation {
       if (typeof this.#tab.getAXState === "function")
         await this.#tab.getAXState({ emit: false });
     }
+    const ticket = this.#session.originalReceiptReload;
+    this.#session.originalReceiptReload = undefined;
     const articles = this.#tab.playwright.getByRole("article");
     // A pinned card can render before the timeline. Wait for the reviewed
     // candidate when supplied; only the later full observation can verify it.
-    await this.handleWaitTargetContent(
-      command.expectedText
-        ? articles.filter({ hasText: command.expectedText }).first()
-        : articles.first(),
-      command.url,
-    );
+    const candidate = command.expectedText
+      ? articles.filter({ hasText: command.expectedText }).first()
+      : articles.first();
+    try {
+      if (ticket && ticket.text === command.expectedText)
+        await this.stage("receipt-cache-wait", () =>
+          candidate.waitFor({ state: "visible", timeoutMs: 5000 }),
+        );
+      else await this.handleWaitTargetContent(candidate, command.url);
+    } catch (error: any) {
+      // A successful activation cleared this exact editor in this instance. A
+      // cached profile can survive tab switching; reload once, never resubmit.
+      if (
+        !ticket ||
+        ticket.text !== command.expectedText ||
+        !/timed out|timeout|deadline exceeded/i.test(error?.message ?? "") ||
+        !switchedTimeline
+      )
+        throw error;
+      const current = await this.#observe({ view: "posts", limit: 1 });
+      if (
+        current.page !== command.url ||
+        current.alerts?.length ||
+        current.needsStateCheck ||
+        current.accountHandle?.toLowerCase() !==
+          ticket.accountHandle.toLowerCase() ||
+        target.pathname.toLowerCase() !==
+          "/" + ticket.accountHandle.toLowerCase()
+      )
+        throw error;
+      await this.stage("receipt-cache-reload", () => this.#tab.reload());
+      await this.handleWaitTargetContent(candidate, command.url);
+    }
     return;
   }
 }

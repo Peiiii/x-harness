@@ -1,5 +1,9 @@
 import type { PlatformDependencies } from "./platform-dependencies.js";
-import { xURL, source, sameHandle } from "./platform-rules.js";
+import { xURL, source, sameHandle, emptySearch } from "./platform-rules.js";
+
+const sourcePageMissing = (value: any) => [
+  value.loadError ? "source-load-error" : "source-page-unconfirmed",
+];
 
 const recommendationNavigationEvidence = (nav: any) => ({
   page: nav.page,
@@ -83,12 +87,13 @@ export class PlatformCollections {
         last = await this.#ready({ view: "posts", offset, limit: 5 });
       }
       firstDOMId ??= last.firstRenderedId ?? last.posts?.[0]?.id;
-      if (last.needsStateCheck || last.alerts?.length)
+      const empty = !offset && emptySearch(last);
+      if (last.needsStateCheck || last.alerts?.length || empty)
         return {
           ...last,
           sources,
-          complete: false,
-          missing: ["source-page-unconfirmed"],
+          complete: empty,
+          missing: empty ? ["source-results-empty"] : sourcePageMissing(last),
         };
       if (
         offset &&
@@ -104,7 +109,7 @@ export class PlatformCollections {
             ...last,
             sources,
             complete: false,
-            missing: ["source-page-unconfirmed"],
+            missing: sourcePageMissing(last),
           };
       }
       if (offset && !last.posts?.length) {
@@ -117,6 +122,7 @@ export class PlatformCollections {
         break;
       }
       previousIds = ids;
+      let windowNarrowed = false;
       for (const candidate of last.posts ?? []) {
         if (!candidate.id || seen.has(candidate.id)) continue;
         seen.add(candidate.id);
@@ -124,6 +130,7 @@ export class PlatformCollections {
           continue;
         let post = candidate;
         if (candidate.needsExpansion) {
+          windowNarrowed = true;
           const expanded = await this.expandSource(candidate, last, offset);
           if (expanded.blocked)
             return {
@@ -138,13 +145,7 @@ export class PlatformCollections {
           }
           post = expanded.post;
         }
-        if (
-          !post ||
-          post.needsExpansion ||
-          !post.body ||
-          !post.author ||
-          !Number.isFinite(Date.parse(post.datetime))
-        ) {
+        if (!this.completeSource(post)) {
           missing.push(`incomplete-source:${candidate.id}`);
           continue;
         }
@@ -152,8 +153,9 @@ export class PlatformCollections {
         if (sources.length >= limit) break;
       }
       if (sources.length < limit && page + 1 < maxPages) {
-        // Expansion narrowed the semantic window; restore the list before scrolling.
-        last = await this.#observed({ view: "posts", offset, limit: 5 });
+        // Only expansion changes the semantic window; pure filtering retains the fresh list.
+        if (windowNarrowed)
+          last = await this.#observed({ view: "posts", offset, limit: 5 });
         if (last.moreInDOM) offset += 5;
         else {
           let advanced;
@@ -169,7 +171,7 @@ export class PlatformCollections {
               ...advanced,
               sources,
               complete: false,
-              missing: ["source-page-unconfirmed"],
+              missing: sourcePageMissing(advanced),
             };
           if (advanced.missing?.includes("bounded-scroll-window-exhausted")) {
             last = advanced;
@@ -209,6 +211,15 @@ export class PlatformCollections {
           ? []
           : [...new Set([...missing, "bounded-source-window-exhausted"])],
     };
+  }
+  private completeSource(post: any): boolean {
+    return Boolean(
+      post &&
+      !post.needsExpansion &&
+      post.body &&
+      post.author &&
+      Number.isFinite(Date.parse(post.datetime)),
+    );
   }
   private sourceExcluded(
     candidate: any,

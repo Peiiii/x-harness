@@ -11,7 +11,7 @@ npx @nextclaw/x-harness@latest setup --target codex
 npx @nextclaw/x-harness@latest update --target codex
 ```
 
-Requires Node.js 22+ and a compatible browser-enabled AI host. Codex desktop with CUA is the validated host. `--target claude` installs Skill text into Claude's Skill directory; the Claude host must separately provide compatible CUA tab/app methods. Installing text alone does not add browser control.
+Requires Node.js 22.13+ and a compatible browser-enabled AI host. Codex desktop with CUA is the validated host. `--target claude` installs Skill text into Claude's Skill directory; the Claude host must separately provide compatible CUA tab/app methods. Installing text alone does not add browser control.
 
 The runtime lives in `~/.x-harness/runtime`; the Skill is managed in the selected host's Skill directory. Updates preserve your independent workspaces, back up the previous runtime and Skill, and refuse to overwrite unrecognized directories. Bind the new moduleURL reported by update; its versioned path refreshes the complete module graph, including in a persistent REPL. The stable CLI entry remains usable.
 
@@ -86,3 +86,9 @@ A binding may provide a synchronous `originalContentGuard({draftPath, text})`. R
 ### No routine account precheck
 
 Publishing (including independent calls), replying, following and incoming-like verification use identity already returned by their necessary business observations. They do not perform a separate `readAccount`/`inspectAccount` preflight, and ordinary write capability does not require an account-only reader. Do not add such checks, account-page navigation or reloads in callers. Explicit account diagnostics and recovery after a real failure remain available; they are not per-action or daily prerequisites. Local DOM observation is not itself an X HTTP request; repeated document loads can bootstrap X Viewer/settings requests.
+
+### Independent pages and atomic ledger writes
+
+Read-only task calls do not register persistent account-ledger activity. Different owned tabs can read and work independently. FileRoundStore coordinates only the synchronous Markdown commit using Node SQLite; it never holds an account-wide file lock over an async callback or browser operation. The adjacent SQLite file contains only coordination metadata, not business state. Mutation callbacks can be recomputed after a revision conflict and must contain no platform writes. Original action claims, unknown submissions, account refusals and public verification remain in force.
+
+The former `.x-harness.lock` pathname is used only during the synchronous commit for compatibility with older SDKs, then removed. It is never held over browser I/O. If a new native writer is interrupted, the next native statement can prove exclusive ownership and remove its own orphaned compatibility artifact without a PID or age heuristic. Foreign legacy owners still require their original recovery evidence. New and old bindings can finish and upgrade at their own safe boundaries; no all-duty stop barrier is required. `withLock` is a local compatibility edit session; serializable decisions always use `transaction`.

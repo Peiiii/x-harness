@@ -1,5 +1,5 @@
 import type { PlatformDependencies } from "./platform-dependencies.js";
-import { xURL } from "./platform-rules.js";
+import { xURL, emptySearch } from "./platform-rules.js";
 export class PlatformObservation {
   #browser!: PlatformDependencies["browser"];
   #clock!: PlatformDependencies["clock"];
@@ -168,6 +168,42 @@ export class PlatformObservation {
   }
   private async handleReady(query: any): Promise<any> {
     let value = await this.handleObserved(query);
+    if (
+      query.view === "posts" &&
+      !query.targetId &&
+      !query.threadRootId &&
+      !query.offset &&
+      emptySearch(value)
+    )
+      return value;
+    // A visible load failure is not a slow render. Retry its own control once;
+    // never wait four selector budgets against the same failed timeline.
+    if (query.view === "posts" && value.loadError && !value.posts?.length) {
+      if (
+        !value.alerts?.length &&
+        !query.targetId &&
+        !query.threadRootId &&
+        !query.offset
+      ) {
+        await this.#browser.act({ operation: "retryPosts", page: value.page });
+        const page = value.page;
+        const account = value.accountHandle;
+        value = await this.handleObserved(query);
+        if (value.accountHandle !== account)
+          return {
+            ...value,
+            needsStateCheck: true,
+            alerts: [...(value.alerts ?? []), "account-changed-during-read"],
+          };
+        if (value.page !== page)
+          return {
+            ...value,
+            needsStateCheck: true,
+            missing: ["target-page-mismatch"],
+          };
+      }
+      if (value.loadError || value.alerts?.length) return value;
+    }
     const waitingForOffset =
       query.view === "posts" &&
       Number.isInteger(query.offset) &&
@@ -203,6 +239,7 @@ export class PlatformObservation {
           value.posts?.length ||
           value.loading !== true ||
           value.alerts?.length ||
+          value.loadError ||
           Date.now() >= deadline
         )
           break;

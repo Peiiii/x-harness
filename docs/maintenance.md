@@ -269,6 +269,67 @@ Ordinary local delivery uses `npm run check:local`: format and maintainability, 
 
 The measured full run was1103 passing tests,29.8 seconds for tests; the six-tab24h collector soak alone took25.3 seconds. These are local measurements, not a fixed latency guarantee. The fast path changes verification scope and removes duplicate no-emit compilation; it does not change runtime behavior or weaken publication/unknown handling.
 
+## Atomic ledger coordination (2026-10-29)
+
+The persistent directory-wide lock is replaced by a native, synchronous SQLite statement around the final original-Markdown write. Pure reads no longer mutate account execution telemetry. Independent pages stay independent after a reader or edit callback is canceled. The SQLite file stores no business state. Transaction callbacks are mutation-only and may rerun against a fresh snapshot; retry-sensitive claims and response flags are reset on each evaluation. Compatibility withLock does not provide a physical account lock. A compatibility file exists only inside the native commit and cooperates with older writers; orphaned new-protocol artifacts are recovered only after acquiring their actual OS-backed writer, never by age. Existing calls can finish and adopt individually without a global pause.
+
+Real-process kill and real CUA kernel-reset probes, multi-process mutations, account cadence reservations, same-action conflicts and original-root regressions form the acceptance evidence. Source/local build delivery, consumer adoption and actual platform results remain separate; page-loader failures are not declared repaired by this change. No per-call account probe, new daemon, scheduler or model hop is introduced.
+
+## Partial-page search continuation (2026-10-29)
+
+A missing session observation on the old page used to reject an authorized read-only search before navigating. The navigation owner now uses its existing direct live-search destination when that old page is incomplete. Observed warnings still reject, target collection still establishes its own complete evidence, and no write or identity clearance is fabricated. The old runtime fails the new incomplete-page case; 46 search/navigation continuation tests and the build pass after repair. This fixes one unnecessary pre-navigation stop, not every host DOM/AX timeout. Consumer live adoption and the broader guard/lock audit remain separate evidence; no standalone npm release is needed.
+
+## Incident evidence linkage (2026-10-29)
+
+Root usage records retain safe business reason codes, the original full-proof reference, compact missing-state flags and the loaded module location. Previously a computed business reason was discarded unless it also appeared as a diagnostic code, forcing callers to search unrelated proof files. Full page text, thrown private error text and credentials remain outside the compact usage journal; existing original proofs own those details. Durable call starts still identify interrupted calls, and logging never adds browser requests or retries. Verified local consumer adoption may precede a consolidated npm release.
+
+
+## Read recovery across independent incidents
+
+The owned-tab fallback previously kept its one-rebind flag for the full instance lifetime. After a successful recovery, a later ordinary DOM observation or creator collection with page/account identity and no incomplete/refusal evidence now reopens the budget for a subsequent incident. The recovery read itself does not reopen it; uninterrupted failures, missing identity, partial evidence and alerts still cannot loop. This changes no write retry, native fallback permission, navigation or normal browser call count.
+
+Two independent-incident regressions fail before the change; related tests also retain refusal, incomplete identity, missing data, bounded recovery, native-control isolation and never-repeat-write behavior. A local build can be adopted at an existing safe boundary after the relevant checks; natural repeated-fault behavior remains separate live acceptance. The normal Skill entry was shortened without changing discovery semantics to keep its existing read loading budget after the prior discovery addition.
+
+
+## 2026-10-29 discovery clock and host entry evidence
+
+Bounded follow discovery now uses the original injected clock and executor window permit instead of independently refusing every pre-07:00 request. The permit is read only in the early-hour branch, from the original ledger before each affected window; healthy daytime discovery adds no ledger or browser checks. Expiry, wrong scope, missing evidence and midnight boundaries retain partial candidates without another read. Existing discovery tests use a fixed synthetic clock. This restores the existing explicit-window contract; it adds no operator schedule configuration.
+
+Host connection initialization persists phase entry before awaiting each check/open call and a terminal receipt after success. An abruptly terminated caller therefore leaves an entered phase with completion explicitly not recorded, never an inferred timeout or submission failure. Optional entry telemetry failure does not block a healthy connection; the existing evidenced retry requirement is unchanged. No tab creation, navigation or business write is replayed. Source-level and local process-termination verification belong to this maintenance batch; private operational evidence remains consumer-owned.
+
+Connection evidence also carries one generated connection ID and caller PID across entry/terminal proofs. Consumer diagnosis can retire a completed connection without suppressing another caller’s unfinished entry. The original retry, returned tab and business state are unchanged; 22 adjacent host/usage checks and build/types passed after this trace-only extension.
+
+## Optional usage telemetry isolation (2026-10-29)
+
+Usage completion now preserves the original successful return or thrown value when optional result/error property inspection fails, records a content-free telemetry gap, and classifies cross-realm errors without `instanceof Error`. Replay exposes the gap rather than implying full coverage. Four synthetic regressions failed before the change; 1,153 regression checks, build, contract types and maintainability passed after it. This repairs logging correctness, not profile-readiness timeouts or host responsiveness. Source delivery is separate from consumer adoption; include with the next related diagnostics release, with no standalone npm version bump.
+
+
+## Navigation timing and supplied HTTP failures (2026-10-29)
+
+The original usage journal now records durable inner navigation stages without an additional browser command or account precheck. The original read-failure owner classifies supplied HTTP responses/errors, including cross-realm errors, retains allowlisted endpoint/numeric rate headers in the compact diagnostic, and keeps unattributed HTTP errors separate from proven X API responses. Bare selector counts no longer create429 journal signals. Failed-read status never becomes a global account quota or a resend. No failure-time console/CDP probe, extra observer or extension is added. The current standalone source passed1,171 regressions, types/contracts/build and maintainability; integrated evidence and actual consumer adoption remain separate. Include in the related diagnostics batch; no standalone npm version bump.
+
+## Remove automatic diagnostic polling from submissions (2026-10-30)
+
+Normal root submission no longer starts protocol capture or performs a failure-time protocol query. The explicit lower-level developer utility uses a baseline and one bounded final snapshot, with no polling timer and idempotent stop. Original activation/editor/context/alert/public verification behavior remains. Separately, unchanged source lists reuse their original observation; expansion still restores the list. Source and consumer evidence must distinguish saved browser control calls from unmeasured X HTTP traffic. See docs/design/submission-diagnostic-isolation.md; no standalone npm bump.
+
+## Recover an empty timeline's explicit load error (2026-10-30)
+
+The existing posts observation now recognizes the primary timeline's exact load-error/retry container when no articles are rendered. Healthy card reads do not scan retry controls. Readiness tries that same visible control once instead of spending four selector waits against a failed page; a persistent error remains explicit as source-load-error. A new error observed during a wait stops further selector waits. Sidebar failures, platform alerts, changed routes/accounts and ambiguous controls do not authorize another click. This is read-only UI recovery and never repeats a submission.
+
+Regression evidence distinguishes healthy/loading/persistent-error outcomes and control ownership. The real diagnostic page was cleaned up after an interrupted turn, so its missing-tab receipt is not a recovery success; a fresh real root home read completed in2.355 seconds and returned a complete source. Natural recovery of the exact failed page remains unverified. Consumer adoption follows the original verified local-build resolver at a safe binding; no standalone npm release or added daemon.
+
+## Cleared original receipt cache recovery (2026-10-30)
+
+A successful DOM original activation that clears its exact editor now arms one in-memory receipt refresh ticket. If the existing profile tab-switch refresh still cannot render that reviewed text, it consumes the ticket, confirms the same profile/account with no alert from the current frame, reloads the same page once and continues public verification. Ordinary unknown recovery, other text, another account/route and uncleared editors do not receive the ticket. It never activates or submits again. The first cache wait is bounded to one selector wait; full content readiness applies after the reload. This repairs the demonstrated same-ID manual-reload path; source checks and actual next publisher adoption remain distinct.
+
+## Read-only verification after a missing submitted editor (2026-10-30)
+
+Both original publication execution paths now make one public lookup after an activation has begun and the supplied editor diagnostic specifically reports missing, on the original compose URL, matching account and no alert. The original diagnostic remains attached. A missing editor is not acceptance: only the existing exact public proof settles success, otherwise unknown remains. Retained/changed editors, another page/account, other errors and replies do not enter this branch; activation is never replayed. The real FUTURE-05 evidence showed immediate same-ID verification succeeding after the former early unknown return.1206 fast regressions and contract types/build passed; next natural publisher adoption remains separate.
+
+## Explicit empty search continuation (2026-10-31)
+
+A visible no-results message was overwritten by list-readiness waiting, then reported as an unconfirmed page. Discovery retried the same empty search. The original observation and collection owners now recognize an authenticated, settled search with explicit empty evidence; discovery exhausts that query and proceeds to the next source. It creates no candidates or successful interactions. Loading, alerts, load errors, missing identity, wrong routes, target reads and offset windows retain their prior behavior. Synthetic source/discovery integration and adjacent readiness tests pass (67), with types/build and maintainability. Source delivery and safe-boundary local consumer adoption are separate from live throughput acceptance; include this repair in the next related consolidated release, not a standalone npm release.
+
 ## Image preview readiness (2026-11-02)
 
 A portrait image preview appeared after the previous five-second edit-control deadline. The image attachment path now allows a bounded thirty-second preview wait. After saving ALT, one unconfirmed composer observation without alerts gets one fresh observation after the same exact edit control becomes visible; persistent missing media or alerts still fail before submission. No extra upload, ALT save, activation or unknown replay is introduced. Two new synthetic regressions fail before the change; four focused readiness cases plus ordered multi-image and publication-verification cases pass. The consumer records actual adoption and public results separately; include the local repair in the next consolidated package release.

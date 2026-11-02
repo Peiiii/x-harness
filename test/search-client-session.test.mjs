@@ -71,8 +71,10 @@ function fixture(mode = "normal") {
         return {
           page,
           accountHandle: "Owner",
-          alerts: mode === "warning" ? ["请验证"] : [],
-          needsStateCheck: false,
+          alerts: ["warning", "warning-partial"].includes(mode)
+            ? ["请验证"]
+            : [],
+          needsStateCheck: ["partial", "warning-partial"].includes(mode),
         };
       },
     },
@@ -146,3 +148,20 @@ for (const mode of [
     assert.equal(f.calls.includes("goto"), false);
   });
 }
+
+test("an incomplete old page can navigate once to the authorized live search without inventing session evidence", async () => {
+  const f = fixture("partial");
+  await f.browser.act({ operation: "searchSources", query: "fresh topic" });
+  assert.deepEqual(f.calls, ["goto"]);
+  const url = new URL(f.page());
+  assert.equal(url.searchParams.get("q"), "fresh topic");
+  assert.equal(url.searchParams.get("f"), "live");
+});
+
+test("a real warning on an incomplete old page still blocks navigation", async () => {
+  const f = fixture("warning-partial");
+  await assert.rejects(() =>
+    f.browser.act({ operation: "searchSources", query: "topic" }),
+  );
+  assert.deepEqual(f.calls, []);
+});

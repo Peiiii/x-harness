@@ -455,6 +455,7 @@ export class ThreadReactions {
   ) {
     let skipped = false;
     await this.#deps.store.transaction(({ state }) => {
+      skipped = false;
       const entry = state.threadLikeBatches.find(
         (batch: any) => batch.id === id,
       )?.entries[postId];

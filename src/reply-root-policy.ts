@@ -16,16 +16,22 @@ export function replyRootAgeReason(
     return "reply-root-age-policy-invalid";
   const rootId = action.conversation?.rootId;
   if (!/^\d+$/.test(rootId ?? "")) return "reply-root-identity-required";
-  try {
-    const observation = JSON.parse(
-      readFileSync(action.evidenceRef, "utf8"),
-    ).observation;
+  const evidenceRefs = [action.freshMetricsEvidenceRef, action.evidenceRef]
+    .filter((ref): ref is string => typeof ref === "string" && ref.length > 0)
+    .filter((ref, index, refs) => refs.indexOf(ref) === index);
+  for (const evidenceRef of evidenceRefs) {
+    let observation;
+    try {
+      observation = JSON.parse(readFileSync(evidenceRef, "utf8")).observation;
+    } catch {
+      continue;
+    }
     const nodes = ["posts", "context", "threadPosts", "sources"].flatMap(
       (key) => (Array.isArray(observation?.[key]) ? observation[key] : []),
     );
+    if (!nodes.some((node) => node?.id === action.postId)) continue;
     const root = nodes.find((node) => node?.id === rootId);
-    if (!nodes.some((node) => node?.id === action.postId) || !root)
-      return "reply-root-publication-proof-required";
+    if (!root) continue;
     if (root.replyToId) return "reply-root-is-known-child";
     if (
       typeof root.datetime !== "string" ||
@@ -38,7 +44,6 @@ export function replyRootAgeReason(
     return now - published > maximumHours * 3600000
       ? "reply-root-expired"
       : null;
-  } catch {
-    return "reply-root-publication-proof-required";
   }
+  return "reply-root-publication-proof-required";
 }

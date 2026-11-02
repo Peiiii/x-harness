@@ -41,6 +41,20 @@ export class BrowserReadFallback {
   capabilities(operation: any) {
     return this.#selected.capabilities(operation);
   }
+  private confirmHealthyRead(value: any) {
+    // A successful recovery is still part of the same incident. Only a later
+    // ordinary read with identity and no gaps/refusal opens a new recovery budget.
+    if (
+      value?.page &&
+      value.accountHandle &&
+      !value.needsStateCheck &&
+      value.complete !== false &&
+      !value.missing?.length &&
+      !value.alerts?.length
+    )
+      this.#rebound = false;
+    return value;
+  }
   private async bounded<T>(
     operation: () => Promise<T>,
     timeout = this.options.readTimeoutMs ?? 15000,
@@ -69,7 +83,7 @@ export class BrowserReadFallback {
     ) {
       const value = await this.#selected.observe(query);
       this.#needsFreshDOM = false;
-      return value;
+      return this.confirmHealthyRead(value);
     }
     const deadline = Date.now() + (this.options.readTimeoutMs ?? 45000);
     const remaining = () => {
@@ -97,7 +111,7 @@ export class BrowserReadFallback {
           : undefined,
       );
       this.#needsFreshDOM = false;
-      return result;
+      return this.confirmHealthyRead(result);
     } catch (error: any) {
       if (
         error.message === "browser-read-deadline-exceeded" &&
@@ -118,11 +132,11 @@ export class BrowserReadFallback {
         if (!choice.failure) {
           if (choice.native) return this.selectNative(query, choice.value);
           this.#needsFreshDOM = false;
-          return choice.value;
+          return this.confirmHealthyRead(choice.value);
         }
         const value = await this.bounded(() => pending, remaining());
         this.#needsFreshDOM = false;
-        return value;
+        return this.confirmHealthyRead(value);
       }
       if (
         this.#rebound ||
@@ -246,7 +260,7 @@ export class BrowserReadFallback {
   }
   async collectCreator(args: any) {
     try {
-      return await this.#selected.collectCreator(args);
+      return this.confirmHealthyRead(await this.#selected.collectCreator(args));
     } catch (error: any) {
       const operation = currentXUsageTrace()?.rootOperation;
       if (
