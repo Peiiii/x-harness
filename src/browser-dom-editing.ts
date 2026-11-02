@@ -584,7 +584,7 @@ export class DOMEditing {
         name: /^(?:编辑|Edit)(?:图片|照片|媒体| image| photo| media)?(?: \d+)?$/i,
       })
       .nth(command.imageIndex ?? 0)
-      .waitFor({ state: "visible", timeoutMs: 5000 });
+      .waitFor({ state: "visible", timeoutMs: 30000 });
     const composer = await this.#observe({ view: "composer" });
     const edits = composer.buttons.filter(
       (b: any) =>
@@ -634,7 +634,16 @@ export class DOMEditing {
     );
     if (save.length !== 1) throw new Error("ALT保存入口不唯一");
     await (await this.#unique(this.#locator("button", save[0].label))).click();
-    const after = await this.#observe({ view: "composer" });
+    let after = await this.#observe({ view: "composer" });
+    if (
+      !after.alerts?.length &&
+      (after.needsStateCheck || !after.images?.length)
+    ) {
+      await editLocator
+        .nth(imageIndex)
+        .waitFor({ state: "visible", timeoutMs: 30000 });
+      after = await this.#observe({ view: "composer" });
+    }
     if (after.needsStateCheck || !after.images?.length)
       throw new Error("上传图片未回到编辑器");
     return {
