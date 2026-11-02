@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { copyFileSync } from "node:fs";
+import { copyFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { fixture, NOW } from "./fixtures.mjs";
 import { createBusinessHarness } from "../dist/diagnostics.js";
 import { OriginalPostCadence } from "../dist/original-post-cadence.js";
@@ -29,6 +30,40 @@ function prepared(t) {
     },
   };
 }
+
+test("a new action can use remaining planned capacity while prior unknown stays frozen", async (t) => {
+  const f = prepared(t);
+  const draftPath = f.draft + "-3.post.md",
+    text = "新审正文";
+  writeFileSync(draftPath, text);
+  f.edit((state) => {
+    state.actions[0].status = "unknown";
+    state.items[1].unknown = 1;
+  });
+  const action = {
+    ...f.read().actions[1],
+    id: "original-next",
+    status: "prepared",
+    draftPath,
+    text,
+    quality: {
+      approved: true,
+      approvedText: text,
+      evidenceRef: f.proof,
+      draftFingerprint: createHash("sha256").update(text).digest("hex"),
+    },
+  };
+  const result = await f.api.publishPost({
+    taskId: "round-1",
+    draftPath,
+    preparedAction: action,
+  });
+  assert.notEqual(result.status, "needsDecision", JSON.stringify(result));
+  assert.equal(f.read().actions[0].status, "unknown");
+  assert.ok(f.read().actions.some((a) => a.id === "original-next"));
+  assert.equal(f.read().items[1].verified + f.read().items[1].unknown, 2);
+});
+
 async function enable(f) {
   const result = await f.api.configureOriginalCadence({
     taskId: "round-1",

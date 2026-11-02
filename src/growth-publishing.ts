@@ -156,6 +156,7 @@ export class IndependentPublishing {
         if (error) throw new Error(error);
         const scheduleBlocker = scheduleReason();
         if (scheduleBlocker) throw new Error(scheduleBlocker);
+        if (!item) throw new Error("original-task-item-required");
         if (item.verified + item.unknown >= item.planned)
           throw new Error("window-or-original-capacity-unavailable");
         Object.assign(target, {
@@ -357,14 +358,8 @@ export class IndependentPublishing {
                 : a.postId === action.postId && a.text === action.text),
         );
         if (duplicate) throw new Error("business-object-already-prepared");
-        const item = next.items.find((i: any) => i.kind === action.kind);
-        const queued = next.actions.filter(
-          (a: any) =>
-            a.kind === action.kind &&
-            !["skipped", "preexisting"].includes(a.status),
-        ).length;
-        if (!item || queued >= item.planned)
-          throw new Error("prepared-actions-exceed-original-target");
+        if (!next.items.some((i: any) => i.kind === action.kind))
+          throw new Error("original-task-item-required");
         next.actions.push(structuredClone(action));
       }
       next.updatedAt = this.#stamp();

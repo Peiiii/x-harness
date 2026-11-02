@@ -148,16 +148,6 @@ export class ParallelRound {
               throw new Error("原prepared动作ID无效");
             next.actions.push(structuredClone(action));
           }
-          if (
-            next.items.some(
-              (i: any) =>
-                next.actions.filter(
-                  (a: any) => a.kind === i.kind && a.status === "prepared",
-                ).length >
-                i.planned - i.verified - i.unknown,
-            )
-          )
-            throw new Error("队列超过原目标");
           if (decision.sharedAttempts) {
             if (!Array.isArray(decision.sharedAttempts))
               throw new Error("共享尝试须为数组");

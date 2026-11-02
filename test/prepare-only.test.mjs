@@ -55,3 +55,27 @@ for (const parallel of [false, true]) {
     assert.deepEqual(f.commands, []);
   });
 }
+
+test("business can prepare beyond planned without clearing unresolved actions", async (t) => {
+  const f = fixture(t, { planned: [1, 0, 0], actionKinds: ["follow"] });
+  const added = { ...f.state.actions[0], id: "follow-next", handle: "next" };
+  f.edit((s) => {
+    s.actions[0].status = "unknown";
+    s.items[0].unknown = 1;
+  });
+  const api = f.newExecutor("follow", ["follow"]).api;
+  const result = await api.runGrowthRound({
+    taskId: "round-1",
+    maxActions: 0,
+    decision: {
+      type: "prepareActions",
+      accountHandle: "Pei",
+      ownershipEvidenceRef: f.proof,
+      actions: [added],
+    },
+  });
+  assert.equal(result.status, "checkpoint");
+  assert.equal(f.read().actions[0].status, "unknown");
+  assert.equal(f.read().actions[1].id, "follow-next");
+  assert.equal(f.read().items[0].unknown, 1);
+});
