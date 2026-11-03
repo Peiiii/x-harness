@@ -336,6 +336,8 @@ export interface SearchOptions extends WindowOptions {
   resume?: boolean;
 }
 export interface PostMediaOptions {
+  /** Read only exact loaded image resources from this document; never downloads or navigates. */
+  cacheOnly?: boolean;
   target: PostTarget;
   maxImages?: number;
   /** Per-image host download budget, 1–30 seconds; defaults to 10 seconds. */
@@ -345,7 +347,7 @@ export interface PostMediaResult {
   status: "observed" | "needsDecision" | "needsCapability";
   complete: boolean;
   images: { src: string; path: string; contentType: string }[];
-  acquisition?: "page-assets" | "dom-media";
+  acquisition?: "page-assets" | "dom-media" | "page-cache";
   sourceEvidenceRef?: EvidenceRef;
   evidenceRef?: EvidenceRef;
   reason?: string;
@@ -667,6 +669,7 @@ export interface Executor {
 }
 /** Structural host ports: the package reuses the provided CUA connection. */
 export interface LocatorPort {
+  evaluate?<R>(fn: (element: any) => R): Promise<R>;
   downloadMedia?(options: { timeoutMs?: number }): Promise<string>;
   count(): Promise<number>;
   click(options?: unknown): Promise<unknown>;

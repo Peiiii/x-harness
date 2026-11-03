@@ -1,4 +1,5 @@
 import { open } from "node:fs/promises";
+import { PostMediaCache } from "./post-media-cache.js";
 import { executorWindowAllowed } from "./growth-policy.js";
 import type { RoundStore } from "./store.js";
 import type {
@@ -145,6 +146,34 @@ export class PostMedia {
     if (!result.complete) result.reason = "media-route-changed";
     return result;
   }
+  private fromCache(
+    p: PostEvidence,
+    images: string[],
+    result: PostMediaResult,
+  ) {
+    result.acquisition = "page-cache";
+    const cache = new PostMediaCache(
+      this.tab,
+      this.store,
+      () => this.allowed(),
+      () => this.route(p.url!, p),
+    );
+    return cache.read(p, images, result);
+  }
+  private invalidImages(images: string[]) {
+    return images.some((src) => {
+      try {
+        const u = new URL(src);
+        return (
+          u.protocol !== "https:" ||
+          u.hostname !== "pbs.twimg.com" ||
+          !u.pathname.startsWith("/media/")
+        );
+      } catch {
+        return true;
+      }
+    });
+  }
   async read(
     options: PostMediaOptions,
     readPost: XGrowthHarness["readPost"],
@@ -235,21 +264,12 @@ export class PostMedia {
         result.reason = "media-limit-incomplete";
         return finish();
       }
-      if (
-        images.some((src) => {
-          try {
-            const u = new URL(src);
-            return (
-              u.protocol !== "https:" ||
-              u.hostname !== "pbs.twimg.com" ||
-              !u.pathname.startsWith("/media/")
-            );
-          } catch {
-            return true;
-          }
-        })
-      ) {
+      if (this.invalidImages(images)) {
         result.reason = "media-image-origin-unconfirmed";
+        return finish();
+      }
+      if (options.cacheOnly === true) {
+        result = await this.fromCache(p, images, result);
         return finish();
       }
       if (!this.tab.capabilities?.get) {
