@@ -7,6 +7,12 @@ import {
   samePublishedText,
   matchesReviewedAssets,
 } from "./platform-rules.js";
+
+const normalizeComposerTail = (value: unknown) =>
+  typeof value === "string"
+    ? value.replace(/\r\n/g, "\n").replace(/\n+$/, "")
+    : value;
+
 export class PlatformWriting {
   #observed!: PlatformDependencies["observed"];
   #browser!: PlatformDependencies["browser"];
@@ -87,10 +93,13 @@ export class PlatformWriting {
     const editorMatches =
       value.editorTextRepresentation === "native-ax-lines"
         ? sameText(
-            value.editorText?.replace(/\n{2,}/g, "\n"),
-            action.text.replace(/\n{2,}/g, "\n"),
+            normalizeComposerTail(value.editorText?.replace(/\n{2,}/g, "\n")),
+            normalizeComposerTail(action.text.replace(/\n{2,}/g, "\n")),
           )
-        : sameText(value.editorText, action.text);
+        : sameText(
+            normalizeComposerTail(value.editorText),
+            normalizeComposerTail(action.text),
+          );
     if (
       !editorMatches ||
       value.needsStateCheck ||

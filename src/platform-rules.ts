@@ -29,7 +29,14 @@ export const samePublishedText = (a: any, b: any) => {
           .replace(/(https?:\/\/[^\s…]+)…(?=\s|$)/g, "$1")
           .replace(/(https?:\/\/[A-Za-z0-9.-]+(?::\d+)?)\/(?=[\s`]|$)/g, "$1")
       : value;
-  return sameText(rendered(a), rendered(b));
+  const withoutTerminalNewlines = (value: any) =>
+    typeof value === "string"
+      ? value.replace(/\r\n/g, "\n").replace(/\n+$/, "")
+      : value;
+  return sameText(
+    withoutTerminalNewlines(rendered(a)),
+    withoutTerminalNewlines(rendered(b)),
+  );
 };
 export const source = (post: any, page: any) => ({
   id: post.id,
