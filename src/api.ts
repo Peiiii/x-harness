@@ -142,7 +142,12 @@ export class BusinessHarness implements XGrowthHarness {
         ]),
       ].filter(
         (reason) =>
-          typeof reason === "string" && stableReason(reason) !== reason,
+          typeof reason === "string" &&
+          (stableReason(reason) !== reason ||
+            (raw.decision ?? []).some(
+              (d: BoundaryRecord) =>
+                d.reason === "harness-boundary-error" && d.error === reason,
+            )),
       );
       if (errors.length) {
         const evidenceRef = await this.#store.recordProof({

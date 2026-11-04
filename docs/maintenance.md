@@ -333,3 +333,8 @@ A visible no-results message was overwritten by list-readiness waiting, then rep
 ## Image preview readiness (2026-11-02)
 
 A portrait image preview appeared after the previous five-second edit-control deadline. The image attachment path now allows a bounded thirty-second preview wait. After saving ALT, one unconfirmed composer observation without alerts gets one fresh observation after the same exact edit control becomes visible; persistent missing media or alerts still fail before submission. No extra upload, ALT save, activation or unknown replay is introduced. Two new synthetic regressions fail before the change; four focused readiness cases plus ordered multi-image and publication-verification cases pass. The consumer records actual adoption and public results separately; include the local repair in the next consolidated package release.
+
+
+## Stable boundary diagnostics (2026-11-04)
+
+A core round can catch an exception whose message is already a valid machine code. Compact receipts previously retained only the generic boundary reason and ledger path, losing the actual cause. The existing diagnostic branch now records that caught code in its local proof and returns the existing proof pointer. No publishing, ownership, quality or retry gate changes. Two regressions fail on the prior implementation and pass with the fix; the API suite totals22passing tests, with type/build/format/maintainability checks passed. The broader run retains three manual-window failures reproduced on the unchanged base plus a missing test-only fake-indexeddb dependency in the local environment. Consumer runtime adoption and consolidated release remain separate; do not hot-swap active bindings for this diagnostics-only change.
