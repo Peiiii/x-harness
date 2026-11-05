@@ -2,7 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { PlatformWriting } from "../dist/platform-writing.js";
 
-function scenario({ postClick = {}, afterRefresh = {}, missing = [] } = {}) {
+function scenario({
+  postClick = {},
+  afterRefresh = {},
+  missing = [],
+  clickResult,
+} = {}) {
   const action = {
     id: "follow-1",
     kind: "follow",
@@ -29,7 +34,10 @@ function scenario({ postClick = {}, afterRefresh = {}, missing = [] } = {}) {
     browser: {
       capabilities: () => missing,
       act: async ({ operation }) => {
-        if (operation === "follow") clicked = true;
+        if (operation === "follow") {
+          clicked = true;
+          return clickResult;
+        }
         if (operation === "refreshPerson") {
           refreshed = true;
           refreshes++;
@@ -130,6 +138,26 @@ test("relationship rollback after refresh remains unverified", async () => {
   await f.writer.submitFollow(f.action);
   const receipt = await f.writer.findSubmission(f.action);
   assert.equal(receipt.verified, false);
+  assert.equal(f.counts().refreshes, 1);
+});
+
+test("pending follow transport does not refresh until it reaches a terminal event", async () => {
+  let status = "pending";
+  const f = scenario({
+    clickResult: {
+      followDiagnostic: {
+        continue: async () => ({ status }),
+      },
+    },
+  });
+  await f.writer.submitFollow(f.action);
+  const pending = await f.writer.findSubmission(f.action);
+  assert.equal(pending.verified, false);
+  assert.equal(pending.needsStateCheck, true);
+  assert.equal(f.counts().refreshes, 0);
+  status = "completed";
+  const settled = await f.writer.findSubmission(f.action);
+  assert.equal(settled.verified, true);
   assert.equal(f.counts().refreshes, 1);
 });
 

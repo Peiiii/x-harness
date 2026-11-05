@@ -1,8 +1,39 @@
 import { SubmissionNetworkCapture } from "./submission-network-capture.js";
+import { FollowRequestCompletion } from "./follow-request-completion.js";
 import { xURL, sameHandle, sameText } from "./platform-rules.js";
 
 import { valueOf } from "./browser-common.js";
 import type { DOMDependencies } from "./browser-dom-dependencies.js";
+
+const followDiagnostic = (
+  transport: any,
+  completion: FollowRequestCompletion,
+) => ({
+  transport,
+  ...(transport.status === "pending"
+    ? { continue: () => completion.wait() }
+    : {}),
+});
+const startFollowRequest = (tab: any, operation: string) =>
+  operation === "follow" ? FollowRequestCompletion.start(tab) : undefined;
+const waitForFollowTransport = (completion: any, stage: any) =>
+  completion
+    ? stage("follow-request-completion", () => completion.wait())
+    : undefined;
+const submissionDiagnostics = async (
+  network: any,
+  notCollected: any,
+  followTransport: any,
+  followRequest: any,
+) => ({
+  submissionDiagnostic: {
+    transport: network ? await network.stop() : notCollected,
+  },
+  ...(followTransport
+    ? { followDiagnostic: followDiagnostic(followTransport, followRequest) }
+    : {}),
+});
+
 export class DOMSubmission {
   #submitAX!: DOMDependencies["submitAX"];
   #session!: DOMDependencies["session"];
@@ -90,6 +121,10 @@ export class DOMSubmission {
       ["submitPost", "submitReply"].includes(command.operation)
         ? await SubmissionNetworkCapture.start(this.#tab)
         : undefined;
+    const followRequest = await startFollowRequest(
+      this.#tab,
+      command.operation,
+    );
     const notCollected = {
       status: "not-collected",
       reason: "default-submit-does-not-query-browser-diagnostics",
@@ -110,6 +145,10 @@ export class DOMSubmission {
       else if (command.activation === "keyboard")
         await stage("activate.dom-keyboard", () => loc.press("Enter"));
       else await stage("activate.dom-click", () => loc.click());
+      const followTransport = await waitForFollowTransport(
+        followRequest,
+        stage,
+      );
       if (binding) {
         this.#session.replyBinding = binding;
         await this.#tab.playwright
@@ -169,8 +208,12 @@ export class DOMSubmission {
         };
       // Editor clearing and the caller's fresh public receipt own completion.
       // X background traffic is unrelated to acceptance; networkidle adds no proof.
-      const transport = network ? await network.stop() : notCollected;
-      return { submissionDiagnostic: { transport } };
+      return submissionDiagnostics(
+        network,
+        notCollected,
+        followTransport,
+        followRequest,
+      );
     } catch (error: any) {
       const transport = network
         ? await network.stop()

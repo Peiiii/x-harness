@@ -22,6 +22,7 @@ export class PlatformWriting {
   #clock!: PlatformDependencies["clock"];
   #readPost!: PlatformDependencies["readPost"];
   #followPostClick?: { actionId: string; capturedAt: number; value: any };
+  #followRequestPending = new Map<string, () => Promise<any>>();
   compose!: (action: any) => Promise<any>;
   findSubmission!: (
     action: any,
@@ -150,6 +151,38 @@ export class PlatformWriting {
       previousAlerts: sameAction ? (recent?.value?.alerts ?? []) : [],
     };
   }
+  private async pendingFollowResult(action: any, value: any, alerts: string[]) {
+    const continuePending = this.#followRequestPending.get(action.id);
+    if (!continuePending) return null;
+    let transport: any;
+    try {
+      transport = await continuePending();
+    } catch (error: any) {
+      return {
+        ...value,
+        alerts,
+        verified: false,
+        needsStateCheck: true,
+        missing: ["follow-request-observation-incomplete"],
+        submissionDiagnostic: {
+          code: String(error?.message ?? error).slice(0, 160),
+        },
+        publicId: null,
+      };
+    }
+    if (transport.status === "pending")
+      return {
+        ...value,
+        alerts,
+        verified: false,
+        needsStateCheck: true,
+        missing: ["follow-request-still-pending"],
+        followRequest: transport,
+        publicId: null,
+      };
+    this.#followRequestPending.delete(action.id);
+    return null;
+  }
   private async handleFindSubmission(
     action: any,
     context: { phase?: "baseline" } = {},
@@ -160,6 +193,12 @@ export class PlatformWriting {
       const verificationAlerts = [
         ...new Set([...start.previousAlerts, ...(value.alerts ?? [])]),
       ];
+      const pendingResult = await this.pendingFollowResult(
+        action,
+        value,
+        verificationAlerts,
+      );
+      if (pendingResult) return pendingResult;
       if (!value.needsStateCheck) {
         const absent = this.#browser.capabilities?.("refreshPerson") ?? [
           "refreshPerson",
@@ -608,6 +647,9 @@ export class PlatformWriting {
     const clicked = await this.#followStage(action, "click", () =>
       this.#browser.act({ operation: "follow", handle: action.handle }),
     );
+    const continueFollow = clicked?.followDiagnostic?.continue;
+    if (typeof continueFollow === "function")
+      this.#followRequestPending.set(action.id, continueFollow);
     try {
       const value = await this.#followStage(
         action,
