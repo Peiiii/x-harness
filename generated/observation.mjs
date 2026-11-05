@@ -98,6 +98,7 @@ export const readXObservation = (query) => {
     const posts = candidates.slice(offset, offset + limit).map((a) => {
         const time = primaryTime(a);
         const primary = time?.closest("a")?.getAttribute("href") ?? null;
+        const id = primary?.match(/\/status\/(\d+)/)?.[1] ?? null;
         const links = [
             ...new Set(Array.from(a.querySelectorAll("a[href]"))
                 .filter(visible)
@@ -105,13 +106,17 @@ export const readXObservation = (query) => {
         ];
         const buttons = Array.from(a.querySelectorAll("button"))
             .filter(visible)
-            .map((b) => ({
-            label: b.getAttribute("aria-label") || b.innerText,
-            disabled: b.hasAttribute("disabled"),
-        }));
+            .map((b) => {
+            const owner = b.closest("article");
+            const ownerPrimary = owner && primaryTime(owner)?.closest("a")?.getAttribute("href");
+            return {
+                label: b.getAttribute("aria-label") || b.innerText,
+                disabled: b.hasAttribute("disabled"),
+                ownerPostId: ownerPrimary?.match(/\/status\/(\d+)/)?.[1] ?? null,
+            };
+        });
         const text = a.innerText;
         const datetime = time?.getAttribute("datetime") ?? null;
-        const id = primary?.match(/\/status\/(\d+)/)?.[1] ?? null;
         const author = primary?.match(/\/([^/]+)\/status\//)?.[1] ?? null;
         const headers = Array.from(a.querySelectorAll('[data-testid="User-Name"]'))
             .filter(visible)

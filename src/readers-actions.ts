@@ -1,5 +1,6 @@
 import { readComposer } from "./readers-composer.js";
 import { readPosts } from "./readers-posts.js";
+import { selectReplyControl } from "./reply-control.js";
 
 // Upload only through the observed media button and browser file chooser.
 export async function attachImage(tab: any, { path }: any = {}): Promise<any> {
@@ -58,18 +59,20 @@ export async function openReply(tab: any, { postId }: any = {}): Promise<any> {
     post.needsExpansion
   )
     throw new Error("回复根帖证据未完整");
-  const buttons = post.buttons.filter(
-    (b: any) => /回复|Reply/i.test(b.label) && !b.disabled,
+  const { replyControls, target, index } = selectReplyControl(
+    post.buttons,
+    postId,
   );
-  if (buttons.length !== 1) throw new Error("回复按钮未唯一观察");
   const article = tab.playwright
     .locator("article")
     .filter({ has: tab.playwright.locator(`a[href="${post.primary}"]`) });
   if ((await article.count()) !== 1) throw new Error("回复文章范围不唯一");
-  const button = article.getByRole("button", {
-    name: buttons[0].label,
-    exact: true,
-  });
+  const candidates = article
+    .getByRole("button", { name: target.label, exact: true })
+    .filter({ visible: true });
+  if ((await candidates.count()) !== replyControls.length)
+    throw new Error("回复控件观察顺序未确认");
+  const button = candidates.nth(index);
   if ((await button.count()) !== 1) throw new Error("回复控件不唯一");
   await button.click();
   return tab.playwright.evaluate(readComposer);

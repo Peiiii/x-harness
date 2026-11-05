@@ -5,6 +5,7 @@ import {
 import { sameHandle, sameText } from "./platform-rules.js";
 import { attachImage } from "./readers-actions.js";
 import { DOMPeopleReadRecovery } from "./browser-dom-people-retry.js";
+import { selectReplyControl } from "./reply-control.js";
 
 import type { DOMDependencies } from "./browser-dom-dependencies.js";
 export class DOMEditing {
@@ -848,14 +849,13 @@ export class DOMEditing {
   }
   private async handleOpenReply(command: any) {
     const { query, result } = this.#session.current;
-    let loc: any, submittedEditor: any;
     this.#session.replyBinding = null;
     if (query.targetId !== command.postId || result.posts?.length !== 1)
       throw new Error("回复主帖未唯一绑定");
-    const names = result.posts[0].buttons.filter((b: any) =>
-      /回复|Reply/i.test(b.label),
+    const { replyControls, target, index } = selectReplyControl(
+      result.posts[0].buttons,
+      command.postId,
     );
-    if (names.length !== 1) throw new Error("回复按钮未唯一观察");
     const primary = result.posts[0].primary;
     if (
       !primary ||
@@ -866,23 +866,21 @@ export class DOMEditing {
       has: this.#tab.playwright.locator(`a[href=${JSON.stringify(primary)}]`),
       visible: true,
     });
-    // The reply count can change between observation and activation. Keep the
-    // observed reply-control wording and exact article, but not its counter.
-    const counted = names[0].label.match(
+    const counted = target.label.match(
       /^[\d,.]+(?:[kKmM万亿])?\s+(回复。回复)$/,
     );
     const replyName = counted
       ? new RegExp(
           `^[\\d,.]+(?:[kKmM万亿])?\\s+${counted[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
         )
-      : names[0].label;
-    loc = await this.#unique(
-      (await this.#unique(article)).getByRole("button", {
-        name: replyName,
-        exact: true,
-      }),
-    );
-    return { completed: false, loc, submittedEditor };
+      : target.label;
+    const candidates = (await this.#unique(article))
+      .getByRole("button", { name: replyName, exact: true })
+      .filter({ visible: true });
+    if ((await candidates.count()) !== replyControls.length)
+      throw new Error("回复控件观察顺序未确认");
+    const loc = await this.#unique(candidates.nth(index));
+    return { completed: false, loc, submittedEditor: undefined };
   }
   private async handleFillComposer(command: any) {
     const { query, result } = this.#session.current;
