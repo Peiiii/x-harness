@@ -231,15 +231,23 @@ export class DOMSubmission {
     activationStartedAt: number,
   ): Promise<void> {
     const deadline = Date.now() + 10000;
-    for (let attempt = 0; attempt < 4; attempt++) {
+    let lastTimeout: any;
+    for (let attempt = 0; attempt < 10; attempt++) {
       const remaining = deadline - Date.now();
-      if (remaining <= 0) throw Error("submitted-editor-clear-timeout");
+      if (remaining <= 0)
+        throw lastTimeout ?? Error("submitted-editor-clear-timeout");
       try {
-        await editor.waitFor({ state: "hidden", timeoutMs: remaining });
+        // Keep each host wait short enough that a capped call can be resumed
+        // after checking the same page/account/draft within the original budget.
+        await editor.waitFor({
+          state: "hidden",
+          timeoutMs: Math.min(2000, remaining),
+        });
         return;
       } catch (error: any) {
         if (!/timed out|timeout|deadline exceeded/i.test(error.message))
           throw error;
+        lastTimeout = error;
         // Capture this original page before receipt recovery can navigate away.
         const current = await this.#observe({ view: "composer" });
         error.submissionDiagnostic = {
@@ -280,9 +288,10 @@ export class DOMSubmission {
         // The original editor snapshot is the diagnostic. Never query a second
         // browser channel here; missing HTTP evidence does not authorize resend.
         if (contextChanged) throw error;
-        if (attempt === 3 || Date.now() >= deadline) throw error;
+        if (attempt === 9 || Date.now() >= deadline) throw error;
       }
     }
+    throw lastTimeout ?? Error("submitted-editor-clear-timeout");
   }
 }
 export function createDOMSubmission(

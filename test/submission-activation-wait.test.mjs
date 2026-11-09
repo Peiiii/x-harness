@@ -27,7 +27,8 @@ async function run(
     idle = 0,
     traceReads = 0,
     capabilityReads = 0,
-    networkEnables = 0;
+    networkEnables = 0,
+    waitTimeouts = [];
   t.mock.method(Date, "now", () => time);
   const finish = createDOMSubmission({
     session: {},
@@ -164,6 +165,7 @@ async function run(
           waitFor: async ({ state, timeoutMs }) => {
             assert.equal(state, "hidden");
             waits++;
+            waitTimeouts.push(timeoutMs);
             time +=
               fault === "cleared" || fault === "deadline-alert"
                 ? timeoutMs
@@ -189,6 +191,7 @@ async function run(
     capabilityReads,
     networkEnables,
     waits,
+    waitTimeouts,
     gates,
     presses,
     clicks,
@@ -217,6 +220,7 @@ test("host-capped submitted text waits resume without a second submit", async (t
   const r = await run(t);
   assert.equal(r.error, undefined);
   assert.equal(r.waits, 3);
+  assert.deepEqual(r.waitTimeouts, [2000, 2000, 2000]);
   assert.equal(r.reads, 2);
   assert.equal(r.presses, 1);
   assert.equal(r.gates, 1);
@@ -237,7 +241,7 @@ for (const fault of [
     assert.equal(r.gates, 1);
     assert.equal(r.presses, 1);
     assert.equal(r.idle, 0);
-    assert.equal(r.waits, fault === "exhausted" ? 4 : 1);
+    assert.equal(r.waits, fault === "exhausted" ? 5 : 1);
     assert.ok(r.time <= 10000);
   });
 }
@@ -265,6 +269,9 @@ test("failure keeps original editor evidence without querying the browser diagno
   assert.ok(r.error);
   assert.equal(r.presses, 1);
   assert.equal(r.gates, 1);
+  assert.equal(r.waits, 5);
+  assert.equal(r.reads, 5);
+  assert.equal(r.time, 10000);
   assert.equal(r.traceReads, 0);
   assert.equal(r.capabilityReads, 0);
   assert.equal(r.networkEnables, 0);

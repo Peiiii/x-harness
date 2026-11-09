@@ -196,6 +196,16 @@ export class GrowthPolicy {
         !this.#evidenceExists(independentExecution.scopeEvidenceRef)
       )
         return "independent-execution-proof-missing";
+      const permit = independentExecution.windowAuthorization;
+      if (
+        permit &&
+        (permit.actionId !== action.id ||
+          permit.userAuthorized !== true ||
+          !Number.isFinite(Date.parse(permit.expiresAt)) ||
+          this.#clock() >= Date.parse(permit.expiresAt) ||
+          !this.#evidenceExists(permit.evidenceRef))
+      )
+        return "independent-execution-window-authorization-invalid";
     } else if (
       !executor &&
       (!state.execution?.exclusive || state.execution.owner !== "harness")
