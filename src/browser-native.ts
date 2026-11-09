@@ -101,6 +101,20 @@ export class NativeXBrowser {
     this.#current = null;
     return;
   }
+  private ownAccount(entries: any[]): { handle: string; url: string } | null {
+    const links = entries.filter((e: any) =>
+      /^link (?:Description: )?个人资料, Value: x\.com\/\w+$/.test(e.label),
+    );
+    const identities = new Map<string, { handle: string; url: string }>();
+    for (const link of links) {
+      const handle = link.label.match(/x\.com\/(\w+)$/)[1];
+      identities.set(handle.toLowerCase(), {
+        handle,
+        url: `https://${valueOf(link.label)}`,
+      });
+    }
+    return identities.size === 1 ? identities.values().next().value! : null;
+  }
   private async handleObserve(query: any): Promise<any> {
     this.#current = null;
     if (!this.#modes[query.view]) throw new Error("未封装的业务视图");
@@ -112,33 +126,21 @@ export class NativeXBrowser {
     this.#current = { query, raw };
     const entries = raw.evidence ?? [];
     // Bind actor and target to the SAME suppressed observation; no additional tool round trip.
-    const ownLinks = readAX(this.#latestAX, {
-      mode: "navigation",
-    }).evidence.filter((e: any) =>
-      /^link (?:Description: )?个人资料, Value: x\.com\/\w+$/.test(e.label),
+    const account = this.ownAccount(
+      readAX(this.#latestAX, { mode: "navigation" }).evidence,
     );
     const base: BoundaryRecord = {
       page: raw.page,
       alerts: raw.alerts,
       needsStateCheck: raw.needsStateCheck,
       missing: raw.missing ?? [],
-      accountHandle:
-        ownLinks.length === 1
-          ? ownLinks[0].label.match(/x\.com\/(\w+)$/)[1]
-          : null,
+      accountHandle: account?.handle ?? null,
     };
-    if (query.view === "account") {
-      const own = entries.filter((e: any) =>
-        /^link (?:Description: )?个人资料, Value: x\.com\/\w+$/.test(e.label),
-      );
+    if (query.view === "account")
       return {
         ...base,
-        accountHandle:
-          own.length === 1 ? own[0].label.match(/x\.com\/(\w+)$/)[1] : null,
-        accountURL:
-          own.length === 1 ? `https://${valueOf(own[0].label)}` : null,
+        accountURL: account?.url ?? null,
       };
-    }
     if (query.view === "person") {
       const labels = entries.map((e: any) => plain(e.label));
       return {
