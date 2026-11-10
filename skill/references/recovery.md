@@ -22,7 +22,7 @@ After Retry-After/retryAt, reload only the owned draft-free page once; root insp
 
 Naming failure is not logout. Use a real Chrome owned tab and root read; preserve editors, policies and network. After reset rediscover Chrome. Native focus rejection allows one fresh observed correction. Reading success proves only reading; app fallback retains root calls.
 
-`tab-busy`: [claim recovery and independent continuation](claim-continuation.md).
+`tab-busy` or pre-intent profile timeout: [independent batch continuation](claim-continuation.md).
 
 ## Repair boundary
 

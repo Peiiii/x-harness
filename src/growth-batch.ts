@@ -4,6 +4,7 @@ import type { GrowthDependencies } from "./growth-dependencies.js";
 
 import { followWindows, same } from "./growth-constants.js";
 import { followObservationAuthorized } from "./follow-observation-policy.js";
+import { classifyReadFailure } from "./read-failure-classification.js";
 export class FollowBatch {
   #pacing: FollowBatchPacing;
   #prepareActionsForCall!: GrowthDependencies["prepareActionsForCall"];
@@ -109,6 +110,30 @@ export class FollowBatch {
         );
     }
     return eligibleAt;
+  }
+  private async canContinueDecision(decision: any) {
+    if (decision.reason === "action-or-tab-claimed")
+      return /^(same-action-claimed|same-target-already-claimed-or-submitted)$/.test(
+        decision.error ?? "",
+      );
+    if (decision.reason !== "person-read-failed") return false;
+    const failure = classifyReadFailure(decision.error, this.#stamp());
+    if (
+      failure.category !== "ui-not-confirmed" ||
+      !/timeout|timed out|deadline/i.test(failure.message) ||
+      /permission|denied|forbidden|unauthori[sz]ed|authentication|captcha|challenge|verification|verify|log.?in|sign.?in|rate.?limit|too many requests|429|拒绝|验证|登录|限流/i.test(
+        failure.message,
+      )
+    )
+      return false;
+    const { state } = await this.#store.load();
+    const action = state.actions.find((a: any) => a.id === decision.actionId);
+    return (
+      action?.kind === "follow" &&
+      action.status === "prepared" &&
+      !action.intentAt &&
+      !action.claim
+    );
   }
   public async followBatch({
     taskId,
@@ -283,18 +308,15 @@ export class FollowBatch {
           ),
       );
       exceptional.push(...relevant);
-      // A new unconfirmed submission is a diagnostic boundary, not permission
-      // to consume the rest of the batch on the same failing write path.
-      if (
-        relevant.some(
-          (d: any) =>
-            d.reason !== "action-or-tab-claimed" ||
-            !/^(same-action-claimed|same-target-already-claimed-or-submitted)$/.test(
-              d.error ?? "",
-            ),
-        )
-      )
-        break;
+      // Only proved pre-intent UI timeouts and object claims are local.
+      // Unknown writes, refusals and page/identity boundaries still stop.
+      let stop = false;
+      for (const decision of relevant)
+        if (!(await this.canContinueDecision(decision))) {
+          stop = true;
+          break;
+        }
+      if (stop) break;
     }
     const after = await this.#store.load();
     const summary: BoundaryRecord = summarizeFollowBatch(
