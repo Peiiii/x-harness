@@ -57,3 +57,72 @@ test("a page held by another live runtime still stops the entire follow batch", 
   await actor.api.followBatch({ taskId: "round-1", handles });
   assert.equal(f.writes.length, 0);
 });
+
+test("a pre-intent profile UI timeout preserves that member and continues the original batch", async (t) => {
+  const { f, actor, handles } = setup(t);
+  const read = actor.platform.readPerson.bind(actor.platform);
+  actor.platform.readPerson = async (target) => {
+    if (target.handle === "reader")
+      throw new Error(
+        "Playwright selector deadline exceeded: UserName timed out",
+      );
+    return read(target);
+  };
+  const result = await actor.api.followBatch({ taskId: "round-1", handles });
+  assert.equal(f.writes.length, 4, JSON.stringify(result));
+  assert.equal(result.verifiedThisCall, 4);
+  assert.equal(result.remaining, 1);
+  assert.ok(result.decision.some((d) => d.reason === "person-read-failed"));
+  const first = f.read().actions[0];
+  assert.equal(first.status, "prepared");
+  assert.equal(first.intentAt, undefined);
+  assert.equal(first.claim, undefined);
+  await actor.api.followBatch({ taskId: "round-1", handles });
+  assert.equal(f.writes.length, 4, "verified members are never resent");
+});
+
+for (const message of [
+  "HTTP 429 timed out",
+  "HTTP 503 timeout",
+  "browser connection timeout",
+  "login verification timed out",
+  "authentication timeout",
+  "captcha timed out",
+])
+  test(`profile failure still stops the batch: ${message}`, async (t) => {
+    const { f, actor, handles } = setup(t);
+    actor.platform.readPerson = async () => {
+      throw new Error(message);
+    };
+    await actor.api.followBatch({ taskId: "round-1", handles });
+    assert.equal(f.writes.length, 0);
+    assert.equal(f.read().attempts.length, 0);
+  });
+
+test("a profile timeout after the action changed to intent cannot continue", async (t) => {
+  const { f, actor, handles } = setup(t);
+  actor.platform.readPerson = async () => {
+    f.edit((s) => {
+      s.actions[0].status = "intent";
+      s.actions[0].intentAt = s.updatedAt;
+    });
+    throw new Error("profile selector timed out");
+  };
+  await actor.api.followBatch({ taskId: "round-1", handles });
+  assert.equal(f.writes.length, 0);
+  assert.equal(f.read().actions[0].status, "intent");
+});
+
+test("a newly unknown follow still stops the batch without submitting other members", async (t) => {
+  const { f, actor, handles } = setup(t);
+  actor.browser.rollbackFollow = true;
+  await actor.api.followBatch({ taskId: "round-1", handles });
+  assert.equal(f.writes.length, 1);
+  assert.equal(f.read().actions[0].status, "unknown");
+  assert.ok(
+    f
+      .read()
+      .actions.slice(1, 5)
+      .every((a) => a.status === "prepared"),
+  );
+});

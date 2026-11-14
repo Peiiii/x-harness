@@ -2,17 +2,17 @@
 
 ## Observable problem and scope
 
-An observed public reply can match the author, full text, unique ID and absolute intent time while the lightweight detail observation lacks its parent. The existing complete thread reader can confirm that explicit parent, but submission verification does not reuse it. The original action remains unknown and must never be resubmitted.
+An observed public reply can match the author, full text, unique ID and absolute intent time while the lightweight detail observation lacks its parent. The exact reply permalink may show the parent as unavailable even while the original root's reply list contains the reply. The original action remains unknown and must never be resubmitted until a fresh parent-bound read confirms it.
 
 ## Decision and design review
 
-When exactly one fresh matching receipt still has no parent, reuse the existing bounded readPost path with expansion, context and thread enabled. Use only the actual observed candidate page. Keep all original author, text, ID, time, uniqueness, alert and exact-parent gates. Reject a different or absent parent. No new API, business policy, retries, model calls, ledger or guessed URL.
+When exactly one fresh matching receipt still has no parent, reuse the bounded `readPost` path with expansion, context and thread enabled. If its reply card still lacks an explicit parent, use the existing `readPostComments` path against the original reviewed root. Confirm only when that fresh result is alert-free, names the exact original root ID, and includes the observed public reply ID in its root-scoped DOM thread IDs. Keep the exact author, text, ID, time, uniqueness, and alert gates. The prepared action's expected root alone never confirms the reply; a wrong root, absent child, incomplete/failed read, or alert leaves the original action unknown. No new write API, retries, model calls, ledger, or guessed URL.
 
-Same-executor design review: the selected path removes a redundant lightweight fallback and reuses the existing explicit-parent reader. The outer verifier still rejects changed text, stale time and mismatched parent; a click never constitutes evidence. No private account or operational proof is stored here.
+Same-executor design review: the selected path reuses the existing explicit-parent reader first, then the existing root-scoped reply reader only when X omits the direct edge. The outer verifier rejects changed text, stale time, wrong root, absent reply ID, alerts, or an unreadable thread; a click or prepared action never constitutes public evidence. No private account or operational proof is stored here.
 
 ## Validation and recovery
 
-Focused tests cover late parent recovery, wrong/missing parent, changed text, stale time and challenge alerts; none may submit. Run applicable type, build and existing checks. After release, recover the original unknown action read-only; only a fresh matching public receipt with the precise parent permits settlement. Public verification correctness is the acceptance criterion. This fix alone does not establish overall reply throughput or a claimed speed multiplier.
+Focused tests cover late parent recovery, wrong/missing parent, changed text, stale time, wrong root, missing child and challenge alerts; none may submit. Run applicable type, build and existing checks. After adoption, recover the original unknown actions read-only; only a fresh matching public receipt present in the exact root-scoped reply list permits settlement. Public verification correctness is the acceptance criterion. This fix alone does not establish overall reply throughput or a claimed speed multiplier.
 
 ## Implementation review and evidence
 

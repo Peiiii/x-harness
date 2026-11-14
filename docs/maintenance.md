@@ -1,5 +1,18 @@
 # 维护与发布节奏
 
+## Follow batch profile timeout continuation (2026-11-10)
+
+A pre-intent profile UI timeout previously ended the whole approved batch.
+FollowBatch now isolates that member only when the existing failure classifier
+reports a UI timeout and the persisted action remains prepared, without intent
+or claim. The same call continues its original independent members and retains
+the failed decision. HTTP/refusal, authentication, connection, occupied-page and
+new unknown boundaries still stop. Synthetic first-timeout/four-success,
+no-resubmission and stopping-boundary regressions pass; consumer adoption and
+durable relationship results are recorded by the consumer, separately from
+source validation. This blocking repair may use a verified local build; include
+it in the next related consolidated package release.
+
 ## 关注提交后观察复用（2026-10-28）
 
 已验证的提交后人物观察可在同一动作、同一账号与目标、短时有效且仅消费一次时，作为持久核验前的首次观察；仍刷新人物页并核持久关系。错账号、错目标、超时或不完整观察回到原鲜读，已观察到的平台告警保留。源码提交 `b597790`，完整检查1006项通过；已由消费者在本地受检构建采用，公开 npm 包待下一次相关集中发布，本地采用不等于已发布。

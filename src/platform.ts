@@ -322,6 +322,7 @@ export class XPlatform {
       open: this.#open,
       clock: this.#clock,
       readPost: this.#readPost,
+      readPostComments: this.readPostComments,
     });
     const { compose, findSubmission, submitFollow, submitPost, submitReply } =
       this.#createPlatformWritingResult;

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createXPlatform } from "../dist/platform.js";
+import { createPlatformWriting } from "../dist/platform-writing.js";
 
 test("an observed reply permalink recovers the receipt without changing its original parent", async () => {
   const clock = () => Date.parse("2026-10-11T13:15:07Z");
@@ -155,5 +156,86 @@ test("reply verification recovers an explicit parent through the existing thread
       false,
     );
     assert.equal(action.postId, "123");
+  }
+});
+
+test("reply verification accepts only a fresh exact-root DOM reply membership fallback", async () => {
+  const clock = () => Date.parse("2026-10-11T13:15:07Z");
+  const action = {
+    kind: "reply",
+    postId: "123",
+    url: "https://x.com/source/status/123",
+    evidenceRef: "root-proof",
+    accountHandle: "Pei",
+    text: "actual reply",
+    intentAt: new Date(clock()).toISOString(),
+    observedPublicURL: "https://x.com/Pei/status/456",
+    observedPublicEvidenceRef: "public-proof",
+  };
+  const own = {
+    id: "456",
+    author: "Pei",
+    primary: "/Pei/status/456",
+    body: action.text,
+    datetime: new Date(clock()).toISOString(),
+    replyToId: null,
+  };
+  for (const outcome of [
+    "exact",
+    "wrong-root",
+    "missing-child",
+    "stale",
+    "stale-thread",
+    "alert",
+  ]) {
+    const ownPost =
+      outcome === "stale" ? { ...own, datetime: "2026-10-11T13:14:00Z" } : own;
+    const commentTargets = [];
+    const writing = createPlatformWriting({
+      observed: async () => ({ page: action.observedPublicURL }),
+      browser: { capabilities: () => ["refreshPosts"] },
+      followStage: async (_action, _stage, run) => run(),
+      readPerson: async () => ({}),
+      open: async () => {
+        return {
+          page: action.observedPublicURL,
+          fresh: true,
+          observedAt: new Date(clock()).toISOString(),
+          accountHandle: "Pei",
+          alerts: [],
+          needsStateCheck: false,
+          posts: [ownPost],
+        };
+      },
+      clock,
+      readPost: async () => ({
+        page: action.observedPublicURL,
+        fresh: true,
+        observedAt: new Date(clock()).toISOString(),
+        accountHandle: "Pei",
+        alerts: [],
+        needsStateCheck: false,
+        posts: [ownPost],
+      }),
+      readPostComments: async (args) => {
+        commentTargets.push(args.target);
+        return {
+          status: "observed",
+          fresh: outcome !== "stale-thread",
+          evidenceRef: "root-thread-proof",
+          paginationBoundary: {
+            rootId: outcome === "wrong-root" ? "999" : action.postId,
+          },
+          ids: outcome === "missing-child" ? [] : ["456"],
+          alerts: outcome === "alert" ? ["challenge"] : [],
+        };
+      },
+    });
+    const result = await writing.findSubmission(action);
+    assert.equal(result.verified, outcome === "exact", outcome);
+    assert.equal(result.publicId, outcome === "exact" ? "456" : null, outcome);
+    assert.equal(commentTargets.length, outcome === "stale" ? 0 : 1, outcome);
+    if (commentTargets.length)
+      assert.equal(commentTargets[0].postId, action.postId, outcome);
   }
 });
