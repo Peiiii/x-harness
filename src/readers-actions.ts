@@ -30,7 +30,14 @@ export async function attachImage(tab: any, { path }: any = {}): Promise<any> {
   const chooserPromise = tab.playwright.waitForEvent("filechooser", {
     timeoutMs: 10000,
   });
-  await button.click();
+  const input = tab.playwright.locator?.('input[type="file"][accept*="image"]');
+  if (
+    typeof input?.count === "function" &&
+    typeof input?.click === "function" &&
+    (await input.count()) === 1
+  )
+    await input.click();
+  else await button.click();
   const chooser = await chooserPromise;
   if (typeof chooser?.setFiles !== "function")
     throw new Error("harness能力不足：setFiles");
