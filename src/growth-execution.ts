@@ -489,8 +489,7 @@ export class GrowthExecution {
             const currentDraftBlocker = hasExplicitDraftWindow
               ? new DraftSchedule().reason(currentAction, this.#clock())
               : null;
-            if (currentDraftBlocker)
-              throw new Error(currentDraftBlocker);
+            if (currentDraftBlocker) throw new Error(currentDraftBlocker);
             if (
               !hasExplicitDraftWindow &&
               (hour < 7 || hour >= (action.kind === "reply" ? 24 : 22)) &&

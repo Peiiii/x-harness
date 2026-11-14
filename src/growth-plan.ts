@@ -1,4 +1,5 @@
 import type { GrowthDependencies } from "./growth-dependencies.js";
+import { canRenewOriginalWindow } from "./prepared-original-window.js";
 
 import { kinds, same } from "./growth-constants.js";
 export class PlannedRound {
@@ -61,11 +62,20 @@ export class PlannedRound {
         if (
           !action.id ||
           !activeKinds.includes(action.kind) ||
-          action.status !== "prepared" ||
-          next.actions.some((a: any) => a.id === action.id)
+          action.status !== "prepared"
         )
-          throw new Error("仅添加职责范围内唯一ID的prepared原动作");
-        next.actions.push(structuredClone(action));
+          throw new Error("仅添加职责范围内prepared原动作");
+        const existing = next.actions.find((a: any) => a.id === action.id);
+        if (existing) {
+          if (!canRenewOriginalWindow(next, existing, action))
+            throw new Error("仅更新未提交原动作的发布时间窗口");
+          if (action.notBefore === undefined) delete existing.notBefore;
+          else existing.notBefore = action.notBefore;
+          if (action.notAfter === undefined) delete existing.notAfter;
+          else existing.notAfter = action.notAfter;
+        } else {
+          next.actions.push(structuredClone(action));
+        }
       }
       if (
         next.items.some(
