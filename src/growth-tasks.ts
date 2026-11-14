@@ -1,4 +1,5 @@
 import type { GrowthDependencies } from "./growth-dependencies.js";
+import { selectPreparedOriginal } from "./prepared-original-selection.js";
 
 import { kinds, operations, same } from "./growth-constants.js";
 export class GrowthTasks {
@@ -207,11 +208,12 @@ export class GrowthTasks {
       input.taskId,
       input.preparedAction ? [input.preparedAction] : [],
     );
+    const snapshot = await this.#load(input.taskId);
+    const selected = selectPreparedOriginal(snapshot.state, input.draftPath);
     return (executor ? this.#parallelRound : this.#round)({
       taskId: input.taskId,
       requestedKind: "original",
-      selector: (a: any) =>
-        a.kind === "original" && a.draftPath === input.draftPath,
+      selector: (a: any) => a.id === selected?.id,
     });
   }
   public async replyToPost({ taskId, postId, text, preparedAction }: any) {
