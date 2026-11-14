@@ -351,3 +351,9 @@ A portrait image preview appeared after the previous five-second edit-control de
 ## Stable boundary diagnostics (2026-11-04)
 
 A core round can catch an exception whose message is already a valid machine code. Compact receipts previously retained only the generic boundary reason and ledger path, losing the actual cause. The existing diagnostic branch now records that caught code in its local proof and returns the existing proof pointer. No publishing, ownership, quality or retry gate changes. Two regressions fail on the prior implementation and pass with the fix; the API suite totals22passing tests, with type/build/format/maintainability checks passed. The broader run retains three manual-window failures reproduced on the unchanged base plus a missing test-only fake-indexeddb dependency in the local environment. Consumer runtime adoption and consolidated release remain separate; do not hot-swap active bindings for this diagnostics-only change.
+
+## Prepared original replacement selection (2026-11-15)
+
+Source fix `d0fbd66` makes publishing choose the unique current action after untouched skipped preparation, consistently across scoped/exclusive execution, independent publishing and the compact receipt. Submitted, activated, claimed, attempted or ambiguous history stays protected. The change restores the original publishing path without deleting old actions or retrying unknown submissions.
+
+All 1325 checks pass, including exclusive/scoped/independent replacement cases and refusal cases; the consumer has adopted a verified local build. First live replacement publication remains unverified at delivery, so source/runtime adoption is not a claim of public success. Include this stable local repair in the next related consolidated package release; no standalone npm release or version bump.
