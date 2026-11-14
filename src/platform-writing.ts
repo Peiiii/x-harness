@@ -15,6 +15,7 @@ export class PlatformWriting {
   #open!: PlatformDependencies["open"];
   #clock!: PlatformDependencies["clock"];
   #readPost!: PlatformDependencies["readPost"];
+  #readPostComments!: PlatformDependencies["readPostComments"];
   #followPostClick?: { actionId: string; capturedAt: number; value: any };
   compose!: (action: any) => Promise<any>;
   findSubmission!: (
@@ -34,6 +35,7 @@ export class PlatformWriting {
       | "open"
       | "clock"
       | "readPost"
+      | "readPostComments"
     >,
   ) {
     const {
@@ -44,6 +46,7 @@ export class PlatformWriting {
       open,
       clock,
       readPost,
+      readPostComments,
     } = dependencies;
     this.#observed = observed;
     this.#browser = browser;
@@ -52,6 +55,7 @@ export class PlatformWriting {
     this.#open = open;
     this.#clock = clock;
     this.#readPost = readPost;
+    this.#readPostComments = readPostComments;
     this.compose = this.handleCompose.bind(this);
     this.findSubmission = this.handleFindSubmission.bind(this);
     this.submitFollow = this.handleSubmitFollow.bind(this);
@@ -272,7 +276,12 @@ export class PlatformWriting {
         .filter((p: any) => this.matchesQuote(p, action));
     }
     if (action.kind === "reply")
-      matches = matches.filter((post: any) => post.replyToId === action.postId);
+      matches = matches.filter(
+        (post: any) =>
+          post.replyToId === action.postId ||
+          (value.replyParentRootId === action.postId &&
+            typeof value.replyParentEvidenceRef === "string"),
+      );
     return {
       ...value,
       verified:
@@ -393,7 +402,7 @@ export class PlatformWriting {
       value,
       url.href,
       candidate,
-      action.postId,
+      action,
       matchesContent,
     );
   }
@@ -448,7 +457,7 @@ export class PlatformWriting {
     value: any,
     url: string,
     candidate: any,
-    parentId: string,
+    action: any,
     matchesContent: (post: any) => boolean,
   ): Promise<any> {
     try {
@@ -465,13 +474,14 @@ export class PlatformWriting {
         {
           view: "posts",
           targetId: candidate.id,
-          replyTargetId: parentId,
+          replyTargetId: action.postId,
           preferClientNavigation: true,
         },
       );
       return await this.readLoadedReplyReceipt(
         opened,
         candidate.id,
+        action,
         matchesContent,
       );
     } catch (error: unknown) {
@@ -554,6 +564,7 @@ export class PlatformWriting {
   private async readLoadedReplyReceipt(
     value: any,
     targetId: string,
+    action: any,
     matchesContent: (post: any) => boolean,
   ): Promise<any> {
     const candidates = (value.posts ?? []).filter(matchesContent);
@@ -565,8 +576,8 @@ export class PlatformWriting {
       candidates[0].replyToId != null
     )
       return value;
-    // Reuse the bounded thread reader; only its explicit parent receipt can confirm a reply.
-    return this.#readPost({
+    // Prefer an explicit parent link from the exact reply's loaded thread.
+    const detail = await this.#readPost({
       postId: targetId,
       url: value.page,
       evidenceRef: {
@@ -578,6 +589,57 @@ export class PlatformWriting {
       includeContext: true,
       includeThread: true,
     });
+    const detailMatches = (detail.posts ?? []).filter(matchesContent);
+    const detailCandidate = detailMatches.find(
+      (post: any) => post.id === targetId,
+    );
+    if (
+      detail.fresh === true &&
+      !detail.needsStateCheck &&
+      !detail.alerts?.length &&
+      detailMatches.length === 1 &&
+      detailCandidate?.replyToId === action.postId
+    )
+      return detail;
+    if (typeof this.#readPostComments !== "function") return detail;
+    if (
+      detail.fresh !== true ||
+      detail.needsStateCheck ||
+      detail.alerts?.length ||
+      detailMatches.length !== 1 ||
+      !detailCandidate ||
+      detailCandidate.replyToId != null
+    )
+      return detail;
+
+    // Some X detail pages hide the parent. Confirm the same child in the original root's
+    // bounded DOM-scoped replies list; never infer the parent from the prepared action alone.
+    const parentReplies = await this.#readPostComments({
+      target: {
+        postId: action.postId,
+        url: action.url,
+        evidenceRef: action.evidenceRef,
+      },
+      maxPages: 3,
+      timeBudgetMs: 30000,
+      processedIds: [],
+    });
+    if (
+      parentReplies.status === "observed" &&
+      parentReplies.fresh === true &&
+      parentReplies.paginationBoundary?.rootId === action.postId &&
+      parentReplies.ids?.includes(targetId) &&
+      typeof parentReplies.evidenceRef === "string" &&
+      !parentReplies.alerts?.length
+    )
+      return {
+        ...value,
+        evidenceRef: parentReplies.evidenceRef,
+        replyReceiptEvidenceRef: value.evidenceRef,
+        replyParentRootId: action.postId,
+        replyParentEvidenceRef: parentReplies.evidenceRef,
+      };
+    return detail;
   }
   private async handleSubmitFollow(action: any): Promise<any> {
     this.#followPostClick = undefined;
