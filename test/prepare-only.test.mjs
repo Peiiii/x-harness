@@ -1,4 +1,5 @@
 import test from "node:test";
+import { runInNewContext } from "node:vm";
 import assert from "node:assert/strict";
 import { fixture, NOW } from "./fixtures.mjs";
 
@@ -68,7 +69,9 @@ for (const parallel of [false, true]) {
       notAfter: "2026-11-14T13:41:00.000Z",
     };
     f.edit((s) => Object.assign(s.actions[0], oldWindow));
-    const renewed = { ...f.read().actions[0], ...newWindow };
+    const renewed = runInNewContext(
+      `JSON.parse(${JSON.stringify(JSON.stringify({ ...f.read().actions[0], ...newWindow }))})`,
+    );
     const api = parallel
       ? f.newExecutor("original", ["original"]).api
       : f.harness;
@@ -85,7 +88,7 @@ for (const parallel of [false, true]) {
     });
 
     assert.equal(result.status, "checkpoint", result.error);
-    assert.deepEqual(f.read().actions, [renewed]);
+    assert.deepEqual(f.read().actions, [structuredClone(renewed)]);
     assert.deepEqual(f.commands, []);
     assert.deepEqual(f.observations, []);
   });

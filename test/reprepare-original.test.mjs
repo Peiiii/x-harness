@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { runInNewContext } from "node:vm";
 import { writeFileSync } from "node:fs";
 import { fixture, NOW } from "./fixtures.mjs";
 import { createBusinessHarness } from "../dist/diagnostics.js";
@@ -295,4 +296,112 @@ for (const scoped of [false, true]) {
     assert.deepEqual(f.read().actions[0].preparationHistory[0].action, f.old);
     assert.deepEqual(f.writes, []);
   });
+}
+
+for (const scoped of [false, true]) {
+  test(`cross-realm expected snapshot revises through the root API: ${scoped}`, async (t) => {
+    const f = setup(t, scoped);
+    const foreign = runInNewContext(
+      `JSON.parse(${JSON.stringify(JSON.stringify(f.decision))})`,
+    );
+    assert.notEqual(
+      Object.getPrototypeOf(foreign.reprepareOriginals[0].expectedAction),
+      Object.prototype,
+    );
+    assert.deepEqual(
+      JSON.parse(JSON.stringify(foreign.reprepareOriginals[0].expectedAction)),
+      f.old,
+    );
+    const result = await f.api.runGrowthRound({
+      taskId: "round-1",
+      maxActions: 0,
+      decision: foreign,
+    });
+    assert.equal(result.status, "checkpoint", result.error);
+    assert.deepEqual(f.read().actions[0].preparationHistory[0].action, f.old);
+    assert.deepEqual(f.writes, []);
+    assert.deepEqual(f.observations, []);
+  });
+}
+
+for (const scoped of [false, true]) {
+  for (const [name, change] of [
+    [
+      "changed value",
+      (expected) => {
+        expected.text += " changed";
+      },
+    ],
+    [
+      "removed field",
+      (expected) => {
+        delete expected.skipReason;
+      },
+    ],
+    [
+      "unknown extra field",
+      (expected) => {
+        expected.unrecognized = true;
+      },
+    ],
+    [
+      "nested unknown value",
+      (expected) => {
+        expected.extra.nested[0] = 2;
+      },
+    ],
+    [
+      "numeric type",
+      (expected) => {
+        expected.extra.count = "1";
+      },
+    ],
+    [
+      "undefined field",
+      (expected) => {
+        expected.extra.explicit = undefined;
+      },
+    ],
+  ]) {
+    test(`cross-realm CAS still refuses ${name}: ${scoped}`, async (t) => {
+      const f = setup(t, scoped, (action) => {
+        action.extra = { nested: [1, null], count: 1 };
+      });
+      const foreign = runInNewContext(
+        `JSON.parse(${JSON.stringify(JSON.stringify(f.decision))})`,
+      );
+      change(foreign.reprepareOriginals[0].expectedAction);
+      const before = f.read();
+      const result = await f.api.runGrowthRound({
+        taskId: "round-1",
+        maxActions: 0,
+        decision: foreign,
+      });
+      assert.equal(result.status, "needsDecision");
+      assert.deepEqual(f.read().actions, before.actions);
+      assert.deepEqual(f.read().attempts, before.attempts);
+      assert.deepEqual(f.writes, []);
+      assert.deepEqual(f.observations, []);
+    });
+  }
+  for (const key of ["intentAt", "claim"]) {
+    test(`cross-realm matching CAS never clears ${key}: ${scoped}`, async (t) => {
+      const f = setup(t, scoped, (action) => {
+        action[key] =
+          key === "claim" ? { owner: "other" } : new Date(NOW).toISOString();
+      });
+      const foreign = runInNewContext(
+        `JSON.parse(${JSON.stringify(JSON.stringify(f.decision))})`,
+      );
+      const before = f.read();
+      const result = await f.api.runGrowthRound({
+        taskId: "round-1",
+        maxActions: 0,
+        decision: foreign,
+      });
+      assert.equal(result.status, "needsDecision");
+      assert.deepEqual(f.read().actions, before.actions);
+      assert.deepEqual(f.writes, []);
+    });
+  }
 }

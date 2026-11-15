@@ -31,7 +31,8 @@ export function reprepareOriginal(
     incoming.id !== stored.id ||
     incoming.accountHandle !== stored.accountHandle ||
     incoming.draftPath !== stored.draftPath ||
-    !isDeepStrictEqual(request.expectedAction, stored)
+    // The caller may run in a host VM; compare values in the SDK realm.
+    !isDeepStrictEqual(structuredClone(request.expectedAction), stored)
   )
     throw new Error("original-repreparation-snapshot-mismatch");
   const history = stored.preparationHistory ?? [];
