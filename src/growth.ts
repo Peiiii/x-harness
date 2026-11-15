@@ -162,6 +162,7 @@ export class GrowthHarness {
     });
     this.#execute = execute;
     const { parallelRound } = createParallelRound({
+      guardInput: this.#guardInput,
       load: this.#load,
       scope: this.#scope,
       result: this.#result,
@@ -177,6 +178,7 @@ export class GrowthHarness {
     });
     this.#parallelRound = parallelRound;
     const { round } = createPlannedRound({
+      guardInput: this.#guardInput,
       store: this.#store,
       load: this.#load,
       result: this.#result,

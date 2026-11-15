@@ -1,8 +1,10 @@
 import type { GrowthDependencies } from "./growth-dependencies.js";
+import { reprepareOriginal } from "./reprepare-original.js";
 import { canRenewOriginalWindow } from "./prepared-original-window.js";
 
 import { kinds, same } from "./growth-constants.js";
 export class PlannedRound {
+  #guardInput!: GrowthDependencies["guardInput"];
   #store!: GrowthDependencies["store"];
   #load!: GrowthDependencies["load"];
   #result!: GrowthDependencies["result"];
@@ -15,6 +17,7 @@ export class PlannedRound {
   constructor(
     dependencies: Pick<
       GrowthDependencies,
+      | "guardInput"
       | "store"
       | "load"
       | "result"
@@ -27,6 +30,7 @@ export class PlannedRound {
   ) {
     const { store, load, result, evidenceExists, save, execute, clock, stamp } =
       dependencies;
+    this.#guardInput = dependencies.guardInput;
     this.#store = store;
     this.#load = load;
     this.#result = result;
@@ -67,6 +71,22 @@ export class PlannedRound {
           throw new Error("仅添加职责范围内prepared原动作");
         const existing = next.actions.find((a: any) => a.id === action.id);
         if (existing) {
+          if (
+            decision.reprepareOriginals?.some(
+              (r: any) => r?.actionId === action.id,
+            )
+          ) {
+            reprepareOriginal(
+              next,
+              existing,
+              action,
+              decision,
+              this.#guardInput,
+              this.#evidenceExists,
+              this.#stamp,
+            );
+            continue;
+          }
           if (!canRenewOriginalWindow(next, existing, action))
             throw new Error("仅更新未提交原动作的发布时间窗口");
           if (action.notBefore === undefined) delete existing.notBefore;

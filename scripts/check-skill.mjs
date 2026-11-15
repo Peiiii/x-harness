@@ -103,10 +103,10 @@ for (const text of [entry, ...Object.values(refs)]) {
     snippets.push(match[1] + ";");
 }
 const strings =
-  "moduleURL ledgerPath proofDirectory selectedHandle actionId taskId accountHandle accountURL accountEvidenceRef text reviewProof draftFingerprint draftPath composeURL composeEvidenceRef postId parentURL parentProof handle url evidenceRef publicURL executorId authorizationProof startsAt expiresAt".split(
+  "moduleURL ownershipEvidenceRef ledgerPath proofDirectory selectedHandle actionId taskId accountHandle accountURL accountEvidenceRef text reviewProof draftFingerprint draftPath composeURL composeEvidenceRef postId parentURL parentProof handle url evidenceRef publicURL executorId authorizationProof startsAt expiresAt".split(
     " ",
   );
-const declarations = `import { createXGrowthHarness, type XGrowthHarness, type CuaTab, type PostTarget } from ${JSON.stringify(join(root, "dist/index.js"))};\ndeclare const x: XGrowthHarness;\ndeclare const tab: CuaTab;\ndeclare const browser: { tabs: { list(): Promise<Array<{id: string; url?: string}>>; get(id: string): Promise<CuaTab> } };\ndeclare const observedPost: PostTarget;\ndeclare const maxActions: number;\n${strings.map((name) => `declare const ${name}: string;`).join("\n")}\n`;
+const declarations = `import { createXGrowthHarness, type XGrowthHarness, type CuaTab, type PostTarget } from ${JSON.stringify(join(root, "dist/index.js"))};\ndeclare const x: XGrowthHarness;\ndeclare const tab: CuaTab;\ndeclare const browser: { tabs: { list(): Promise<Array<{id: string; url?: string}>>; get(id: string): Promise<CuaTab> } };\ndeclare const observedPost: PostTarget;\ndeclare const maxActions: number;\ndeclare const expectedAction: Record<string, unknown>;\ndeclare const preparedAction: import(${JSON.stringify(join(root, "dist/index.js"))}).PreparedAction;\n${strings.map((name) => `declare const ${name}: string;`).join("\n")}\n`;
 const directory = mkdtempSync(join(tmpdir(), "x-skill-check-"));
 try {
   const file = join(directory, "examples.mts");

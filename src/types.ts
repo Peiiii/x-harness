@@ -569,6 +569,7 @@ export type RoundDecision =
       accountHandle: string;
       ownershipEvidenceRef: EvidenceRef;
       actions: PreparedAction[];
+      reprepareOriginals?: import("./reprepare-original.js").OriginalRepreparation[];
       attemptsCoverage?: {
         complete: boolean;
         since: string;
@@ -828,7 +829,6 @@ export type HostConnectionResult =
       /** Present if creation succeeded; preserve this tab, never create another blindly. */
       tab?: CuaTab;
     };
-
 export interface FollowPriorityOptions {
   taskId: string;
   follow: FollowOptions & {
