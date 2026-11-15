@@ -254,3 +254,24 @@ test("normal platform DOM reply rechecks parent after the async authorization bo
   assert.match(result.error?.message, /reply-submit-context-unconfirmed/);
   assert.equal(result.submits, 0);
 });
+
+test("inline wrong direct parent cannot be overwritten by the original binding", async () => {
+  const result = await submitThroughDOM({
+    inline: true,
+    mutate: (raw) => {
+      raw.replyToId = "999";
+    },
+  });
+  assert.ok(result.error);
+  assert.equal(result.submits, 0);
+});
+test("inline reply rechecks a changed explicit parent after authorization", async () => {
+  const result = await submitThroughDOM({
+    inline: true,
+    beforeSubmit: (raw) => {
+      raw.replyToId = "999";
+    },
+  });
+  assert.match(result.error?.message, /reply-submit-context-unconfirmed/);
+  assert.equal(result.submits, 0);
+});

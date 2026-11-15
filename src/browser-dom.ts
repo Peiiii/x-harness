@@ -149,6 +149,7 @@ export class DOMXBrowser {
       const binding = this.#session.replyBinding;
       const replyComposer =
         binding &&
+        (!observedParentId || observedParentId === binding.postId) &&
         raw.buttons?.filter((b: any) => /^(回复|Reply)$/i.test(b.label))
           .length === 1 &&
         !raw.buttons?.some((b: any) => /^(发帖|发布|Post)$/i.test(b.label));
@@ -172,7 +173,6 @@ export class DOMXBrowser {
         result.replyToId = this.#session.replyBinding.postId;
       if (
         replyComposer &&
-        (!observedParentId || observedParentId === binding.postId) &&
         !result.inlineComposer &&
         raw.editors?.length === 1 &&
         this.#session.replyBinding?.body &&
