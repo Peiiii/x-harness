@@ -116,6 +116,14 @@ async function run(
     },
     observe: async () => {
       reads++;
+      if (reads === 1)
+        return {
+          ...submitted,
+          editors: [{}],
+          buttons: [{ label: "Reply" }],
+          alerts: [],
+          needsStateCheck: false,
+        };
       return {
         ...submitted,
         alerts: ["alert", "deadline-alert"].includes(fault)
@@ -217,7 +225,7 @@ test("host-capped submitted text waits resume without a second submit", async (t
   const r = await run(t);
   assert.equal(r.error, undefined);
   assert.equal(r.waits, 3);
-  assert.equal(r.reads, 2);
+  assert.equal(r.reads, 3);
   assert.equal(r.presses, 1);
   assert.equal(r.gates, 1);
   assert.equal(r.idle, 0);
@@ -245,7 +253,7 @@ for (const fault of [
 test("a deadline timeout still observes the original cleared editor before receipt verification", async (t) => {
   const r = await run(t, { fault: "cleared" });
   assert.equal(r.error, undefined);
-  assert.equal(r.reads, 1);
+  assert.equal(r.reads, 2);
   assert.equal(r.presses, 1);
   assert.equal(r.waits, 1);
   assert.equal(r.idle, 0);
@@ -253,7 +261,7 @@ test("a deadline timeout still observes the original cleared editor before recei
 test("a deadline timeout retains the original platform alert without retrying submit", async (t) => {
   const r = await run(t, { fault: "deadline-alert" });
   assert.ok(r.error);
-  assert.equal(r.reads, 1);
+  assert.equal(r.reads, 2);
   assert.equal(r.presses, 1);
   assert.equal(r.idle, 0);
   assert.equal(r.error.submissionDiagnostic.editorState, "retained");
