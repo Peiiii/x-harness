@@ -292,3 +292,41 @@ test("creator collection never retries policy refusals or repeatedly lost contex
     );
   }
 });
+
+for (const rebound of [false, true]) {
+  test(`public owned-tab read budget reaches each DOM binding (rebound=${rebound})`, async (t) => {
+    const f = fixture(t),
+      seen = [];
+    let rebinds = 0;
+    const observe = async (_fn, _arg, options) => {
+      seen.push(options.timeoutMs);
+      if (rebound && seen.length === 1)
+        throw Error("node_repl exec context not found");
+      return {
+        page: "https://x.com/home",
+        accountHandle: "Pei",
+        accountURL: "https://x.com/Pei",
+        alerts: [],
+        needsStateCheck: false,
+      };
+    };
+    const tab = { id: "same-owned-tab", playwright: { evaluate: observe } };
+    const api = createXGrowthHarness({
+      tab,
+      ledgerPath: join(dirname(f.draft), "budget-ledger.md"),
+      proofDirectory: join(dirname(f.draft), "budget-proofs"),
+      tabReadRecovery: {
+        readTimeoutMs: 15000,
+        rebind: async (id) => {
+          assert.equal(id, tab.id);
+          rebinds++;
+          return tab;
+        },
+      },
+    });
+    const result = await api.inspectAccount({ mode: "decision" });
+    assert.equal(result.status, "observed");
+    assert.deepEqual(seen, rebound ? [15000, 15000] : [15000]);
+    assert.equal(rebinds, rebound ? 1 : 0);
+  });
+}

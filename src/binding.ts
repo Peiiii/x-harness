@@ -47,6 +47,7 @@ export function bindXGrowthHarness(options: HarnessOptions): XGrowthHarness {
   )
     throw new Error("invalid-original-post-activation");
   const domOptions = {
+    readTimeoutMs: options.tabReadRecovery?.readTimeoutMs,
     defaultPostActivation: options.originalPostActivation,
     creatorTrace: usage.creatorStage.bind(usage),
     navigationTrace: usage.browserStage.bind(usage),
