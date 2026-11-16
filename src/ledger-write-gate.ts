@@ -94,12 +94,14 @@ export class LedgerWriteGate {
     const db = new DatabaseSync(this.gatePath);
     let result: T,
       committed = false,
+      enteredCommit = false,
       originalError: unknown;
     try {
       db.exec(
         "PRAGMA busy_timeout=1500; CREATE TABLE IF NOT EXISTS write_gate(id INTEGER PRIMARY KEY,n INTEGER NOT NULL); INSERT OR IGNORE INTO write_gate VALUES(1,0)",
       );
       db.function("commit_original_ledger", () => {
+        enteredCommit = true;
         let token: string | undefined;
         try {
           token = this.claimCompatibilityFile();
@@ -121,6 +123,17 @@ export class LedgerWriteGate {
         if (!committed) throw originalError ?? error;
       }
       return result!;
+    } catch (error: any) {
+      // Retry only native contention before any ledger callback could have run.
+      if (
+        !enteredCommit &&
+        error.code === "ERR_SQLITE_ERROR" &&
+        error.errcode === 5
+      )
+        throw new HarnessConflict("原子账本写入繁忙：按最新状态重算", {
+          cause: error,
+        });
+      throw error;
     } finally {
       db.close();
     }
