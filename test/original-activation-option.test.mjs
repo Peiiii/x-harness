@@ -51,11 +51,14 @@ for (const [option, explicit, expected] of [
     assert.deepEqual(f.activations, [expected]);
   });
 }
-test("original default does not change reply activation", async () => {
+test("original default never turns an unbound reply into a post", async () => {
   const f = fixture("keyboard");
   await f.browser.observe({ view: "composer" });
-  await f.browser.act({ operation: "submitReply" });
-  assert.deepEqual(f.activations, ["click"]);
+  await assert.rejects(
+    f.browser.act({ operation: "submitReply" }),
+    /reply-submit-context-unconfirmed/,
+  );
+  assert.deepEqual(f.activations, []);
 });
 
 test("the final authorization gate runs after capture setup and never activates when denied", async () => {

@@ -1,12 +1,15 @@
 import { executionHoldsPage } from "./executor-actionability.js";
 import type { GrowthDependencies } from "./growth-dependencies.js";
 import { randomUUID } from "node:crypto";
+import { reprepareOriginal } from "./reprepare-original.js";
+import { canRenewOriginalWindow } from "./prepared-original-window.js";
 
 import { same } from "./growth-constants.js";
 export class ParallelRound {
   #load!: GrowthDependencies["load"];
   #scope!: GrowthDependencies["scope"];
   #result!: GrowthDependencies["result"];
+  #guardInput!: GrowthDependencies["guardInput"];
   #store!: GrowthDependencies["store"];
   #executor!: GrowthDependencies["executor"];
   #runtimeId!: GrowthDependencies["runtimeId"];
@@ -29,6 +32,7 @@ export class ParallelRound {
       | "load"
       | "scope"
       | "result"
+      | "guardInput"
       | "store"
       | "executor"
       | "runtimeId"
@@ -57,6 +61,7 @@ export class ParallelRound {
     this.#load = load;
     this.#scope = scope;
     this.#result = result;
+    this.#guardInput = dependencies.guardInput;
     this.#store = store;
     this.#executor = executor;
     this.#runtimeId = runtimeId;
@@ -142,11 +147,36 @@ export class ParallelRound {
             if (
               !action.id ||
               !activeKinds.includes(action.kind) ||
-              action.status !== "prepared" ||
-              next.actions.some((a: any) => a.id === action.id)
+              action.status !== "prepared"
             )
               throw new Error("原prepared动作ID无效");
-            next.actions.push(structuredClone(action));
+            const existing = next.actions.find((a: any) => a.id === action.id);
+            if (existing) {
+              if (
+                decision.reprepareOriginals?.some(
+                  (r: any) => r?.actionId === action.id,
+                )
+              ) {
+                reprepareOriginal(
+                  next,
+                  existing,
+                  action,
+                  decision,
+                  this.#guardInput,
+                  this.#evidenceExists,
+                  this.#stamp,
+                );
+                continue;
+              }
+              if (!canRenewOriginalWindow(next, existing, action))
+                throw new Error("原prepared动作ID无效");
+              if (action.notBefore === undefined) delete existing.notBefore;
+              else existing.notBefore = action.notBefore;
+              if (action.notAfter === undefined) delete existing.notAfter;
+              else existing.notAfter = action.notAfter;
+            } else {
+              next.actions.push(structuredClone(action));
+            }
           }
           if (decision.sharedAttempts) {
             if (!Array.isArray(decision.sharedAttempts))

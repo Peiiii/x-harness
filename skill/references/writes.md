@@ -162,3 +162,29 @@ Explicit `replyBatch({taskId,actions,threadLikes:{sampleRate:0.6,maxLikes:20,max
 Reply status/results and threadLikes/interactionStatus/pendingLikeActionIds are separate; checkpoints never mean all hidden comments or follower growth. Stable `reply-thread-likes-<parentId>` reuses original sampling/reactions. Unknown replies never trigger likes or resubmit. Repeat the same original arguments for permitted unfinished work. Invalid like config rejects before replies. Optional beforeReply is an async deny-only project admission callback, fresh for each new prepared reply; root permission/identity/quality/unknown/night gates remain. followPriorityExecutorId yields at original reply/like boundaries. Allow outer timeout for serial replies plus bounded thread budgets (three threads typically need >=240000ms).
 
 Target-only mode immediately likes each verified reply's exact original target and returns separate targetLikes. It reuses the current exact confirmed thread or opens the reviewed URL once; unknown replies never imply success. Target-like failures never resend a comment. Do not combine it with threadLikes; the whole-thread mode already includes its parent.
+
+### Revise a skipped original with its stable ID
+
+Use the original `runGrowthRound` prepare-only path for an explicitly reviewed revision of a never-submitted skipped original. Read its complete current ledger action as `expectedAction`, supply the newly reviewed `preparedAction`, and call:
+
+```js
+await x.runGrowthRound({
+  taskId,
+  maxActions: 0,
+  decision: {
+    type: "prepareActions",
+    accountHandle,
+    ownershipEvidenceRef,
+    actions: [preparedAction],
+    reprepareOriginals: [{
+      actionId: preparedAction.id,
+      expectedAction,
+      evidenceRef: preparedAction.quality.evidenceRef,
+    }],
+  },
+});
+```
+
+The existing action must still exactly match `expectedAction`, be `skipped`, and have the same original ID, draft path and account. New exact-text approval, current draft fingerprint, a different existing review proof, and explicit valid `notBefore`/`notAfter` are required. Future preparation is allowed; expired or invalid windows reject. The existing content guard and hold apply. This does not infer permission from an unstructured skip reason or override a user refusal: callers must use their current content/authorization owner. Explicit `userRejected`, `revoked` or `authorizationRevoked` flags reject.
+
+Any intent, activation, claim, public ID or attempt in the original/current archived history prevents revision. A successful prepare-only call performs no browser work and appends the previous action to `preparationHistory`, with the new evidence and revision time. Continue publishing through `publishPost` with the same task, draft and stable ID; normal execution, identity, schedule, cadence and submission guards remain. Ordinary preparation without `reprepareOriginals` retains its previous behavior. Never edit the ledger to clear submission evidence or manufacture a matching snapshot.

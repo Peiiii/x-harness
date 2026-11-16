@@ -7,6 +7,7 @@ import { CreatorHistory } from "./creator-history.js";
 import { ReplyThreadBatch } from "./reply-thread-batch.js";
 import { ReplyReceiptRecovery } from "./reply-receipt-recovery.js";
 import { OriginalPostCadence } from "./original-post-cadence.js";
+import { selectPreparedOriginal } from "./prepared-original-selection.js";
 import { FollowPriority } from "./follow-priority.js";
 import { VerifiedTargetPlanning } from "./verified-target-planning.js";
 import { ReplyDiscovery } from "./reply-discovery.js";
@@ -29,7 +30,6 @@ import type {
   FeedbackEvidence,
 } from "./types.js";
 import type { BoundaryRecord } from "./boundary.js";
-
 /** Internal dependencies; only the normal X factory is exported from the root. */
 export interface BusinessDependencies {
   originalContentGuard?: import("./types.js").OriginalContentGuard;
@@ -41,7 +41,6 @@ export interface BusinessDependencies {
   sleep?: (ms: number) => Promise<void>;
   executor?: BoundaryRecord;
 }
-
 export class BusinessHarness implements XGrowthHarness {
   readonly followCallBudgetVersion = 1 as const;
   configureOriginalCadence: OriginalPostCadence["configure"];
@@ -345,8 +344,11 @@ export class BusinessHarness implements XGrowthHarness {
         reason: "original-task-id-required",
         evidenceRef: raw.evidenceRef,
       };
-    const action = snapshot.state.actions?.find(selector) as
-      BoundaryRecord | undefined;
+    const action = (
+      operation === "publishPost"
+        ? selectPreparedOriginal(snapshot.state, args.draftPath)
+        : snapshot.state.actions?.find(selector)
+    ) as BoundaryRecord | undefined;
     const issues = decisions(raw.decision);
     const issue =
       issues.find((d) => d.actionId === action?.id) ??

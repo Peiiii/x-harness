@@ -45,6 +45,7 @@ export class ActionTrace {
             [
               "page",
               "accountHandle",
+              "replyToId",
               "verified",
               "missing",
               "alerts",

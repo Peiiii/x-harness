@@ -1,6 +1,7 @@
 import { ActionTrace } from "./action-trace.js";
 import { OriginalPostCadence } from "./original-post-cadence.js";
 import { DraftSchedule } from "./draft-schedule.js";
+import { selectPreparedOriginal } from "./prepared-original-selection.js";
 import {
   NativePublicationVerification,
   verifyMissingSubmittedEditor,
@@ -87,9 +88,7 @@ export class IndependentPublishing {
         const snapshot = await this.#load(taskId),
           state = structuredClone(snapshot.state);
         state.actions ??= [];
-        action = state.actions.find(
-          (a: any) => a.kind === "original" && a.draftPath === draftPath,
-        );
+        action = selectPreparedOriginal(state, draftPath);
         if (!action) {
           if (
             !preparedAction?.id ||

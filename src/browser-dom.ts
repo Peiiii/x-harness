@@ -145,6 +145,16 @@ export class DOMXBrowser {
       (text: string) => !informational(text),
     );
     if (query.view === "composer") {
+      const observedParentId = raw.replyToId;
+      const binding = this.#session.replyBinding;
+      const replyComposer =
+        binding &&
+        (!observedParentId || observedParentId === binding.postId) &&
+        raw.buttons?.filter((b: any) => /^(回复|Reply)$/i.test(b.label))
+          .length === 1 &&
+        !raw.buttons?.some((b: any) => /^(发帖|发布|Post)$/i.test(b.label));
+      // A status link alone can occur in an original/quote composer.
+      result.replyToId = null;
       if (this.#session.quoteBinding && raw.quoteContexts?.length === 1) {
         const q = raw.quoteContexts[0],
           b = this.#session.quoteBinding;
@@ -153,6 +163,7 @@ export class DOMXBrowser {
       result.editorText =
         raw.editors?.length === 1 ? raw.editors[0].text : null;
       if (
+        replyComposer &&
         result.inlineComposer &&
         raw.editors?.length === 1 &&
         this.#session.replyBinding?.page === result.page &&
@@ -161,6 +172,7 @@ export class DOMXBrowser {
       )
         result.replyToId = this.#session.replyBinding.postId;
       if (
+        replyComposer &&
         !result.inlineComposer &&
         raw.editors?.length === 1 &&
         this.#session.replyBinding?.body &&
@@ -172,8 +184,8 @@ export class DOMXBrowser {
             this.#session.replyBinding.body.startsWith(
               result.replyQuotes[0],
             ))) &&
-        result.replyContexts[0].includes(
-          `回复 @${this.#session.replyBinding.author}`,
+        new RegExp(`回复 @${binding.author}(?:$|[\\s,，、])`, "i").test(
+          result.replyContexts[0],
         )
       )
         result.replyToId = this.#session.replyBinding.postId;

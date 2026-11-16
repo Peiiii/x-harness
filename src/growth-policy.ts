@@ -189,6 +189,7 @@ export class GrowthPolicy {
       if (reason) return reason;
     }
     if (independentExecution) {
+      const permit = independentExecution.windowAuthorization;
       if (
         action.kind !== "original" ||
         !independentExecution.tabId ||
@@ -196,6 +197,15 @@ export class GrowthPolicy {
         !this.#evidenceExists(independentExecution.scopeEvidenceRef)
       )
         return "independent-execution-proof-missing";
+      if (
+        permit &&
+        (permit.actionId !== action.id ||
+          permit.userAuthorized !== true ||
+          !Number.isFinite(Date.parse(permit.expiresAt)) ||
+          this.#clock() >= Date.parse(permit.expiresAt) ||
+          !this.#evidenceExists(permit.evidenceRef))
+      )
+        return "independent-execution-window-invalid";
     } else if (
       !executor &&
       (!state.execution?.exclusive || state.execution.owner !== "harness")

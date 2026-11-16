@@ -97,6 +97,10 @@ export class DOMSubmission {
     try {
       if (["submitPost", "submitReply"].includes(command.operation))
         await command.beforeSubmit?.();
+      if (command.operation === "submitReply")
+        await stage("reply-submit-context", () =>
+          this.validateReplyContext(command, result),
+        );
       this.#session.current = null;
       const activationStartedAt = Date.now();
       if (nativeSubmitIndex !== undefined)
@@ -181,6 +185,32 @@ export class DOMSubmission {
       };
       throw error;
     }
+  }
+  private async validateReplyContext(command: any, submitted: any) {
+    const current = await this.#observe({ view: "composer" });
+    const targetId = command.replyToId ?? submitted.replyToId;
+    if (
+      !targetId ||
+      submitted.replyToId !== targetId ||
+      current.replyToId !== targetId ||
+      current.needsStateCheck ||
+      current.alerts?.length ||
+      current.editors?.length !== 1 ||
+      !sameText(current.editorText, submitted.editorText) ||
+      !current.accountHandle ||
+      !sameHandle(current.accountHandle, submitted.accountHandle) ||
+      xURL(current.page).href !== xURL(submitted.page).href ||
+      current.buttons?.filter(
+        (b: any) => /^(回复|Reply)$/i.test(b.label) && !b.disabled,
+      ).length !== 1 ||
+      current.buttons?.some((b: any) => /^(发帖|发布|Post)$/i.test(b.label))
+    )
+      throw Error("reply-submit-context-unconfirmed");
+    return {
+      page: current.page,
+      accountHandle: current.accountHandle,
+      replyToId: current.replyToId,
+    };
   }
   private async waitSubmittedEditor(
     editor: any,

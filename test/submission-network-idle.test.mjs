@@ -9,6 +9,16 @@ async function submit({
 } = {}) {
   let clicks = 0;
   const events = [];
+  const submitted = {
+    page: "https://x.com/peer/status/10",
+    accountHandle: "owner",
+    editorText: "Reply",
+    replyToId: "10",
+    editors: [{}],
+    buttons: [{ label: "Reply" }],
+    alerts: [],
+    needsStateCheck: false,
+  };
   const finish = createDOMSubmission({
     session: {},
     submitAX: null,
@@ -21,7 +31,7 @@ async function submit({
       },
     },
     observe: async () => {
-      throw Error("unexpected observation");
+      return submitted;
     },
     unique: () => {
       throw Error("unexpected locator");
@@ -47,7 +57,7 @@ async function submit({
       },
     },
     {},
-    {},
+    submitted,
   );
   return { clicks, events };
 }
