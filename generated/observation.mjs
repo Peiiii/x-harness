@@ -497,12 +497,15 @@ export const readXObservation = (query) => {
 };
   const readComposer = function readComposer() {
     const visible = (el) => el.getClientRects().length > 0 && !el.closest('[aria-hidden="true"]');
-    const dialogs = Array.from(document.querySelectorAll('[role="dialog"]')).filter(visible);
+    const visibleDialogs = Array.from(document.querySelectorAll('[role="dialog"]')).filter(visible);
+    const dialogs = visibleDialogs.filter((dialog) => !visibleDialogs.some((other) => other !== dialog && dialog.contains(other)));
+    const mains = Array.from(document.querySelectorAll("main")).filter(visible);
     const root = dialogs.length === 1
         ? dialogs[0]
-        : dialogs.length === 0
-            ? document.querySelector("main")
+        : dialogs.length === 0 && mains.length === 1
+            ? mains[0]
             : null;
+    const composerScope = root ? (dialogs.length ? "dialog" : "main") : undefined;
     if (location.pathname.startsWith("/compose/post/unsent/")) {
         const text = root?.innerText ?? "";
         return {
@@ -528,7 +531,10 @@ export const readXObservation = (query) => {
         role: el.tagName === "A" ? "link" : "button",
         label: el.getAttribute("aria-label") || el.innerText,
     }));
-    if (Array.from(document.querySelectorAll('[role="textbox"],textarea,[contenteditable="true"]')).filter(visible).length !== 1)
+    const editors = root
+        ? Array.from(root.querySelectorAll('[role="textbox"],textarea,[contenteditable="true"]')).filter(visible)
+        : [];
+    if (editors.length !== 1)
         return {
             page: location.href,
             navigation,
@@ -550,23 +556,23 @@ export const readXObservation = (query) => {
                     })),
                 }
                 : null,
+            composerScope,
             needsStateCheck: true,
-            missing: ["composer-editor-not-found"],
-            editorCandidates: Array.from(document.querySelectorAll('[role="textbox"],textarea,[contenteditable="true"]'))
-                .filter(visible)
-                .map((el) => ({
+            missing: [
+                root ? "composer-editor-not-found" : "composer-scope-not-unique",
+            ],
+            editorCandidates: editors.map((el) => ({
                 label: el.getAttribute("aria-label"),
                 testId: el.getAttribute("data-testid"),
                 tag: el.tagName,
             })),
         };
-    const editors = Array.from(document.querySelectorAll('[role="textbox"],textarea,[contenteditable="true"]')).filter(visible);
+    const hasSubmit = (node) => Array.from(node.querySelectorAll("button")).some((el) => visible(el) &&
+        /^(发帖|回复|更新|Post|Reply|Update)$/i.test(el.getAttribute("aria-label") || el.innerText));
     let scope = editors[0];
-    while (scope.parentElement &&
-        !Array.from(scope.querySelectorAll("button")).some((el) => visible(el) &&
-            /^(发帖|回复|更新)$/.test(el.getAttribute("aria-label") || el.innerText)))
+    while (scope !== root && scope.parentElement && !hasSubmit(scope))
         scope = scope.parentElement;
-    if (scope === document.body || scope === document.documentElement)
+    if (!root.contains(scope) || !hasSubmit(scope))
         return {
             page: location.href,
             needsStateCheck: true,
@@ -575,6 +581,7 @@ export const readXObservation = (query) => {
     return {
         page: location.href,
         navigation,
+        composerScope,
         editors: editors.map((el) => ({
             label: el.getAttribute("aria-label"),
             testId: el.getAttribute("data-testid"),
@@ -742,9 +749,10 @@ export const readXObservation = (query) => {
             .map((el) => el.innerText),
     };
     if (view === "composer") {
-        const dialogs = [
+        const visibleDialogs = [
             ...document.querySelectorAll('[role="dialog"]'),
-        ].filter(visible);
+        ].filter((el) => visible(el) && !el.closest('[aria-hidden="true"]'));
+        const dialogs = visibleDialogs.filter((dialog) => !visibleDialogs.some((other) => other !== dialog && dialog.contains(other)));
         const ids = dialogs.length === 1
             ? [
                 ...new Set([...dialogs[0].querySelectorAll("a[href]")]

@@ -130,6 +130,8 @@ export class DOMXBrowser {
         hostFinishedAtMs,
       };
     const raw = result;
+    this.#session.composerScope =
+      query.view === "composer" ? raw.composerScope : undefined;
     // Exact informational messages are retained; any added refusal text stays
     // an alert. A send toast alone never proves publication.
     const informational = (text: string) =>
@@ -193,13 +195,39 @@ export class DOMXBrowser {
     this.#session.current = { query, result };
     return result;
   }
+  private composerDialogs() {
+    const dialogs = this.#tab.playwright
+      .getByRole("dialog")
+      .filter({ visible: true });
+    return dialogs.filter({
+      hasNot: this.#tab.playwright
+        .getByRole("dialog")
+        .filter({ visible: true }),
+    });
+  }
+  private composerRoot() {
+    return this.#session.composerScope === "main"
+      ? this.#tab.playwright.getByRole("main").filter({ visible: true })
+      : this.composerDialogs();
+  }
   private locator(role: any, label: any = undefined) {
-    return this.#tab.playwright.getByRole(
-      role,
-      label ? { name: label, exact: true } : {},
-    );
+    const options = label ? { name: label, exact: true } : {};
+    if (this.#session.composerScope) {
+      const root = this.composerRoot();
+      if (role === this.#session.composerScope) return root;
+      return root.getByRole(role, options);
+    }
+    return this.#tab.playwright.getByRole(role, options);
   }
   private async unique(loc: any) {
+    if (this.#session.composerScope) {
+      if (
+        (await this.composerRoot().count()) !== 1 ||
+        (this.#session.composerScope === "main" &&
+          (await this.composerDialogs().count()) !== 0)
+      )
+        throw new Error("composer-scope-not-unique");
+    }
     const count = await loc.count();
     if (count !== 1) throw new Error(`DOM语义控件不唯一 count=${count}`);
     return loc;
@@ -222,13 +250,15 @@ export class DOMXBrowser {
       this.#defaultPostActivation
     )
       command = { ...command, activation: this.#defaultPostActivation };
-    if (Object.hasOwn(this.#navigation, command.operation))
+    if (Object.hasOwn(this.#navigation, command.operation)) {
+      this.#session.composerScope = undefined;
       return (
         this.#navigation as unknown as Record<
           string,
           (command: any) => Promise<any>
         >
       )[command.operation](command);
+    }
     if (!this.#session.current) throw new Error("DOM语义操作必须先observe");
     const { query, result } = this.#session.current;
     const handler = Object.hasOwn(this.#editing, command.operation)

@@ -1,5 +1,6 @@
 export interface DOMSession {
   current?: any;
+  composerScope?: "dialog" | "main";
   originalReceiptReload?: { text: string; accountHandle: string };
   replyBinding?: any;
   quoteBinding?: any;

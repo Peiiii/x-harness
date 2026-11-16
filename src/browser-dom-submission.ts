@@ -114,43 +114,7 @@ export class DOMSubmission {
       else if (command.activation === "keyboard")
         await stage("activate.dom-keyboard", () => loc.press("Enter"));
       else await stage("activate.dom-click", () => loc.click());
-      if (binding) {
-        this.#session.replyBinding = binding;
-        await this.#tab.playwright
-          .getByRole("textbox", { name: /^(帖子文本|Post text)$/i })
-          .waitFor({ state: "visible", timeoutMs: 5000 });
-        if (xURL(await this.#tab.url()).pathname === "/compose/post")
-          await this.#tab.playwright
-            .getByText(
-              new RegExp(`^回复 @${binding.author}(?:$|[\\s,，、])`, "i"),
-            )
-            .waitFor({ state: "visible", timeoutMs: 5000 });
-        const composer = await this.#observe({ view: "composer" });
-        const quote =
-          composer.replyQuotes?.length === 1 ? composer.replyQuotes[0] : null;
-        if (
-          !composer.replyToId &&
-          !composer.needsStateCheck &&
-          !composer.alerts?.length &&
-          composer.editorText?.trim() === "" &&
-          composer.replyContexts?.length === 1 &&
-          composer.replyContexts[0].includes(`回复 @${binding.author}`) &&
-          /显示更多|Show more/.test(composer.replyContexts[0]) &&
-          quote?.length >= 30 &&
-          binding.body?.startsWith(quote)
-        ) {
-          // Expand the observed quote; the unchanged full-context binding gate must still pass.
-          const dialog = await this.#unique(
-            this.#locator("dialog").filter({ visible: true }),
-          );
-          const more = await this.#unique(
-            dialog.getByRole("button", { name: /^(显示更多|Show more)$/i }),
-          );
-          this.#session.current = null;
-          await more.click();
-          await this.#observe({ view: "composer" });
-        }
-      }
+      if (binding) await this.prepareReplyComposer(binding);
       // Inline replies keep the editor mounted. Wait for this submitted text to clear before
       // receipt navigation/reload can interrupt the actual submission request.
       if (submittedEditor)
@@ -184,6 +148,58 @@ export class DOMSubmission {
         transport,
       };
       throw error;
+    }
+  }
+  private async prepareReplyComposer(binding: any) {
+    this.#session.replyBinding = binding;
+    if (xURL(await this.#tab.url()).pathname === "/compose/post")
+      await this.#tab.playwright
+        .getByText(new RegExp(`^回复 @${binding.author}(?:$|[\\s,，、])`, "i"))
+        .waitFor({ state: "visible", timeoutMs: 5000 });
+    let composer = await this.#observe({ view: "composer" });
+    if (
+      composer.missing?.some((code: string) =>
+        [
+          "composer-scope-not-unique",
+          "composer-submit-scope-not-found",
+        ].includes(code),
+      )
+    )
+      throw Error(composer.missing[0]);
+    if (
+      !composer.replyToId ||
+      composer.needsStateCheck ||
+      composer.editorText == null
+    ) {
+      await this.#locator("textbox", /^(帖子文本|Post text)$/i).waitFor({
+        state: "visible",
+        timeoutMs: 5000,
+      });
+      composer = await this.#observe({ view: "composer" });
+    }
+    const quote =
+      composer.replyQuotes?.length === 1 ? composer.replyQuotes[0] : null;
+    if (
+      !composer.replyToId &&
+      !composer.needsStateCheck &&
+      !composer.alerts?.length &&
+      composer.editorText?.trim() === "" &&
+      composer.replyContexts?.length === 1 &&
+      composer.replyContexts[0].includes(`回复 @${binding.author}`) &&
+      /显示更多|Show more/.test(composer.replyContexts[0]) &&
+      quote?.length >= 30 &&
+      binding.body?.startsWith(quote)
+    ) {
+      // Expand the observed quote; the unchanged full-context binding gate must still pass.
+      const dialog = await this.#unique(
+        this.#locator("dialog").filter({ visible: true }),
+      );
+      const more = await this.#unique(
+        dialog.getByRole("button", { name: /^(显示更多|Show more)$/i }),
+      );
+      this.#session.current = null;
+      await more.click();
+      await this.#observe({ view: "composer" });
     }
   }
   private async validateReplyContext(command: any, submitted: any) {

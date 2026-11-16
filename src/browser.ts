@@ -34,9 +34,15 @@ export function readXSurface({
       .map((el: any) => el.innerText),
   };
   if (view === "composer") {
-    const dialogs = [
+    const visibleDialogs = [
       ...document.querySelectorAll<HTMLElement>('[role="dialog"]'),
-    ].filter(visible);
+    ].filter((el: any) => visible(el) && !el.closest('[aria-hidden="true"]'));
+    const dialogs = visibleDialogs.filter(
+      (dialog: any) =>
+        !visibleDialogs.some(
+          (other: any) => other !== dialog && dialog.contains(other),
+        ),
+    );
     const ids =
       dialogs.length === 1
         ? [
