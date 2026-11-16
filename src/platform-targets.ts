@@ -269,6 +269,7 @@ export class PlatformTargets {
     let value = await this.#open(target, {
       view: "posts",
       targetId: target.postId,
+      preferClientNavigation: true,
       ...(target.preferClientNavigation ? { preferObservedLink: true } : {}),
     });
     if (target.resolveQuote)
