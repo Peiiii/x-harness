@@ -76,9 +76,7 @@ export class PlatformCollections {
     let last: any,
       previousIds = "",
       offset = resume ? (this.#sourceCursor?.offset ?? 0) : 0,
-      firstDOMId: any = resume
-        ? this.#sourceCursor?.firstRenderedId
-        : undefined;
+      firstDOMId: any = resume ? this.#sourceCursor?.firstRenderedId : null;
     for (let page = 0; page < maxPages && sources.length < limit; page++) {
       last = await this.#ready({ view: "posts", offset, limit: 5 });
       if (page === 0 && resume && this.#sourceCursor?.page !== last.page) {
@@ -86,7 +84,9 @@ export class PlatformCollections {
         firstDOMId = undefined;
         last = await this.#ready({ view: "posts", offset, limit: 5 });
       }
-      firstDOMId ??= last.firstRenderedId ?? last.posts?.[0]?.id;
+      // A fresh prefix read replaces the saved anchor before later offset checks.
+      if (!offset || !firstDOMId)
+        firstDOMId = last.firstRenderedId ?? last.posts?.[0]?.id;
       const empty = !offset && emptySearch(last);
       if (last.needsStateCheck || last.alerts?.length || empty)
         return {
