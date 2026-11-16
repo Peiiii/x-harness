@@ -233,7 +233,7 @@ export class PlatformWriting {
     if (
       action.kind === "reply" &&
       value.replyParentRootId !== action.postId &&
-      typeof value.replyParentEvidenceRef !== "string" &&
+      !this.hasReplyParentProof(value, action) &&
       value.replyParentRootAttempted !== true
     )
       value = await this.readReplyParentRoot(action, value, matchesContent);
@@ -287,8 +287,7 @@ export class PlatformWriting {
       matches = matches.filter(
         (post: any) =>
           post.replyToId === action.postId ||
-          (value.replyParentRootId === action.postId &&
-            typeof value.replyParentEvidenceRef === "string"),
+          this.hasReplyParentProof(value, action),
       );
     return {
       ...value,
@@ -386,6 +385,74 @@ export class PlatformWriting {
         `https://x.com/${action.accountHandle}/status/${matches[0].id}`.toLowerCase()
     );
   }
+  private hasReplyParentProof(value: any, action: any): boolean {
+    if (value.replyParentRootId !== action.postId) return false;
+    if (typeof value.replyParentEvidenceRef === "string") return true;
+    const proof = value.replyParentEvidence;
+    const candidates = (value.posts ?? []).filter((post: any) =>
+      this.matchesContent(post, action),
+    );
+    return Boolean(
+      candidates.length === 1 &&
+      candidates[0].id === proof?.child?.id &&
+      proof?.binding === "observed-root-thread-membership" &&
+      this.rootReplyProof(proof, action, proof.child?.id),
+    );
+  }
+  private rootReplyProof(replies: any, action: any, childId: string): any {
+    if (
+      replies?.needsStateCheck ||
+      replies?.alerts?.length ||
+      replies?.page !== action.url ||
+      replies?.paginationBoundary?.rootId !== action.postId ||
+      !replies?.windows?.length ||
+      replies.windows.some(
+        (window: any) =>
+          window.fresh !== true ||
+          window.needsStateCheck ||
+          window.alerts?.length ||
+          window.page !== action.url ||
+          !sameHandle(window.accountHandle, action.accountHandle),
+      )
+    )
+      return undefined;
+    for (const window of replies.windows) {
+      const parents = (window.posts ?? []).filter(
+        (post: any) => post.id === action.postId,
+      );
+      const children = (window.posts ?? []).filter(
+        (post: any) => post.id === childId && this.matchesContent(post, action),
+      );
+      const parent = parents[0],
+        child = children[0];
+      if (
+        window.threadRootPresent &&
+        window.threadConfirmed &&
+        window.threadIds?.includes(action.postId) &&
+        window.threadIds?.includes(childId) &&
+        parents.length === 1 &&
+        children.length === 1 &&
+        sameHandle(parent.author, xURL(action.url).pathname.split("/")[1]) &&
+        parent.body &&
+        !parent.needsExpansion &&
+        Number.isFinite(publicationTime(parent)) &&
+        (child.replyToId === action.postId ||
+          (child.replyToId == null &&
+            window.posts.indexOf(child) === window.posts.indexOf(parent) + 1))
+      ) {
+        const witness = { ...window, posts: [parent, child] };
+        return {
+          binding: "observed-root-thread-membership",
+          page: replies.page,
+          paginationBoundary: replies.paginationBoundary,
+          windows: [witness],
+          parent,
+          child,
+        };
+      }
+    }
+    return undefined;
+  }
   private async readReplyParentRoot(
     action: any,
     value: any,
@@ -424,13 +491,15 @@ export class PlatformWriting {
       timeBudgetMs: 30000,
       processedIds: [],
     });
+    const rootProof = this.rootReplyProof(parentReplies, action, matches[0].id);
     if (
-      parentReplies.status === "observed" &&
-      parentReplies.fresh === true &&
-      parentReplies.paginationBoundary?.rootId === action.postId &&
-      parentReplies.ids?.includes(matches[0].id) &&
-      typeof parentReplies.evidenceRef === "string" &&
-      !parentReplies.alerts?.length
+      rootProof ||
+      (parentReplies.status === "observed" &&
+        parentReplies.fresh === true &&
+        parentReplies.paginationBoundary?.rootId === action.postId &&
+        parentReplies.ids?.includes(matches[0].id) &&
+        typeof parentReplies.evidenceRef === "string" &&
+        !parentReplies.alerts?.length)
     )
       return {
         ...value,
@@ -439,6 +508,7 @@ export class PlatformWriting {
         replyReceiptEvidenceRef: value.evidenceRef,
         replyParentRootId: action.postId,
         replyParentEvidenceRef: parentReplies.evidenceRef,
+        ...(rootProof ? { replyParentEvidence: rootProof } : {}),
       };
     return { ...value, replyParentRootAttempted: true };
   }
@@ -689,13 +759,15 @@ export class PlatformWriting {
       timeBudgetMs: 30000,
       processedIds: [],
     });
+    const rootProof = this.rootReplyProof(parentReplies, action, targetId);
     if (
-      parentReplies.status === "observed" &&
-      parentReplies.fresh === true &&
-      parentReplies.paginationBoundary?.rootId === action.postId &&
-      parentReplies.ids?.includes(targetId) &&
-      typeof parentReplies.evidenceRef === "string" &&
-      !parentReplies.alerts?.length
+      rootProof ||
+      (parentReplies.status === "observed" &&
+        parentReplies.fresh === true &&
+        parentReplies.paginationBoundary?.rootId === action.postId &&
+        parentReplies.ids?.includes(targetId) &&
+        typeof parentReplies.evidenceRef === "string" &&
+        !parentReplies.alerts?.length)
     )
       return {
         ...value,
@@ -704,6 +776,7 @@ export class PlatformWriting {
         replyReceiptEvidenceRef: value.evidenceRef,
         replyParentRootId: action.postId,
         replyParentEvidenceRef: parentReplies.evidenceRef,
+        ...(rootProof ? { replyParentEvidence: rootProof } : {}),
       };
     return { ...detail, replyParentRootAttempted: true };
   }
