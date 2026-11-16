@@ -650,6 +650,7 @@ export class PlatformWriting {
         publicId: targetId,
       },
       expand: true,
+      ancestorHandle: xURL(action.url).pathname.split("/")[1],
       includeContext: true,
       includeThread: true,
     });
