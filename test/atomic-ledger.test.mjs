@@ -29,6 +29,26 @@ test("workspace root resolves relative drafts and evidence independently of the 
   assert.equal(store.evidenceExists("missing.json"), false);
   assert.equal(store.evidenceExists(undefined), false);
 });
+test("a transaction result summary cannot replace the original round ledger", async (t) => {
+  const f = fixture(t);
+  const before = readFileSync(f.ledger, "utf8");
+  await assert.rejects(
+    f.store.transaction(({ state }) => ({
+      batchId: state.batchId,
+      actionId: "incoming-reply",
+      selectedCount: 2,
+    })),
+    /轮次台账写入缺少原有数组/,
+  );
+  assert.equal(readFileSync(f.ledger, "utf8"), before);
+  await f.store.transaction(({ state }) => {
+    state.actions.push({ id: "independent-action" });
+    return state;
+  });
+  assert.ok(
+    f.read().actions.some((action) => action.id === "independent-action"),
+  );
+});
 test("an awaiting local mutation does not block another page, and independent state is merged", async (t) => {
   const f = fixture(t),
     other = storeFor(f);

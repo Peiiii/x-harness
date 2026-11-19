@@ -194,6 +194,14 @@ export class FileRoundStore implements RoundStore {
           throw new HarnessConflict("原台账已变化且缺原始快照：重新读取");
         merged = mergeLedgerValue(readRound(base), current, state);
       }
+      for (const collection of ["items", "actions"]) {
+        if (
+          Array.isArray(current[collection]) &&
+          !Array.isArray(merged[collection])
+        ) {
+          throw new TypeError(`轮次台账写入缺少原有数组：${collection}`);
+        }
+      }
       const next = text.replace(
         block,
         () => "```x-round-state\n" + JSON.stringify(merged, null, 2) + "\n```",
